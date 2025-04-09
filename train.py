@@ -292,6 +292,7 @@ class Trainer:
 
         if self.ddp:
             self.model = DDP(self.model, device_ids=[self.ddp_local_rank])
+            self.model.num_param = self.model.module.num_param
 
         self.raw_model = self.model.module if self.ddp else self.model
 
@@ -301,10 +302,7 @@ class Trainer:
 
         # Tensorboard
         if self.args.tensorboard_log:
-            if self.ddp:
-                timestamped_run_name = f"{self.model.module.num_param:.2e}_{timestamp_prefix}_{self.args.tensorboard_run_name}"
-            else:
-                timestamped_run_name = f"{self.model.num_param:.2e}_{timestamp_prefix}_{self.args.tensorboard_run_name}"
+            timestamped_run_name = f"{self.model.num_param:.2e}_{timestamp_prefix}_{self.args.tensorboard_run_name}"
             if self.args.csv_log:
                 self.args.csv_name = timestamped_run_name
             log_subpath = os.path.join(self.args.tensorboard_log_dir, timestamped_run_name)
@@ -1289,4 +1287,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
