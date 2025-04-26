@@ -62,6 +62,9 @@ class Block(nn.Module):
         else:
             self.attn = attn
 
+        self.skip_attn_res = config.skip_attn_res
+        self.skip_mlp_res = config.skip_mlp_res
+
         # Allow for sharing mlp between blocks
         if mlp is None:
             self.mlp = get_mlp_instance(config)
@@ -79,7 +82,8 @@ class Block(nn.Module):
                     x = self.ln_1(x + self.attn(x, iter_num) + self.mlp(x, iter_num))
                 else:
                     x = self.ln_1(x + self.attn(x, iter_num))
-                    x = self.ln_2(x + self.mlp(x, iter_num))
+                    mlp, mlp_res = self.mlp(x, iter_num)
+                    x = self.ln_2(x + mlp)
                 return x, mlp_res
             else:
                 if self.use_parallel_mlp:
@@ -88,10 +92,18 @@ class Block(nn.Module):
                     x = x + self.attn(ln_1, iter_num) + mlp
                     return x, mlp_res
                 else:
-                    x = x + self.attn(self.ln_1(x), iter_num)
-                    mlp, mlp_res = self.mlp(self.ln_2(x), iter_num, mlp_res)
-                    x = x + mlp
-                    return x, mlp_res
+                    x_mlp_input = self.attn(self.ln_1(x), iter_num)
+
+                    if not self.skip_attn_res:
+                        x_mlp_input = x_mlp_input + x
+                        x = x_mlp_input
+
+                    x_mlp_output, mlp_res = self.mlp(self.ln_2(x_mlp_input), iter_num, mlp_res)
+
+                    if not self.skip_mlp_res:
+                        x_mlp_output = x + x_mlp_output
+
+                    return x_mlp_output, mlp_res
 
         if self.use_gradient_checkpointing and x.requires_grad:
             return checkpoint.checkpoint(custom_forward, x, use_reentrant=False)

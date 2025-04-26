@@ -14,7 +14,12 @@ class GPTConfig:
     n_kv_group: int = 12
     n_embd: int = 768
 
-    # Attention Variation Spedcific
+    # Residual Variation Specific
+    skip_attn_res: bool = False
+    skip_mlp_res: bool = False
+
+
+    # Attention Variation Specific
 
     ## Inf attention variation
     n_qk_head_dim: int = None
@@ -93,6 +98,14 @@ class GPTConfig:
     mlp_variant: str = "mlp"
     mlp_expansion_factor: int = 4
     mlp_res: bool = False
+
+    ## Learned Rotation Options
+    learned_rotation_scaling: bool = True
+
+    ## Sequential Rotation Options
+    sequence_rotations: int = 1
+    sequence_vec_a_mag: float = 1.0
+    sequence_vec_b_mag: float = 10.0
 
     ## KAN Option
     kan_poly_order: int = 3

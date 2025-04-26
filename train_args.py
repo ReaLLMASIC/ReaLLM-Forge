@@ -130,7 +130,7 @@ def parse_args():
     training_group.add_argument('--show_heatmaps', default=False, action=argparse.BooleanOptionalAction, help="Show heatmaps (or bar charts) of top-k token probabilities.")
     training_group.add_argument('--chart_type', type=str, default='heatmap', choices=['heatmap', 'barchart'], help="Type of chart to display if --show_heatmaps is set.")
     training_group.add_argument('--last_k_tokens', type=int, default=10, help="Number of last tokens to display in heatmaps or bar charts.")
-    training_group.add_argument('--sample_file', type=str, default=None, help="Output file for inference samples (if you want to save them).")
+    training_group.add_argument('--sample_file', type=str, default="example_outputs.txt", help="Output file for inference samples (if you want to save them).")
     training_group.add_argument('--token_boundary', type=str, default=None, help="Optional separator string between emitted tokens (for decode).")
     training_group.add_argument('--num_samples', type=int, default=1, help="Number of generated samples during sampling.")
     training_group.add_argument('--temperature', type=float, default=0.8, help="Temperature for predictions (1.0 = normal, < 1.0 = less random).")
@@ -189,11 +189,29 @@ def parse_args():
 
     training_group.add_argument("--lsv_focused_training", default=False, action=argparse.BooleanOptionalAction, help="train but only unfreeze lsv")
 
+    ## Residual Options
+    model_group.add_argument('--skip_attn_res', default=False, action=argparse.BooleanOptionalAction)
+    model_group.add_argument('--skip_mlp_res', default=False, action=argparse.BooleanOptionalAction)
+
     ## MLP Options
+    mlp_variations = [
+            "mlp",
+            "kan",
+            "swiglu",
+            "learned_rotation",
+            "axis_rotation_bias",
+            "identity",
+            ]
+
     model_group.add_argument('--use_parallel_mlp', default=False, action=argparse.BooleanOptionalAction)
-    model_group.add_argument("--mlp_variant", type=str, default="mlp", choices=["mlp", "kan", "swiglu"], help="MLP variation type")
+    model_group.add_argument("--mlp_variant", type=str, default="mlp", choices=mlp_variations, help="MLP variation type")
     model_group.add_argument("--mlp_expansion_factor", type=int, default=4, help="If MLP like variant is used, set the expansion factor for the linear transformations, default is 4.")
     model_group.add_argument('--mlp_res', default=False, action=argparse.BooleanOptionalAction)
+
+    model_group.add_argument('--learned_rotation_scaling', default=True, action=argparse.BooleanOptionalAction)
+    model_group.add_argument('--sequence_rotations', type=int, default=1)
+    model_group.add_argument('--sequence_vec_a_mag', type=float, default=1.0)
+    model_group.add_argument('--sequence_vec_b_mag', type=float, default=10.0)
 
     ## KAN Options
     model_group.add_argument("--kan_poly_order", type=int, default=3, help="Order of KAN non-linearity")

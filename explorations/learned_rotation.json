@@ -1,0 +1,26 @@
+[
+  {
+    "tensorboard_run_name": ["many_heads"],
+    "max_iters": ["10000"],
+    "n_layer": ["6"],
+    "n_head": ["3","4","5"],
+    "n_embd": ["300"],
+    "attention_variant": ["infinite"],
+    "sequence_vec_a_mag": ["1.0","10.0","100.0"],
+    "sequence_vec_b_mag": ["1.0","10.0","100.0"],
+    "n_qk_head_dim": ["64"],
+    "n_v_head_dim": ["128"],
+    "block_size":["256"],
+    "device": ["cuda"],
+    "dtype": ["float16"],
+    "dataset": ["shakespeare_char"],
+    "use_rotary_embeddings": [true],
+    "compile": [true],
+    "learned_rotation_scaling": [false],
+    "mlp_variant": ["axis_rotation_bias"],
+    "skip_attn_res": [false, true],
+    "skip_mlp_res": [false, true],
+    "sequence_rotations": ["1", "2", "3", "4", "5"]
+  }
+]
+
