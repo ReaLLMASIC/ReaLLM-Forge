@@ -22,6 +22,7 @@ from collections import OrderedDict
 from model import GPT, GPTConfig
 from utils.model_info import print_summary, print_module_structure, print_model_blocks
 from variations.model_variations import model_variation_dictionary
+from benchmarks.translation import benchmark_translation
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Inference from trained models")
@@ -76,6 +77,11 @@ def parse_args():
     parser.add_argument("--eval_only", action=argparse.BooleanOptionalAction, help="Enable evaluation only mode to calculate and print validation loss")
     parser.add_argument("--eval_iters", type=int, default=250, help="iterations for evaluation")
     parser.add_argument("--eval_dataset", type=str, default=None, help="dataset for evaluation")
+
+    # Benchmarking Related
+    parser.add_argument("--benchmark_translation", action="store_true", help="Enable translation benchmarking")
+    parser.add_argument("--source_lang", type=str, default=None, help="Source language code (e.g., 'en')")
+    parser.add_argument("--target_lang", type=str, default=None, help="Target language code (e.g., 'de')")
 
     return parser.parse_args()
 
@@ -520,6 +526,23 @@ def main():
                                              args.eval_iters, args.device, ptdtype)
         print(f"Validation Loss: {val_loss:.4f}")
         return
+
+    if args.benchmark_translation:
+        if not args.eval_dataset or not args.source_lang or not args.target_lang:
+            raise ValueError("--eval_dataset, --source_lang, and --target_lang must be specified for translation benchmarking.")
+        
+        print("Starting translation benchmark...")
+        bleu_score = benchmark_translation(
+            model,
+            encode,
+            decode,
+            args.eval_dataset,
+            args.source_lang,
+            args.target_lang,
+            args.device
+        )
+
+        print(f"Translation Benchmark Complete: BLEU Score = {bleu_score:.2f}")
 
     # Prepare to store tokens/logits for optional colorization
     tokens_for_color = []
