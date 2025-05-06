@@ -192,13 +192,17 @@ class NanoGPTLM(model_api.LM):
     
     @classmethod
     def create_model(cls, model, encode_fn, decode_fn, args):
+        max_new = getattr(args, "max_benchmark_tokens", None)
+        if max_new is None:
+            max_new = getattr(args, "max_new_tokens", None)
+
         return cls(
             model=model,
             tokenizer_encode=encode_fn,
             tokenizer_decode=decode_fn,
             eot_token_id=model.config.vocab_size - 1, # |endoftext| token is the last token in GPT2
             device=args.device,
-            max_new_tokens=args.max_new_tokens,
+            max_new_tokens=max_new,
             batch_size=args.batch_size,
             temperature=args.temperature,
             top_k=args.top_k,

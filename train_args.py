@@ -40,6 +40,12 @@ def parse_args():
     training_group.add_argument('--sample_start_tokens', default='\n', type=str)
     training_group.add_argument('--sample_only', default=False, action=argparse.BooleanOptionalAction, help="Run only the sampling process and exit")
 
+    # lm_eval args
+    training_group.add_argument("--lm_eval_tasks", type=str, default=None, help="Comma-separated list of lm-eval tasks to run (e.g. arc_easy,hellaswag)")
+    training_group.add_argument('--max_benchmark_tokens', default=500, type=int, help="Max number of tokens to generate when benchmarking")
+    training_group.add_argument('--benchmark_each_eval', default=False, action=argparse.BooleanOptionalAction, help="Produce benchmarking results even if the validation loss did not improve.")
+    training_group.add_argument("--lm_eval_results_output", type=str, default="final_lm_eval", help="If set, write full lm-eval JSON to this path")
+
     # Checkpoint args
     training_group.add_argument('--save_major_ckpt_interval', default=None, type=int, help="Interval for saving major checkpoints.")
     training_group.add_argument('--only_save_checkpoint_at_end', default=False, action=argparse.BooleanOptionalAction)
