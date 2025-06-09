@@ -506,6 +506,7 @@ def parse_args():
                           "infinite",
                           "mla",
                           "co4",
+                          "log_linear",
                           ]
 
     model_group.add_argument(
@@ -550,6 +551,12 @@ def parse_args():
     model_group.add_argument("--mod_fn",       type=str, default="cooperation",
                         choices=["cooperation","tm1","tm2","tm3","tm4"],
                         help="which MOD transfer-function to use")
+
+    ## Log-Linear Attention Variations
+    model_group.add_argument("--n_log_buckets", type=int, default=None, 
+                        help="Number of logarithmic buckets for hidden states. If None, defaults to log2(block_size)")
+    model_group.add_argument("--log_linear_init_scale", type=float, default=0.02,
+                        help="Initial scale for bucket embeddings in Log-Linear attention")
 
     ## Infinite Attention variation
     model_group.add_argument('--n_qk_head_dim', default=None, type=int)

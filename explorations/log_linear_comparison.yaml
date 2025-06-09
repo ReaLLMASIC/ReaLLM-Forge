@@ -1,0 +1,49 @@
+# log_linear_comparison.yaml
+---
+# parameter_groups: define sets of overrides to apply on top of base params
+parameter_groups:
+  # Standard Causal Attention with Flash Attention (baseline)
+  - attention_variant: ["causal"]
+    disable_flash_attention: [false]
+
+  # Log-Linear Attention with different bucket configurations
+  - attention_variant: ["log_linear"]
+    n_log_buckets: [8, 10, 12]  # Testing different bucket sizes
+    log_linear_init_scale: [0.02, 0.01]  # Testing different initialization scales
+
+# base hyperparameters (smaller configuration)
+block_size: [256]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+dropout: [0.0]
+
+# Model configuration
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]  # Using only rotary embeddings
+bias: [false]
+
+# Training configuration
+dataset: ["minipile"]
+max_iters: 10000
+lr_decay_iters: 10000
+warmup_iters: 1000
+decay_lr: [true]
+eval_interval: 10000
+eta_variant: ["iteration"]
+learning_rate: [1e-4, 3e-4]
+
+# System configuration
+device: ["cuda"]
+dtype: ["bfloat16"]
+compile: [true]
+
+# Experiment tracking
+tensorboard_run_name: ["log_linear_vs_causal_study"]
+
+# Seeds for reproducibility
+seed:
+  range:
+    start: 1337
+    end: 1340
+    step: 1 

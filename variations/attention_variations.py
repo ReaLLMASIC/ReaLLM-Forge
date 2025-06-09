@@ -937,7 +937,7 @@ class MultiHeadLatentAttention(nn.Module):
         self.resid_dropout = nn.Dropout(self.dropout_p)
 
 
-        # ───────────  Quiet-Attention style “+C” denominator  ────────────
+        # ───────────  Quiet-Attention style "+" denominator  ────────────
         # Learned *per-head* constant C = exp(lobo_log)  (log-space param)
         self.use_lobo = getattr(config, "use_mla_lobo", False)
         if self.use_lobo:
@@ -996,7 +996,7 @@ class MultiHeadLatentAttention(nn.Module):
         scores = scores.masked_fill(causal == 0, float("-inf"))
 
         if self.use_lobo:
-            # ---- Quiet-Attention softmax with learned “+C” ------------------------
+            # ---- Quiet-Attention softmax with learned "+" ------------------------
             scores_max  = scores.detach().max(dim=-1, keepdim=True).values       # stability
             exp_scores  = torch.exp(scores - scores_max)                          # (B,H,T,T)
 
@@ -1105,6 +1105,91 @@ class Co4Attention(nn.Module):
         y = self.resid_dropout(self.out_proj(y))
         return y
 
+class LogLinearAttention(nn.Module):
+    """
+    Implementation of Log-Linear Attention as described in arXiv:2506.04761v1.
+    This mechanism balances linear attention's efficiency with softmax attention's
+    expressiveness by using a logarithmically growing set of hidden states.
+    """
+    def __init__(self, config, fire_pos_enc=None):
+        super().__init__()
+        assert config.n_embd % config.n_head == 0
+        
+        self.n_head = config.n_head
+        self.n_embd = config.n_embd
+        self.head_size = config.n_embd // config.n_head
+        self.dropout = config.dropout
+        
+        # Number of log-buckets for the hidden states
+        self.n_log_buckets = getattr(config, "n_log_buckets", int(math.log2(config.block_size)))
+        
+        # Linear layers for Q, K, V projections
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
+        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        
+        # Learnable scale parameter
+        self.scale = nn.Parameter(torch.tensor(1.0 / math.sqrt(self.head_size)))
+        
+        # Learnable bucket embeddings
+        self.bucket_embeddings = nn.Parameter(
+            torch.randn(self.n_log_buckets, self.head_size) / math.sqrt(self.head_size)
+        )
+        
+        # Dropout layers
+        self.attn_dropout = nn.Dropout(config.dropout)
+        self.resid_dropout = nn.Dropout(config.dropout)
+
+    def _compute_log_bucket_indices(self, seq_length):
+        """Compute logarithmic bucket indices for positions."""
+        positions = torch.arange(seq_length, device=self.bucket_embeddings.device)
+        log_positions = torch.floor(torch.log2(positions + 1)).long()
+        return torch.clamp(log_positions, 0, self.n_log_buckets - 1)
+
+    def forward(self, x, iter_num=None):
+        B, T, C = x.size()  # batch size, sequence length, embedding dimensionality
+        
+        # Project input to Q, K, V
+        qkv = self.c_attn(x)
+        q, k, v = qkv.split(self.n_embd, dim=2)
+        
+        # Reshape to (B, T, nh, hs)
+        q = q.view(B, T, self.n_head, self.head_size)
+        k = k.view(B, T, self.n_head, self.head_size)
+        v = v.view(B, T, self.n_head, self.head_size)
+        
+        # Apply scaling
+        q = q * self.scale
+        k = k * self.scale
+        
+        # Compute log bucket indices and get bucket embeddings
+        bucket_indices = self._compute_log_bucket_indices(T)
+        bucket_emb = self.bucket_embeddings[bucket_indices]  # (T, hs)
+        
+        # Add bucket embeddings to keys
+        k = k + bucket_emb.unsqueeze(0).unsqueeze(2)  # (B, T, nh, hs)
+        
+        # Transpose for attention computation
+        q = q.transpose(1, 2)  # (B, nh, T, hs)
+        k = k.transpose(1, 2)  # (B, nh, T, hs)
+        v = v.transpose(1, 2)  # (B, nh, T, hs)
+        
+        # Compute attention with log-linear hidden states
+        # First compute cumulative sums for keys and values
+        k_cumsum = k.cumsum(dim=2)  # (B, nh, T, hs)
+        kv = k * v
+        kv_cumsum = kv.cumsum(dim=2)  # (B, nh, T, hs)
+        
+        # Compute attention output using cumulative sums
+        y = torch.einsum('bhts,bhsd->bhtd', q, kv_cumsum) / (
+            torch.einsum('bhts,bhsd->bhtd', q, k_cumsum) + 1e-6
+        )
+        
+        # Reshape and project output
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        y = self.resid_dropout(self.c_proj(y))
+        
+        return y
+
 attention_dictionary = {
     "causal": CausalSelfAttention,
     "linear": LinearAttention,
@@ -1113,4 +1198,5 @@ attention_dictionary = {
     "infinite": InfiniteHeadAttention,
     "mla": MultiHeadLatentAttention,
     "co4": Co4Attention,
+    "log_linear": LogLinearAttention,
 }

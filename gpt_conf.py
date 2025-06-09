@@ -41,6 +41,10 @@ class GPTConfig:
     triadic_loops: int = None
     mod_fn: str = "causal"
 
+    ## Log-Linear attention variation
+    n_log_buckets: int = None  # Number of logarithmic buckets for hidden states
+    log_linear_init_scale: float = 0.02  # Initial scale for bucket embeddings
+
     ## Inf attention variation
     n_qk_head_dim: int = None
     n_v_head_dim: int = None
