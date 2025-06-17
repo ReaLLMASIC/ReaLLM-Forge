@@ -169,23 +169,93 @@ class TiktokenTokenizer(Tokenizer):
     def __init__(self, args):
         super().__init__(args)
         self.tiktoken_encoding = args.tiktoken_encoding
-        self.enc = tiktoken.get_encoding(self.tiktoken_encoding)
-        self.vocab_size = self.enc.n_vocab
+        
+        # Load additional tokens if provided
+        self.additional_tokens = {}
+        if hasattr(args, 'additional_tokens_file') and args.additional_tokens_file:
+            with open(args.additional_tokens_file, 'r') as f:
+                self.additional_tokens = json.load(f)
+        
+        # Get base encoding
+        base_enc = tiktoken.get_encoding(self.tiktoken_encoding)
+        
+        if self.additional_tokens:
+            # Create custom encoding with additional tokens
+            self.enc = tiktoken.Encoding(
+                name=f"{self.tiktoken_encoding}_custom",
+                pat_str=base_enc._pat_str,
+                mergeable_ranks=base_enc._mergeable_ranks,
+                special_tokens={**base_enc._special_tokens, **self.additional_tokens}
+            )
+            self.special_tokens = self.additional_tokens
+        else:
+            self.enc = base_enc
+            self.special_tokens = {}
 
     def tokenize(self, data):
-        ids = self.enc.encode_ordinary(data)
-        for token_id in ids:
-            self.record_token(token_id)
+        """Tokenize the input data using tiktoken with support for special tokens."""
+        token_ids = []
+        current_pos = 0
+        data_len = len(data)
+        
+        while current_pos < data_len:
+            # Try to match special tokens first
+            matched_special = False
+            for token, token_id in self.special_tokens.items():
+                if data.startswith(token, current_pos):
+                    token_ids.append(token_id)
+                    self.record_token(token_id)
+                    current_pos += len(token)
+                    matched_special = True
+                    break
+            
+            if not matched_special:
+                # Find the next special token or end of text
+                next_special = data_len
+                for token in self.special_tokens:
+                    pos = data.find(token, current_pos)
+                    if pos != -1 and pos < next_special:
+                        next_special = pos
+                
+                # Take the chunk up to the next special token and let tiktoken handle it
+                chunk = data[current_pos:next_special]
+                if chunk:
+                    # Use encode() for proper subword tokenization
+                    chunk_ids = self.enc.encode(chunk, allowed_special=set())
+                    token_ids.extend(chunk_ids)
+                    for token_id in chunk_ids:
+                        self.record_token(token_id)
+                current_pos = next_special
+
+        # Save metadata
         meta = {
-            "vocab_size": self.vocab_size,
+            "vocab_size": len(self.enc._mergeable_ranks) + len(self.special_tokens),
             "tokenizer": "tiktoken",
             "tiktoken_encoding": self.tiktoken_encoding,
+            "has_additional_tokens": bool(self.additional_tokens),
+            "special_tokens": self.special_tokens,
+            "itos": {i: self.enc.decode([i]) for i in set(token_ids)}
         }
         self.finalize_meta(meta)
-        return ids
+        return token_ids
 
-    def detokenize(self, ids):
-        return self.enc.decode(ids)
+    def detokenize(self, token_ids):
+        """Detokenize the token IDs back to text."""
+        result = []
+        for token_id in token_ids:
+            # Check if it's a special token
+            found = False
+            for token, special_id in self.special_tokens.items():
+                if token_id == special_id:
+                    result.append(token)
+                    found = True
+                    break
+            
+            if not found:
+                # Regular token
+                result.append(self.enc.decode([token_id]))
+        
+        return ''.join(result)
 
 
 class CustomTokenizer(Tokenizer):
