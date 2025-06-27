@@ -7,7 +7,7 @@ import tiktoken
 from tqdm import tqdm
 from collections import defaultdict
 import json
-
+from transformers import AutoTokenizer
 
 class Tokenizer:
     def __init__(self, args):
@@ -525,3 +525,43 @@ class JsonByteTokenizerWithByteFallback(Tokenizer):
 
         return ''.join(out_pieces)
 
+class Qwen2Tokenizer(Tokenizer):
+    def __init__(self, args):
+        """
+        Initialize the Qwen2Tokenizer using Hugging Face's AutoTokenizer.
+        """
+        super().__init__(args)
+        self.huggingface_model_name = f"Qwen/Qwen2-{args.qwen2_model.split('_')[1].replace('p', '.').upper()}"
+        self.tokenizer = AutoTokenizer.from_pretrained(self.huggingface_model_name)
+
+        # Save vocab size and other meta information
+        self.vocab_size = self.tokenizer.vocab_size
+        self.special_tokens = self.tokenizer.special_tokens_map
+
+    def tokenize(self, data):
+        print(f"Tokenizing data of size: {len(data)}")
+        chunk_size = 1024
+        ids = []
+        for i in range(0, len(data), chunk_size):
+            chunk = data[i:i + chunk_size]
+            ids.extend(self.tokenizer.encode(chunk, add_special_tokens=True))
+        print(f"Generated {len(ids)} token IDs.")
+        meta = {
+            "vocab_size": self.vocab_size,
+            "tokenizer": "qwen2",
+            "qwen2_model": self.huggingface_model_name,
+            "special_tokens": self.special_tokens,
+        }
+        self.save_meta(meta)
+        return ids
+
+    def detokenize(self, ids):
+        """
+        Detokenize token IDs into a string.
+        Args:
+            ids (List[int]): List of token IDs to convert back to text.
+
+        Returns:
+            str: Decoded string.
+        """
+        return self.tokenizer.decode(ids)

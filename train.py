@@ -65,6 +65,7 @@ from model import GPT, GPTConfig
 
 # Inference related imports
 import tiktoken
+from transformers import AutoTokenizer
 
 from train_args import parse_args
 
@@ -244,6 +245,7 @@ class Trainer:
             altered_model_args = {action.dest: getattr(self.args, action.dest) for action in self.model_group._group_actions if action.default != getattr(self.args, action.dest)}
             for k in altered_model_args:
                 self.model_args[k] = altered_model_args[k]
+                setattr(self.args, k, altered_model_args[k])
 
             self.load_data()
             gptconf = GPTConfig(**self.model_args)
@@ -288,6 +290,7 @@ class Trainer:
             # NOTE: the hierarchy of parameters goes: 1)variation_dict >> 2)cmd-line args >> 3)GPTConfig defaults
             for k in variation_dict:
                 self.model_args[k] = variation_dict[k]
+                setattr(self.args, k, variation_dict[k])
 
             gptconf = GPTConfig(**self.model_args)
             self.model = GPT.from_pretrained(gptconf, model_type=self.args.gpt2_type)
@@ -296,7 +299,29 @@ class Trainer:
 
             if self.args.lsv_focused_training:
                 self.model.freeze_non_lsv_parameters()
+            self.optimizer = self.create_optimizer()
+            self.scaler = torch.amp.GradScaler(self.device_type, enabled=(self.args.dtype == 'float16'))
+            self.scheduler = self.create_scheduler()
 
+        elif self.args.init_from.startswith('qwen2'):
+
+            assert self.args.qwen2_model in model_variation_dictionary
+
+            self.iter_num = 0 # for starting from scratch
+            self.best_val_loss = 1e9 # really big number
+
+            variation_dict, huggingface_name = model_variation_dictionary[self.args.qwen2_model]
+            # NOTE: the hierarchy of parameters goes: 1)variation_dict >> 2)cmd-line args >> 3)GPTConfig defaults
+            for k in variation_dict:
+                self.model_args[k] = variation_dict[k]
+                setattr(self.args, k, variation_dict[k])
+
+            gptconf = GPTConfig(**self.model_args)
+            self.model = GPT.from_pretrained_qwen(gptconf, model_type=huggingface_name)
+            self.load_data()
+
+            if self.args.lsv_focused_training:
+                self.model.freeze_non_lsv_parameters()
             self.optimizer = self.create_optimizer()
             self.scaler = torch.amp.GradScaler(self.device_type, enabled=(self.args.dtype == 'float16'))
             self.scheduler = self.create_scheduler()
@@ -413,6 +438,11 @@ class Trainer:
                 self.stoi, self.itos = meta['stoi'], meta['itos']
                 self.encode = lambda s: [self.stoi[c] for c in s]
                 self.decode = lambda l: ''.join([self.itos[i] for i in l])
+            elif 'tokenizer' in meta and meta['tokenizer'] == 'qwen2':
+                tokenizer = AutoTokenizer.from_pretrained(meta["qwen2_model"], trust_remote_code=True)
+                self.encode = lambda s: tokenizer.encode(s, add_special_tokens=True)
+                self.decode = lambda l: tokenizer.decode(l)
+                print(f"Using Qwen2 tokenizer: {meta['qwen2_model']}")
             elif 'tokenizer' in meta and meta['tokenizer'] == 'custom_char_with_byte_fallback':
                 self.stoi = meta['stoi']
                 self.itos = meta['itos']
@@ -540,7 +570,6 @@ class Trainer:
                 self.vocab_sizes[d] for d in self.args.multicontext_datasets
             ]
 
-            # Let the first of the vocab sizes be used for calculation of btc
             self.model_args['vocab_size'] = self.model_args['vocab_sizes'][0]
         if self.args.training_mode == 'multidataset':
             self.train_data_dict = {}
@@ -562,8 +591,9 @@ class Trainer:
                 # Load train and val data for each dataset
                 if self.model_args['vocab_size'] is None:
                     sys.exit("Error: no vocab size specified")
-                elif self.model_args['vocab_size'] == 100277:
+                elif self.model_args['vocab_size'] > 65536:
                     # cl100k_base, vocab size 100277, requires np.uint32
+                    # Qwen2, vocab size 152064 or 151936, requires np.uint32
                     train_data = np.memmap(os.path.join('data', dataset, 'train.bin'), dtype=np.uint32, mode='r')
                     val_data = np.memmap(os.path.join('data', dataset, 'val.bin'), dtype=np.uint32, mode='r')
                 else:
@@ -582,8 +612,9 @@ class Trainer:
 
             if self.model_args['vocab_size'] is None:
                 sys.exit("Error: no vocab size specified")
-            elif self.model_args['vocab_size'] == 100277:
+            elif self.model_args['vocab_size'] > 65536:
                 # cl100k_base, vocab size 100277, requires np.uint32
+                # Qwen2, vocab size 152064 or 151936, requires np.uint32
                 self.train_data = np.memmap(os.path.join('data', self.args.dataset, 'train.bin'), dtype=np.uint32, mode='r')
                 self.val_data = np.memmap(os.path.join('data', self.args.dataset, 'val.bin'), dtype=np.uint32, mode='r')
             else:

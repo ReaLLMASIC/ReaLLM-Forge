@@ -37,6 +37,7 @@ from variations.position_encoding_variations import QuantizedEmbedding, RotaryEm
 from variations.activation_variations import activation_dictionary
 from variations.linear_variations import linear_dictionary
 from variations.router_variations import router_dictionary
+from variations.from_pretrained_variations import from_pretrained, from_pretrained_qwen
 from quantization.quantize import quantize_dictionary, dequantize, fake_quantize_act
 from quantization.quant_utils import set_variant, create_activation_buffers
 
@@ -139,6 +140,9 @@ class LearnedPositionEmbedding(nn.Module):
         return x
 
 class GPT(nn.Module):
+
+    from_pretrained = classmethod(from_pretrained)
+    from_pretrained_qwen = classmethod(from_pretrained_qwen)
 
     def __init__(self, config):
         super().__init__()
@@ -764,69 +768,6 @@ class GPT(nn.Module):
         for block in self.transformer.h:
             if hasattr(block.attn, 'bias'):
                 block.attn.bias = block.attn.bias[:,:,:block_size,:block_size]
-
-    @classmethod
-    def from_pretrained(cls, config, model_type):
-        # assert model_type in {'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'}
-        from transformers import GPT2LMHeadModel
-
-        print(f"loading weights from pretrained gpt: {model_type}")
-
-        # create a from-scratch initialized minGPT model
-        model = GPT(config)
-        model_hf = GPT2LMHeadModel.from_pretrained(model_type)
-
-        sd = model.state_dict()
-        sd_keys = sd.keys()
-        sd_keys = [k for k in sd_keys if not k.endswith('.attn.bias')] # discard this mask / buffer, not a param
-
-        # init a huggingface/transformers model
-        model_hf = GPT2LMHeadModel.from_pretrained(model_type)
-        sd_hf = model_hf.state_dict()
-
-        # copy while ensuring all of the parameters are aligned and match in names and shapes
-        sd_keys_hf = sd_hf.keys()
-        sd_keys_hf = [k for k in sd_keys_hf if not k.endswith('.attn.masked_bias')] # ignore these, just a buffer
-        sd_keys_hf = [k for k in sd_keys_hf if not k.endswith('.attn.bias')] # same, just the mask (buffer)
-        transposed = ['attn.c_proj.weight', 'mlp.c_fc.weight', 'mlp.c_proj.weight']
-        # basically the openai checkpoints use a "Conv1D" module, but we only want to use a vanilla Linear
-        # this means that we have to transpose these weights when we import them
-        # NOTE: the assert below will fail because we split out the c_attn linears!
-        # assert len(sd_keys_hf) == len(sd_keys), f"mismatched keys: {len(sd_keys_hf)} != {len(sd_keys)}"
-        for key in sd_keys_hf:
-            if any(key.endswith(w) for w in transposed):
-                # special treatment for the Conv1D weights we need to transpose
-                assert sd_hf[key].shape[::-1] == sd[key].shape
-                with torch.no_grad():
-                    sd[key].copy_(sd_hf[key].t())
-            elif key.endswith('attn.c_attn.weight') or key.endswith('attn.c_attn.bias'):
-                # split into c_attn_q/k/v
-                q, k, v  = sd_hf[key].t().split(config.n_embd, dim=0)
-                q_key_str = key.replace("c_attn", "c_attn_q")
-                k_key_str = key.replace("c_attn", "c_attn_k")
-                v_key_str = key.replace("c_attn", "c_attn_v")
-                sd[q_key_str] = q
-                sd[k_key_str] = k
-                sd[v_key_str] = v
-            else:
-                # vanilla copy over the other parameters
-                print(key)
-                if config.n_embd_wte:
-                    if key == "transformer.wte.weight":
-                        continue
-                    if key == "lm_head.weight":
-                        continue
-
-                if not config.use_abs_pos_embeddings:
-                    if key == "transformer.wpe.weight":
-                        continue
-
-                assert sd_hf[key].shape == sd[key].shape
-                with torch.no_grad():
-                    print(key)
-                    sd[key].copy_(sd_hf[key])
-
-        return model
 
     def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
         # start with all of the candidate parameters

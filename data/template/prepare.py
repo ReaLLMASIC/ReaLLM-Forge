@@ -1,15 +1,17 @@
 # prepare.py
 import json
 import os
+import pickle
 import argparse
 import numpy as np
-from tokenizers import (
+from tokenizer_options import (
     NumericRangeTokenizer,
     SentencePieceTokenizer,
     TiktokenTokenizer,
     CustomTokenizer,
     CharTokenizer,
     CustomCharTokenizerWithByteFallback,
+    Qwen2Tokenizer,
     JsonByteTokenizerWithByteFallback,
 )
 from tqdm import tqdm
@@ -17,7 +19,7 @@ from tqdm import tqdm
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Tokenize text data using different methods.")
     parser.add_argument("--tokens_file", type=str, default=None, help="Path to the file containing newline-separated tokens for tokenization")
-    parser.add_argument("--method", type=str, choices=["sentencepiece", "tiktoken", "char", "custom", "custom_char_byte_fallback", "numeric_range", "json_byte_fallback"], default="tiktoken", help="Tokenization method")
+    parser.add_argument("--method", type=str, choices=["sentencepiece", "tiktoken", "char", "custom", "custom_char_byte_fallback", "numeric_range", "json_byte_fallback", "qwen2"], default="tiktoken", help="Tokenization method")
     # SentencePiece only arguments
     parser.add_argument("--vocab_size", type=int, default=500, help="Vocabulary size for SentencePiece model")
     parser.add_argument("--spm_model_file", type=str, default=None, help="Path to the pre-trained SentencePiece model file")
@@ -41,6 +43,13 @@ def parse_arguments():
     parser.add_argument("--numeric_range", action="store_true", help="Use numeric range tokenization method")
     parser.add_argument("--min_token", type=int, default=0, help="Minimum value for numeric tokens")
     parser.add_argument("--max_token", type=int, default=65535, help="Maximum value for numeric tokens")
+    # Qwen2 tokenizer arguments
+    parser.add_argument("--qwen2_model",
+        type=str,
+        choices=['qwen2_0p5b', 'qwen2_1p5b', 'qwen2_7b'],
+        default="qwen2_1p5b",
+        help="Model for qwen2 tokenization",
+    )
     # tokenizer counts
     parser.add_argument("--json_tokens_file", type=str, default=None, help="Path to the JSON file containing an array of tokens for json_byte_fallback mode")
     parser.add_argument("-T", "--track_token_counts", action="store_true", help="Track how often each token appears and store in meta.pkl")
@@ -93,6 +102,8 @@ def main():
         tokenizer = CharTokenizer(args, train_data, val_data)
     elif args.method == "custom_char_byte_fallback":
         tokenizer = CustomCharTokenizerWithByteFallback(args)
+    elif args.method == "qwen2":
+        tokenizer = Qwen2Tokenizer(args)
     elif args.method == "json_byte_fallback":
         tokenizer = JsonByteTokenizerWithByteFallback(args)
     else:
@@ -114,10 +125,17 @@ def main():
                 batch = ids[i:i+batch_size]
                 np.array(batch, dtype=dtype).tofile(f_out)
 
-    if (args.method == "tiktoken" and args.tiktoken_encoding == "cl100k_base") or (args.method == "numeric_range" and args.max_token > 65535):
-        dtype = np.uint32
+    if os.path.exists("meta.pkl"):
+        with open("meta.pkl", "rb") as f:
+            meta = pickle.load(f)
+
+        # Check the vocab size in the loaded meta
+        if meta["vocab_size"] > 65536:
+            dtype = np.uint32
+        else:
+            dtype = np.uint16
     else:
-        dtype = np.uint16
+        raise FileNotFoundError("A meta.pkl file was not created properly. Please ensure it exists in the current directory.")
 
     save_tokens(train_ids, args.train_output, dtype)
     if val_data and val_ids:

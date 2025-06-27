@@ -5,13 +5,14 @@ import os
 import sys
 import pickle
 import json
-from tokenizers import (
+from tokenizer_options import (
     NumericRangeTokenizer,
     SentencePieceTokenizer,
     TiktokenTokenizer,
     CustomTokenizer,
     CharTokenizer,
     CustomCharTokenizerWithByteFallback,
+    Qwen2Tokenizer,
     JsonByteTokenizerWithByteFallback,
 )
 from argparse import Namespace
@@ -249,6 +250,22 @@ class TestTokenizers(unittest.TestCase):
         # Clean up
         if os.path.exists(args.custom_chars_file):
             os.remove(args.custom_chars_file)
+
+    def test_qwen2_tokenizer(self):
+        args = Namespace(qwen2_model="qwen2_0p5b")
+        tokenizer = Qwen2Tokenizer(args)
+        
+        # Tokenize
+        ids = tokenizer.tokenize(self.sample_text)
+        detokenized = tokenizer.detokenize(ids)
+
+        console.print("[input]Input:[/input]")
+        console.print(self.sample_text, style="input")
+        console.print("[output]Detokenized Output:[/output]")
+        console.print(detokenized, style="output")
+
+        # Assert that detokenized text matches original
+        self.assertEqual(self.sample_text, detokenized)
 
     def test_json_byte_tokenizer_with_byte_fallback(self):
         # Create a temporary JSON file with test tokens
