@@ -199,7 +199,7 @@ class GPTConfig:
 
     ## ConSmaxV2 Special Options
     consmax_per_head: bool = True # different beta gamma per head
-    consmax_v2_clamping: bool = True
+    consmax_v2_clamping: bool = False
     consmax_v2_clamp_value: float = 80.0
 
     ## SaturatingConSmax Special options (otherwise same as ConSmax)
