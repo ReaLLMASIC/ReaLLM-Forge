@@ -37,6 +37,22 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
+
+def _abbr(name: str) -> str:
+    """Abbreviate a tensor type name.
+
+    Uses first letter, letters following '.' or '_', and last letter.
+    Example: ``attn.c_attn_k`` -> ``acak``.
+    """
+    if not name:
+        return ""
+    chars = [name[0]]
+    for i in range(1, len(name)):
+        if name[i - 1] in {".", "_"}:
+            chars.append(name[i])
+    chars.append(name[-1])
+    return "".join(chars)
+
 import yaml
 import math
 from textual.app import App, ComposeResult
@@ -166,7 +182,56 @@ class MonitorApp(App):
             keys.update(entry.get("config", {}).keys())
         self.param_keys = sorted(keys)
         # Base columns: metrics + parameters
-        base_cols = ["best_val_loss", "best_val_iter", "num_params", "peak_gpu_mb", "iter_latency_avg"] + self.param_keys
+        base_cols = [
+            "best_val_loss",
+            "best_val_iter",
+            "num_params",
+            "peak_gpu_mb",
+            "iter_latency_avg",
+        ]
+
+        optional_metrics = [
+            "weight_stdev",
+            "weight_kurtosis",
+            "weight_max",
+            "weight_min",
+            "weight_abs_max",
+            "activation_stdev",
+            "activation_kurtosis",
+            "activation_max",
+            "activation_min",
+            "activation_abs_max",
+        ]
+
+        for key in optional_metrics:
+            if any(key in entry for entry in self.original_entries):
+                base_cols.append(key)
+
+        # ── Collect weight/activation tensor types across runs ──
+        self.type_col_map: dict[str, tuple[str, str, str]] = {}
+
+        weight_types: set[str] = set()
+        act_types: set[str] = set()
+        for entry in self.original_entries:
+            wts = entry.get("weight_type_stats") or {}
+            ats = entry.get("activation_type_stats") or {}
+            weight_types.update(wts.keys())
+            act_types.update(ats.keys())
+
+        def _add_type_cols(prefix: str, types: set[str], key: str):
+            for tname in sorted(types):
+                abbr = _abbr(tname)
+                col_mean = f"{prefix}{abbr}_kmn"
+                col_max = f"{prefix}{abbr}_kmx"
+                base_cols.append(col_mean)
+                base_cols.append(col_max)
+                self.type_col_map[col_mean] = (key, tname, "kurtosis_mean")
+                self.type_col_map[col_max] = (key, tname, "kurtosis_max")
+
+        _add_type_cols("wts_", weight_types, "weight")
+        _add_type_cols("ats_", act_types, "activation")
+
+        base_cols += self.param_keys
         self.all_columns = base_cols.copy()
         self.columns = base_cols.copy()
         # Load persisted layout if exists
@@ -207,8 +272,32 @@ class MonitorApp(App):
 
     def get_cell(self, entry: Dict, col_name: str):
         """Retrieve the value for a given column in an entry."""
-        if col_name in ("best_val_loss", "best_val_iter", "num_params", "peak_gpu_mb", "iter_latency_avg"):
+        metric_cols = {
+            "best_val_loss",
+            "best_val_iter",
+            "num_params",
+            "peak_gpu_mb",
+            "iter_latency_avg",
+            "weight_stdev",
+            "weight_kurtosis",
+            "weight_max",
+            "weight_min",
+            "weight_abs_max",
+            "activation_stdev",
+            "activation_kurtosis",
+            "activation_max",
+            "activation_min",
+            "activation_abs_max",
+        }
+
+        if col_name in metric_cols:
             return entry.get(col_name)
+
+        if col_name in self.type_col_map:
+            kind, tname, stat = self.type_col_map[col_name]
+            stats = entry.get(f"{kind}_type_stats", {})
+            return stats.get(tname, {}).get(stat)
+
         return entry.get("config", {}).get(col_name)
 
     # ──────────────────────── async worker for “E” export ────────────────────────

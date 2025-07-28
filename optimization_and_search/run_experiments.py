@@ -23,6 +23,20 @@ METRIC_KEYS = [
     "btc_per_param",
     "peak_gpu_mb",
     "iter_latency_avg",
+    # Optional weight statistics
+    "weight_stdev",
+    "weight_kurtosis",
+    "weight_max",
+    "weight_min",
+    "weight_abs_max",
+    # Optional activation statistics
+    "activation_stdev",
+    "activation_kurtosis",
+    "activation_max",
+    "activation_min",
+    "activation_abs_max",
+    "weight_type_stats",
+    "activation_type_stats",
 ]
 
 
@@ -141,21 +155,44 @@ def format_run_name(combo: dict, base: str, prefix: str) -> str:
 
 
 def read_metrics(out_dir: str) -> dict:
-    """
-    Read best_val_loss_and_iter.txt and parse five metrics.
+    """Read ``best_val_loss_and_iter.txt`` and return parsed metrics.
 
-    Returns:
-        Dict with keys: best_val_loss, best_val_iter, num_params,
-        better_than_chance, btc_per_param.
+    The metrics file may contain only the base metrics or the extended list with
+    weight/activation statistics.  Missing values are filled with ``NaN``.
     """
     path = Path(out_dir) / METRICS_FILENAME
     if not path.exists():
         raise FileNotFoundError(f"Metrics file not found: {path}")
-    line = path.read_text().strip()
-    parts = [p.strip() for p in line.split(',')]
+    text = path.read_text().strip()
 
-    casts = [float, int, int, float, float, float, float]
-    return {k: typ(v) for k, typ, v in zip(METRIC_KEYS, casts, parts)}
+    # New JSON/YAML format
+    if text.startswith("{") or text.startswith("---"):
+        try:
+            return yaml.safe_load(text)
+        except yaml.YAMLError:
+            raise ValueError(f"Failed to parse metrics file: {path}")
+
+    # Old comma-separated format
+    parts = [p.strip() for p in text.split(',')]
+
+    casts = [
+        float,  # best_val_loss
+        int,    # best_val_iter
+        int,    # num_params
+    ] + [float] * (len(METRIC_KEYS) - 3)
+
+    metrics: dict[str, float | int] = {}
+    for key, typ, part in zip(METRIC_KEYS, casts, parts):
+        try:
+            metrics[key] = typ(part)
+        except ValueError:
+            metrics[key] = float("nan")
+
+    if len(parts) < len(METRIC_KEYS):
+        for key in METRIC_KEYS[len(parts):]:
+            metrics[key] = float("nan")
+
+    return metrics
 
 
 def completed_runs(log_file: Path) -> set[str]:
