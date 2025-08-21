@@ -92,6 +92,33 @@ class GPT(nn.Module):
 
         self.config = config
 
+        config.numerical_mlp_hidden_dim = 64
+        config.numerical_multicontext = True
+
+        # For numerical_multicontext, define per-index MLPs
+        if config.numerical_multicontext:
+            self.numerical_embeddings = nn.ModuleDict()
+            for i in range(len(config.vocab_sizes)):
+                self.numerical_embeddings[str(i)] = nn.Sequential(
+                    nn.Linear(1, config.numerical_mlp_hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(config.numerical_mlp_hidden_dim, config.numerical_mlp_hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(config.numerical_mlp_hidden_dim, config.n_embd)
+                )
+
+        # Optional regression output heads
+        if config.numerical_multicontext:
+            self.output_mlp = nn.ModuleDict()
+            for i in range(len(config.vocab_sizes)):
+                self.output_mlp[str(i)] = nn.Sequential(
+                    nn.Linear(config.n_embd, config.numerical_mlp_hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(config.numerical_mlp_hidden_dim, config.numerical_mlp_hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(config.numerical_mlp_hidden_dim, 1)  # Output is scalar
+                )
+
         # Final-logit softcapping
         self.final_logit_softcapping = config.final_logit_softcapping
 
@@ -374,10 +401,15 @@ class GPT(nn.Module):
 
             # Add all of the input tokens
             for i, tokens in enumerate(token_list):
-                if i == 0:
-                    x = self.transformer[f'wte_{i}'](tokens)
+                if self.config.numerical_multicontext:
+                    # Convert token indices to float16 for numerical representation
+                    numeric_input = tokens.half().unsqueeze(-1)  # (B,T,1)
+                    mlp = self.numerical_embeddings[str(i)]
+                    token_repr = mlp(numeric_input)  # (B,T,E)
                 else:
-                    x += self.transformer[f'wte_{i}'](tokens)
+                    token_repr = self.transformer[f'wte_{i}'](tokens)
+
+                x = token_repr if x is None else x + token_repr
 
             if self.config.use_embedding_scale:
                 x = x * self.embedding_scale
@@ -456,36 +488,61 @@ class GPT(nn.Module):
 
             # 5. Compute separate logits
             logits = []
-            for i in range(len(token_list)):
-                logits.append(self.transformer[f'lm_head_{i}'](x))
-
-            # Soft‑cap **each** logits tensor (training & inference)
-            if self.config.final_logit_softcapping is not None:
-                logits = [
-                    torch.tanh(logit_var / self.config.final_logit_softcapping) *
-                    self.config.final_logit_softcapping
-                    for logit_var in logits
-                ]
-
-            # 6. Compute losses if targets are provided
-            # If we only want the last token, adapt the slices as you prefer
-            losses = None
-            if target_list is not None:
-                # If we do want to compute losses for each context
-                losses = []
+            losses = []
+            if self.config.numerical_multicontext:
                 for i in range(len(token_list)):
-                    loss_i = F.cross_entropy(
-                        logits[i].view(-1, logits[i].size(-1)),
-                        target_list[i].view(-1),
-                        ignore_index=-1
-                    )
-                    losses.append(loss_i)
+                    # Use MLP per context index for regression
+                    out_mlp = self.output_mlp[str(i)]
+                    pred = out_mlp(x).squeeze(-1)  # Shape: (B, T)
+                    logits.append(pred)
 
+                    if target_list is not None:
+                        # Convert token index to float
+                        target_float = target_list[i].float()
+                        mask = (target_list[i] != -1)  # Ignore padding
+
+                        if mask.sum() == 0:
+                            # All targets are masked
+                            losses.append(torch.tensor(0.0, device=pred.device))
+                        else:
+                            # Huber loss on valid entries
+                            loss_i = F.huber_loss(
+                                pred[mask],
+                                target_float[mask],
+                                delta=1.0,
+                                reduction="mean"
+                            )
+                            losses.append(loss_i)
             else:
-                # only forward lm head on very last position in inference mode
                 for i in range(len(token_list)):
-                    logits.append(self.transformer[f'lm_head_{i}'](x[:, [-1], :]))
-                losses = None
+                    logits.append(self.transformer[f'lm_head_{i}'](x))
+
+                # Soft‑cap **each** logits tensor (training & inference)
+                if self.config.final_logit_softcapping is not None:
+                    logits = [
+                        torch.tanh(logit_var / self.config.final_logit_softcapping) *
+                        self.config.final_logit_softcapping
+                        for logit_var in logits
+                    ]
+
+                # 6. Compute losses if targets are provided
+                # If we only want the last token, adapt the slices as you prefer
+                if target_list is not None:
+                    # If we do want to compute losses for each context
+                    losses = []
+                    for i in range(len(token_list)):
+                        loss_i = F.cross_entropy(
+                            logits[i].view(-1, logits[i].size(-1)),
+                            target_list[i].view(-1),
+                            ignore_index=-1
+                        )
+                        losses.append(loss_i)
+
+                else:
+                    # only forward lm head on very last position in inference mode
+                    for i in range(len(token_list)):
+                        logits.append(self.transformer[f'lm_head_{i}'](x[:, [-1], :]))
+                    losses = None
 
             return logits, losses
 
@@ -937,3 +994,50 @@ class GPT(nn.Module):
                     return idx, generated_text
 
         return idx, generated_text
+
+    @staticmethod
+    def _fp16bits_to_fp32(bits: torch.Tensor) -> torch.Tensor:
+        """
+        Convert a *bit‑pattern* (uint16/ int / long) that encodes an IEEE‑754
+        half‑precision number to fp32 **without changing the underlying value**.
+        Operates fully on‑device.
+          bits : (...,) integer tensor whose *bit pattern* is the half float
+        returns: (...,) fp32 tensor
+        """
+        # Ensure 16‑bit unsigned for bit‑ops
+        b = bits.to(torch.int32)
+
+        sign     = (b >> 15) & 0x1
+        exponent = (b >> 10) & 0x1F
+        mantissa =  b        & 0x3FF
+
+        sign_f = torch.where(sign == 0, 1.0, -1.0).to(torch.float32)
+
+        # Three cases: sub‑normal, normal, special (Inf/NaN)
+        # Sub‑normal (exp == 0, mant ≠ 0)
+        subnormal = (exponent == 0) & (mantissa != 0)
+        normal    = (exponent > 0)  & (exponent < 0x1F)
+        special   = exponent == 0x1F
+
+        out = torch.zeros_like(sign_f, dtype=torch.float32)
+
+        # sub‑normal: 2^(−14) × (mantissa / 2^10)
+        if subnormal.any():
+            man = mantissa[subnormal].to(torch.float32)
+            out[subnormal] = sign_f[subnormal] * torch.pow(2.0, -14) * (man / 1024.0)
+
+        # normal:  (1 + mant/2^10) × 2^(exp−15)
+        if normal.any():
+            man = mantissa[normal].to(torch.float32)
+            exp = exponent[normal].to(torch.float32)
+            out[normal] = sign_f[normal] * torch.pow(2.0, exp - 15.0) * (1.0 + man / 1024.0)
+
+        # special (Inf / NaN)
+        if special.any():
+            man = mantissa[special]
+            out[special] = torch.where(man == 0,
+                                       sign_f[special] * torch.tensor(float("inf"), device=bits.device),
+                                       torch.tensor(float("nan"), device=bits.device))
+
+        return out
+

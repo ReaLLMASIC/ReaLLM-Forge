@@ -89,6 +89,10 @@ def parse_args():
     training_group.add_argument("--seed", default=1337, type=int)
 
     # Multicontext Training Dataset args
+    model_group.add_argument('--numerical_multicontext', default=False, action=argparse.BooleanOptionalAction)
+    model_group.add_argument('--numerical_mlp_hidden_dim', default=64, type=int)
+
+    # Multicontext Training Dataset args
     model_group.add_argument('--multicontext', default=False, action=argparse.BooleanOptionalAction,
                                     help="Enable multi-context training on multiple simultaneous datasets")
     model_group.add_argument('--multidataset_wte', default=False, action=argparse.BooleanOptionalAction,

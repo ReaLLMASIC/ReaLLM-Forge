@@ -15,6 +15,10 @@ class GPTConfig:
     n_embd: int = 768
     mlp_down_projs: int = 1  # Number of down projections in MLP/SwiGLU
 
+    # numerical multicontext
+    numerical_multicontext: bool = False
+    numerical_mlp_hidden_dim: int = 64
+
     # Layerlists
     n_head_layerlist: List[int] = field(default_factory=list)
     n_qk_head_dim_layerlist: List[int] = field(default_factory=list)

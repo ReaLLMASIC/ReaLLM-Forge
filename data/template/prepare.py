@@ -10,6 +10,7 @@ from tokenizers import (
     CharTokenizer,
     CustomCharTokenizerWithByteFallback,
     JsonByteTokenizerWithByteFallback,
+    SineWaveTokenizer,
 )
 from tqdm import tqdm
 import pickle
@@ -26,8 +27,15 @@ def parse_arguments():
 
     # Tokenizer selection and configuration
     parser.add_argument("--method", type=str,
-                       choices=["sentencepiece", "tiktoken", "char", "custom", "custom_char_byte_fallback", "json_byte_fallback"],
+                       choices=["sentencepiece", "tiktoken", "char", "custom", "custom_char_byte_fallback", "json_byte_fallback", "sinewave"],
                        default="tiktoken", help="Tokenization method")
+
+    # Sine wave tokenizer parameters
+    parser.add_argument("--sine_period", type=float, default=1.0)
+    parser.add_argument("--sine_points_per_period", type=int, default=64)
+    parser.add_argument("--sine_num_periods", type=int, default=10)
+    parser.add_argument("--sine_amplitude", type=float, default=50.0)
+
 
     # SentencePiece arguments
     parser.add_argument("--vocab_size", type=int, default=500, help="Vocabulary size for SentencePiece model")
@@ -68,20 +76,28 @@ def main():
     args = parse_arguments()
 
     # Load training data
-    with open(args.train_input, 'r') as f:
-        train_data = f.read()
+    if args.method == "sinewave":
+        train_data = None
+        val_data = None
+    else:
+        with open(args.train_input, 'r') as f:
+            train_data = f.read()
 
     # Handle validation data based on mode
-    if args.val_input:
-        # Direct train/val files mode
-        with open(args.val_input, 'r') as f:
-            val_data = f.read()
+    if args.method == "sinewave":
+        train_data = None
+        val_data = None
     else:
-        # Automatic splitting mode
-        n = len(train_data)
-        train_data, val_data = train_data[:int(n * args.percentage_train)], train_data[int(n * args.percentage_train):]
-        if args.percentage_train == 1.0:
-            val_data = None
+        if args.val_input:
+            with open(args.val_input, 'r') as f:
+                val_data = f.read()
+        else:
+            # Automatic splitting mode for text-based input
+            n = len(train_data)
+            train_data, val_data = train_data[:int(n * args.percentage_train)], train_data[int(n * args.percentage_train):]
+            if args.percentage_train == 1.0:
+                val_data = None
+
 
     # Initialize tokenizer based on method
     if args.method == "sentencepiece":
@@ -96,23 +112,53 @@ def main():
         tokenizer = CustomCharTokenizerWithByteFallback(args)
     elif args.method == "json_byte_fallback":
         tokenizer = JsonByteTokenizerWithByteFallback(args)
+    elif args.method == "sinewave":
+        from tokenizers import SineWaveTokenizer
+        tokenizer = SineWaveTokenizer(args)
     else:
         raise ValueError(f"Unknown tokenization method: {args.method}")
 
     # Tokenize data
     train_ids = tokenizer.tokenize(train_data)
-    val_ids = tokenizer.tokenize(val_data) if val_data is not None else None
+    if args.method == "sinewave" and args.val_input is None:
+        # if sinewave, manually split sine wave
+        split_point = int(len(train_ids) * args.percentage_train)
+        val_ids = train_ids[split_point:]
+        train_ids = train_ids[:split_point]
+    elif val_data is not None:
+        val_ids = tokenizer.tokenize(val_data)
+    else:
+        val_ids = None
 
     # Determine dtype based on vocabulary size from meta.pkl
-    with open("meta.pkl", "rb") as f:
-        meta = pickle.load(f)
-    vocab_size = meta["vocab_size"]
-    dtype = np.uint32 if vocab_size > 65535 else np.uint16
+    if args.method == "sinewave":
+        dtype = np.uint16
+    else:
+        with open("meta.pkl", "rb") as f:
+            meta = pickle.load(f)
+        vocab_size = meta["vocab_size"]
+        dtype = np.uint32 if vocab_size > 65535 else np.uint16
+
+    # Ensure output directories exist
+    for output_path in [args.train_output, args.val_output]:
+        if output_path is not None:
+            output_dir = os.path.dirname(output_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
 
     # Save tokenized data
     save_tokens(train_ids, args.train_output, dtype)
     if val_ids is not None:
         save_tokens(val_ids, args.val_output, dtype)
+
+    # Save minimal meta.pkl for sinewave if it doesn't exist
+    if args.method == "sinewave":
+        meta = {
+            "tokenizer": "sinewave",
+            "vocab_size": 256,  # Or set to max(train_ids) + 1 if you want to be more precise
+        }
+        with open("meta.pkl", "wb") as f:
+            pickle.dump(meta, f)
 
     # Save additional metadata for tiktoken if needed
     if args.method == "tiktoken" and args.additional_tokens_file:

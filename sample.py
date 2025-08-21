@@ -834,6 +834,11 @@ def get_tokenizer_functions(meta):
         decode = lambda l: ''.join([itos[i] for i in l])
         return encode, decode
 
+    if meta['tokenizer'] == "sinewave":
+        def encode_fn(s): return [int(v) for v in s.strip().split(',')]
+        def decode_fn(lst): return ','.join(str(v) for v in lst)
+        return encode_fn, decode_fn
+
     if meta['tokenizer'] == 'tiktoken':
         enc = tiktoken.get_encoding(meta['tiktoken_encoding'])
         encode = lambda s: enc.encode(s, allowed_special={""})
