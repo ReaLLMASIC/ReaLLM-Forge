@@ -619,6 +619,40 @@ class Squareplus(nn.Module):
 
         return result
 
+# Stablemax from "Grokking at the Edge of Numerical Stability" (2025)
+class Stablemax(nn.Module):
+    def __init__(self, config, dim=-1):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        s = torch.where(x >= 0, x + 1, 1 / (1 - x))
+        return s / s.sum(dim=self.dim, keepdim=True)
+
+
+# Sparsemax projection
+class Sparsemax(nn.Module):
+    def __init__(self, config, dim=-1):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, input):
+        dim = self.dim
+        original_size = input.size()
+        input = input.transpose(dim, -1)
+        input = input.reshape(-1, input.size(-1))
+
+        z_sorted, _ = torch.sort(input, descending=True, dim=-1)
+        z_cumsum = torch.cumsum(z_sorted, dim=-1)
+        k = torch.arange(1, input.size(-1) + 1, device=input.device)
+        support = 1 + k * z_sorted > z_cumsum
+        k_z = support.sum(dim=-1, keepdim=True)
+        tau = (z_cumsum.gather(1, k_z - 1) - 1) / k_z
+        output = torch.clamp(input - tau, min=0)
+
+        output = output.reshape(original_size).transpose(dim, -1)
+        return output
+
 # ------------------------------------------------------------------------- #
 #  PFLA‑Softmax  –  two interpolation modes (linear vs. quadratic)          #
 # ------------------------------------------------------------------------- #
@@ -759,8 +793,6 @@ class PFLASoftmax(nn.Module):
         return out
 
 
-
-
 # Note: we use the built in library for regular softmax
 softmax_dictionary = {
     "consmax": ConSmax,
@@ -773,6 +805,8 @@ softmax_dictionary = {
     "softermax": Softermax,
     "strongermax": Strongermax,
     "sigsoftmax": SigSoftmax,
+    "stablemax": Stablemax,
+    "sparsemax": Sparsemax,
     "relumax": ReLUMax,
     "relu2max": ReLU2Max,
     "sigmoidmax": SigmoidMax,

@@ -1587,6 +1587,72 @@ def _adamod_diffgrad(param_groups, args):
     )
 
 
+class Muon(Optimizer):
+    """Simplified Muon optimizer with weight decay and update scaling."""
+
+    def __init__(self, params, lr=1e-3, momentum=0.95, weight_decay=0.0,
+                 ns_iters=5, scale=0.2):
+        defaults = dict(lr=lr, momentum=momentum, weight_decay=weight_decay,
+                        ns_iters=ns_iters, scale=scale)
+        super().__init__(params, defaults)
+
+    def _newton_schulz(self, M, iters):
+        a, b, c = 3.4445, -4.7750, 2.0315
+        eps = 1e-8
+        X = M / (M.norm(p="fro") + eps)
+        for _ in range(iters):
+            XtX = X @ X.transpose(-1, -2)
+            X = a * X + b * (XtX @ X) + c * (XtX @ XtX @ X)
+        return X
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None if closure is None else closure()
+
+        for group in self.param_groups:
+            lr = group["lr"]
+            mu = group["momentum"]
+            wd = group["weight_decay"]
+            iters = group["ns_iters"]
+            scale = group["scale"]
+
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+
+                grad = p.grad
+                state = self.state[p]
+                if len(state) == 0:
+                    state["momentum"] = torch.zeros_like(p.data)
+
+                m = state["momentum"]
+                m.mul_(mu).add_(grad)
+
+                update = m
+                if m.ndim >= 2 and m.size(0) > 0 and m.size(1) > 0:
+                    O = self._newton_schulz(m, iters)
+                    factor = max(m.size(0), m.size(1)) * scale
+                    update = O * factor
+
+                if wd != 0.0:
+                    update = update + wd * p.data
+
+                p.data.add_(update, alpha=-lr)
+
+        return loss
+
+
+def _muon(param_groups, args):
+    return Muon(
+        param_groups,
+        lr=args.learning_rate,
+        momentum=getattr(args, "muon_momentum", 0.95),
+        weight_decay=args.weight_decay,
+        ns_iters=getattr(args, "muon_ns_iters", 5),
+        scale=getattr(args, "muon_scale", 0.2),
+    )
+
+
 optimizer_dictionary: dict[str, callable] = {
     # From pytorch
     "sgd": _sgd,
@@ -1637,6 +1703,7 @@ optimizer_dictionary: dict[str, callable] = {
     "yogi": _yogi,
     "sophiag": _sophiag,
     "soap": _soap,
+    "muon": _muon,
     "var_adaptive_lr": _var_adaptive_lr,
     "lookahead": _lookahead,
 }
