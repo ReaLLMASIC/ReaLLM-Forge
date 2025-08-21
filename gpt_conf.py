@@ -37,6 +37,11 @@ class GPTConfig:
     learn_mlp_x_offset: bool = False
     learn_mlp_y_offset: bool = False
 
+    # MOBA Variations
+    moba_block_size: int = 512      # B in the paper (§2.2)
+    moba_topk:       int = 3        # k in the paper (§2.2)
+
+
     ## MLA Variations
     mla_latent_dim: int | None = None   # d_c  (proj dimension of the shared latent)
     mla_rotary_dim: int       = 32      # d_r  (# rotary channels per head)

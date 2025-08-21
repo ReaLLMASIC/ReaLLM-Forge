@@ -564,6 +564,7 @@ def parse_args():
                           "infinite",
                           "mla",
                           "co4",
+                          "moba",
                           ]
 
     model_group.add_argument(
@@ -581,6 +582,13 @@ def parse_args():
         choices=attention_variants,
         help="Which attention variant to use for the Transformer blocks."
     )
+
+    ## MOBA Variations
+    model_group.add_argument('--moba_block_size', type=int, default=512,
+                         help='Block length B used by MoBA (default 512)')
+
+    model_group.add_argument('--moba_topk', type=int, default=3,
+                             help='How many historical blocks each query routes to (top‑k)')
 
     ## MLA Variations
     # ── inside   model_group = parser.add_argument_group('model_group')  … ──

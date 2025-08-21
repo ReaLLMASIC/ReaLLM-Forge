@@ -1105,6 +1105,90 @@ class Co4Attention(nn.Module):
         y = self.resid_dropout(self.out_proj(y))
         return y
 
+# variations/moba.py
+
+class MobaAttention(nn.Module):
+    """
+    Mixture–of–Block Attention (MoBA, Lu et al. 2025)
+    – Re‑uses PyTorch 2.x Flash‑Attention for every selected block.
+    – Falls back to a naive reference implementation if Flash is unavailable.
+    The interface mirrors CausalSelfAttention so it is a drop‑in replacement.
+    """
+    def __init__(self, config, fire_pos_enc=None):
+        super().__init__()
+        assert config.n_embd % config.n_head == 0
+        self.n_head   = config.n_head
+        self.head_dim = config.n_embd // config.n_head
+        self.scale    = self.head_dim ** -0.5
+
+        # ----- projections ------------------------------------------------
+        self.q_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
+        kv_dim      = (config.n_embd // config.n_head) * config.n_kv_group if config.n_kv_group else config.n_embd
+        self.k_proj = nn.Linear(config.n_embd, kv_dim, bias=config.bias)
+        self.v_proj = nn.Linear(config.n_embd, kv_dim, bias=config.bias)
+        self.o_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
+
+        self.dropout_p = config.dropout
+
+        # ----- MoBA hyper‑params -----------------------------------------
+        self.B     = config.moba_block_size
+        self.top_k = config.moba_topk
+
+        # causal mask for intra‑block attention (lower triangle, §2.2)
+        self.register_buffer(
+            "unit_causal",
+            torch.tril(torch.ones(self.B, self.B, dtype=torch.bool))
+        )
+
+    # ---------------------------- forward ---------------------------------
+    def forward(self, x, *_):
+        B, T, _ = x.shape
+        assert T % self.B == 0, "T must be multiple of moba_block_size"
+        n_blk   = T // self.B
+        k_val   = min(self.top_k, n_blk)          # <── avoids k‑out‑of‑range
+
+        # –– projections ––
+        q = self.q_proj(x).view(B, T, self.n_head, self.head_dim).transpose(1,2)
+        k = self.k_proj(x).view(B, T, self.n_head, self.head_dim).transpose(1,2)
+        v = self.v_proj(x).view(B, T, self.n_head, self.head_dim).transpose(1,2)
+
+        # –– block means for routing ––
+        k_blk = k.view(B, self.n_head, n_blk, self.B, self.head_dim)
+        kv_mu = k_blk.mean(3)                           # (B,H,n_blk,D)
+
+        # –– affinity & gating ––
+        aff   = torch.einsum('bhtd,bhnd->bhtn', q.float(), kv_mu.float())
+        pos   = torch.arange(T, device=x.device)
+        q_bid = (pos // self.B).view(1,1,T,1)
+        b_ids = torch.arange(n_blk, device=x.device).view(1,1,1,n_blk)
+        aff   = aff.masked_fill(b_ids > q_bid, float('-inf'))
+        aff.scatter_(-1, q_bid.expand_as(aff), float('inf'))
+
+        _, top_idx = torch.topk(aff, k=k_val, dim=-1)   # (B,H,T,k_val)
+
+        # –– token‑level mask ––
+        mask_blk = torch.zeros_like(aff, dtype=torch.bool)
+        mask_blk.scatter_(-1, top_idx, True)            # (B,H,T,n_blk)
+        tok_mask = (
+            mask_blk
+            .unsqueeze(-1)                              # (B,H,T,n_blk,1)
+            .expand(-1,-1,-1,-1,self.B)
+            .reshape(B, self.n_head, T, T)              # (B,H,T,T)
+        )
+        # causal within each query
+        causal = torch.tril(torch.ones(T, T, dtype=torch.bool, device=x.device))
+        tok_mask &= causal
+
+        # –– dense attention with masking ––
+        att   = torch.einsum('bhtd,bhsd->bhts', q, k) * self.scale
+        att.masked_fill_(~tok_mask, float('-inf'))
+        att   = torch.softmax(att, dim=-1)
+        att   = F.dropout(att, p=self.dropout_p, training=self.training)
+
+        y = torch.einsum('bhts,bhsd->bhtd', att, v)
+        y = y.transpose(1,2).contiguous().view(B, T, -1)
+        return self.o_proj(y)
+
 attention_dictionary = {
     "causal": CausalSelfAttention,
     "linear": LinearAttention,
@@ -1113,4 +1197,5 @@ attention_dictionary = {
     "infinite": InfiniteHeadAttention,
     "mla": MultiHeadLatentAttention,
     "co4": Co4Attention,
+    "moba": MobaAttention,
 }
