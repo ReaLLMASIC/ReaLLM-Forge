@@ -1,0 +1,4 @@
+-sverilog
+${LLM_REPO}/comp/controller/rtl/controller.sv
+${LLM_REPO}/comp/util/rtl/counter.sv
+${LLM_REPO}/comp/sys_defs.svh

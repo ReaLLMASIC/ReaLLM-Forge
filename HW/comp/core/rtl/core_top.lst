@@ -1,0 +1,10 @@
+-sverilog
+${LLM_REPO}/comp/sys_defs.svh
+${LLM_REPO}/comp/util/rtl/align.v
+${LLM_REPO}/comp/util/rtl/pe.v
+${LLM_REPO}/comp/core/rtl/core_acc.v
+${LLM_REPO}/comp/core/rtl/core_buf.v
+${LLM_REPO}/comp/core/rtl/core_mac.v
+${LLM_REPO}/comp/core/rtl/core_mem.v
+${LLM_REPO}/comp/core/rtl/core_quant.v
+${LLM_REPO}/comp/core/rtl/core_top.v

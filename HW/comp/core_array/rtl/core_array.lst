@@ -1,0 +1,5 @@
+-sverilog
+${LLM_REPO}/comp/sys_defs.svh
+-f ${LLM_REPO}/comp/core/rtl/core_top.lst
+${LLM_REPO}/comp/core_array/rtl/core_array.sv
+
