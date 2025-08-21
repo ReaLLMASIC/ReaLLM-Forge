@@ -1,0 +1,38 @@
+# explorations/kv_cache_sharing.yaml
+# Sweep: combine KV cache, MLP, and attention sharing patterns
+# Each list-valued key expands cartesian-product style via the launcher.
+
+# ── dataset & compute ──────────────────────────
+dataset: ["minipile"]
+device:  ["cuda"]
+compile: [true]
+dtype:   ["float16"]
+# ── base model hyper-params ──────────────────────
+n_layer: [6]
+n_head:  [6]
+n_embd:  [384]
+block_size: [256]
+max_iters: [2000]
+eval_interval: [2000]
+eta_variant: ["iteration"]
+never_save_checkpoint: [true]
+
+# ── position encoding ───────────────────────
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# ── SHARING GRID ────────────────────────────
+# Attention sharing
+shared_attn_size: [1, 2, 3]
+shared_attn_seq:  [1, 2, 3]
+shared_attn_sym:  [false, true]
+
+# MLP sharing
+shared_mlp_size:  [1, 2, 3]
+shared_mlp_seq:   [1, 2, 3]
+shared_mlp_sym:   [false, true]
+
+# KV cache sharing
+shared_kv_cache_size: [1, 2, 3]
+shared_kv_cache_seq:  [1, 2, 3]
+shared_kv_cache_sym:  [false, true]

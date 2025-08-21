@@ -234,7 +234,22 @@ class CausalSelfAttention(nn.Module):
         return block_mask
     # End Flex Attention Related
 
-    def forward(self, x, iter_num):
+    def forward(self, x, iter_num, kv_cache=None, return_kv_cache: bool = False,
+                cache_policy: str = "reuse"):
+        """Forward pass with optional KV cache sharing.
+
+        Args:
+            x: input tensor
+            iter_num: iteration index for quantization utilities
+            kv_cache: optional tuple of precomputed (k, v) tensors. Tensors are
+                expected to be post-rotary and shaped as (B, n_kv_group, T, hs).
+            return_kv_cache: if True, also return the (k, v) used for this layer
+                so that downstream layers may reuse them.
+            cache_policy: ``"reuse"`` simply reuses ``kv_cache`` when provided;
+                ``"shift"`` appends the current layer's freshly computed k/v to
+                the provided cache. Any other value falls back to reuse.
+        """
+
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
         if self.quantization_attn_dict["quantize_attn_act_input"]:
@@ -243,8 +258,14 @@ class CausalSelfAttention(nn.Module):
             x = fake_quantize_act(self, "attn_act_input", x, num_bits, quant_method, iter_num)
 
         q = self.c_attn_q(x)
-        k = self.c_attn_k(x)
-        v = self.c_attn_v(x)
+
+        use_cache = kv_cache is not None
+
+        if not use_cache:
+            k = self.c_attn_k(x)
+            v = self.c_attn_v(x)
+        else:
+            k, v = kv_cache
 
         if self.window_size is not None:
             if self.use_flex_attn is not None:
@@ -254,7 +275,7 @@ class CausalSelfAttention(nn.Module):
                 self.window_mask = torch.triu(self.window_mask, diagonal=-self.window_size)
                 self.window_mask = self.bias[:,:,:T,:T] * self.window_mask
 
-        if self.gate:
+        if not use_cache and self.gate:
             if self.n_kv_group == self.n_head:
                 Gating = nn.Linear(self.n_embd, self.n_embd, bias=True, device=x.device)
                 gate_ = torch.sigmoid(Gating(x))
@@ -262,8 +283,6 @@ class CausalSelfAttention(nn.Module):
                 k = k * gate_
                 v = v * gate_
             else:
-                # TODO: Test more methods to merge Attention Gates with GQA
-                # TODO: Evaluate each method's ability to even out parameter sizes
                 Gating_q = nn.Linear(self.n_embd, self.n_embd, bias=True, device=x.device)
                 Gating_kv = nn.Linear(self.n_embd, self.kv_dim, bias=True, device=x.device)
                 gate_qx = Gating_q(x)
@@ -274,13 +293,31 @@ class CausalSelfAttention(nn.Module):
                 v = v * gate_kv
 
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, n_h, T, hs)
-        k = k.view(B, T, self.n_kv_group, C // self.n_head).transpose(1, 2) # (B, n_kv, T, hs)
-        v = v.view(B, T, self.n_kv_group, C // self.n_head).transpose(1, 2) # (B, n_kv, T, hs)
 
-        # rotate q and k before evaluating with the heads
-        if (self.rotary_emb_q is not None) and (self.rotary_emb_k is not None):
-            q = self.rotary_emb_q(q)
-            k = self.rotary_emb_k(k)
+        if not use_cache:
+            k = k.view(B, T, self.n_kv_group, C // self.n_head).transpose(1, 2) # (B, n_kv, T, hs)
+            v = v.view(B, T, self.n_kv_group, C // self.n_head).transpose(1, 2) # (B, n_kv, T, hs)
+
+            # rotate q and k before evaluating with the heads
+            if (self.rotary_emb_q is not None) and (self.rotary_emb_k is not None):
+                q = self.rotary_emb_q(q)
+                k = self.rotary_emb_k(k)
+        else:
+            # cache already in rotated form; only rotate q
+            if self.rotary_emb_q is not None:
+                q = self.rotary_emb_q(q)
+            k, v = kv_cache
+
+            if cache_policy == "shift":
+                # append fresh k/v computed above to existing cache
+                new_k = self.c_attn_k(x)
+                new_v = self.c_attn_v(x)
+                new_k = new_k.view(B, T, self.n_kv_group, C // self.n_head).transpose(1, 2)
+                new_v = new_v.view(B, T, self.n_kv_group, C // self.n_head).transpose(1, 2)
+                if self.rotary_emb_k is not None:
+                    new_k = self.rotary_emb_k(new_k)
+                k = torch.cat([k, new_k], dim=2)
+                v = torch.cat([v, new_v], dim=2)
 
         y = None
 
@@ -414,6 +451,8 @@ class CausalSelfAttention(nn.Module):
             quant_method = self.quantization_attn_dict["activations_quant_method"]
             y = fake_quantize_act(self, "attn_act_output", y, num_bits, quant_method, iter_num)
 
+        if return_kv_cache:
+            return y, (k, v)
         return y
 
 class LinearAttention(nn.Module):
@@ -748,20 +787,36 @@ class InfiniteHeadAttention(nn.Module):
         self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                              .view(1, 1, config.block_size, config.block_size))
 
-    def forward(self, x, iter_num):
+    def forward(self, x, iter_num, kv_cache=None, return_kv_cache: bool = False,
+                cache_policy: str = "reuse"):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
         q = self.c_attn_q(x)
-        k = self.c_attn_k(x)
-        v = self.c_attn_v(x)
+
+        use_cache = kv_cache is not None
+        if not use_cache:
+            k = self.c_attn_k(x)
+            v = self.c_attn_v(x)
+            k = k.view(B, T, self.n_kv_group, self.n_qk_head_dim).transpose(1, 2)
+            v = v.view(B, T, self.n_kv_group, self.n_v_head_dim).transpose(1, 2)
+        else:
+            k, v = kv_cache
+            if cache_policy == "shift":
+                new_k = self.c_attn_k(x)
+                new_v = self.c_attn_v(x)
+                new_k = new_k.view(B, T, self.n_kv_group, self.n_qk_head_dim).transpose(1, 2)
+                new_v = new_v.view(B, T, self.n_kv_group, self.n_v_head_dim).transpose(1, 2)
+                if self.rotary_emb_k is not None:
+                    new_k = self.rotary_emb_k(new_k)
+                k = torch.cat([k, new_k], dim=2)
+                v = torch.cat([v, new_v], dim=2)
 
         q = q.view(B, T, self.n_head, self.n_qk_head_dim).transpose(1, 2) # (B, n_h, T, hs)
-        k = k.view(B, T, self.n_kv_group, self.n_qk_head_dim).transpose(1, 2) # (B, n_kv, T, hs)
-        v = v.view(B, T, self.n_kv_group, self.n_v_head_dim).transpose(1, 2) # (B, n_kv, T, hs)
 
         # Apply Rotary Position Encodings
-        if (self.rotary_emb_q is not None) and (self.rotary_emb_k is not None):
+        if self.rotary_emb_q is not None:
             q = self.rotary_emb_q(q)
+        if self.rotary_emb_k is not None and not use_cache:
             k = self.rotary_emb_k(k)
 
         # Apply QK Norm
@@ -883,6 +938,8 @@ class InfiniteHeadAttention(nn.Module):
         # output projection
         y = self.resid_dropout(y)
 
+        if return_kv_cache:
+            return y, (k, v)
         return y
 
 ##############################################################################
