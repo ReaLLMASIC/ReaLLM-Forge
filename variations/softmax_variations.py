@@ -619,6 +619,28 @@ class Squareplus(nn.Module):
 
         return result
 
+
+class SeqLenScaledSoftmax(nn.Module):
+    """Softmax where each row is scaled by its effective sequence length."""
+
+    def __init__(self, config, dim: int = -1):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        result = torch.softmax(x, dim=self.dim)
+
+        seq_len = x.size(self.dim)
+        row_dim = self.dim - 1
+        if row_dim < 0:
+            row_dim += x.dim()
+        denom = torch.arange(1, seq_len + 1, device=x.device, dtype=result.dtype)
+        shape = [1] * x.dim()
+        shape[row_dim] = seq_len
+        denom = denom.view(*shape)
+        result = result / denom
+        return result
+
 # ------------------------------------------------------------------------- #
 #  PFLA‑Softmax  –  two interpolation modes (linear vs. quadratic)          #
 # ------------------------------------------------------------------------- #
@@ -778,5 +800,6 @@ softmax_dictionary = {
     "sigmoidmax": SigmoidMax,
     "softplus": Softplus,
     "squareplus": Squareplus,
+    "seq_len_scaled_softmax": SeqLenScaledSoftmax,
     "pfla_softmax": PFLASoftmax,
 }

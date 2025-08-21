@@ -15,6 +15,7 @@ softmax_variation=( \
   "sigsoftmax" \
   "exppolymax" \
   "saturatingconsmax" \
+  "seq_len_scaled_softmax" \
   "strongermax")
 
 n_layer="2"

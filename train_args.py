@@ -807,6 +807,7 @@ def parse_args():
         "softmax",
         "softplus",
         "squareplus",
+        "seq_len_scaled_softmax",
         "exppolymax",
         "pfla_softmax",
         ]

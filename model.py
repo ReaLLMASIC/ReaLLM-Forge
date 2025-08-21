@@ -923,7 +923,10 @@ class GPT(nn.Module):
             if top_k is not None:
                 v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
                 logits[logits < v[:, [-1]]] = -float('Inf')
-            probs = F.softmax(logits, dim=-1)
+            if self.config.softmax_variant_output != 'softmax':
+                probs = self.softmax_layer_output(logits)
+            else:
+                probs = F.softmax(logits, dim=-1)
             idx_next = torch.multinomial(probs, num_samples=1)
             idx = torch.cat((idx, idx_next), dim=1)
 
