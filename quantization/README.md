@@ -181,3 +181,21 @@ python3 quantization/visualize.py \
     - **Purpose**: Allows the model to stabilize before introducing quantization, which can improve training convergence.
 
 ---
+
+## SmoothQuant Activation Smoothing
+
+SmoothQuant can be used to migrate quantization difficulty from activations to weights prior to training. First collect activation statistics on a few batches of your dataset and adjust the checkpoint weights using those statistics. The `quantization/smoothquant.py` helper implements this flow.
+
+Example usage:
+
+```bash
+python3 quantization/smoothquant.py \
+  --ckpt path/to/ckpt.pt \
+  --data data/my_dataset/train.bin \
+  --batch_size 4 \
+  --calib_batches 10 \
+  --alpha 0.5 \
+  --out_dir smoothed_ckpt
+```
+
+The resulting checkpoint in `smoothed_ckpt/ckpt_smoothquant.pt` can then be loaded for quantized training using the existing flags in this README.
