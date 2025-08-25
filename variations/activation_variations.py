@@ -301,6 +301,15 @@ class Softsign_Config(ActivationWrapper):
     def __init__(self, config=None):
         super().__init__(nn.Softsign, config)
 
+class Softshrink_Config(nn.Module):
+    def __init__(self, config=None):
+        super().__init__()
+        lambd = getattr(config, "softshrink_lambda", 0.5) if config is not None else 0.5
+        self.activation = nn.Softshrink(lambd=lambd)
+
+    def forward(self, x):
+        return self.activation(x)
+
 class Tanh_Config(ActivationWrapper):
     def __init__(self, config=None):
         super().__init__(nn.Tanh, config)
@@ -331,6 +340,7 @@ activation_dictionary = {
     "silu": SiLU_Config,
     "softplus": Softplus_Config,
     "softsign": Softsign_Config,
+    "softshrink": Softshrink_Config,
     "squared_relu": SquaredReLU,
     "tanh": Tanh_Config,
     "identity": Identity_Config,

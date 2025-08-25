@@ -518,6 +518,7 @@ def parse_args():
             "silu",
             "softplus",
             "softsign",
+            "softshrink",
             "squared_relu",
             "tanh",
             "identity",
@@ -539,6 +540,9 @@ def parse_args():
     ## Shifted Gelu
     model_group.add_argument("--shifted_gelu_learnable_shift",  type=bool, default=True, action=argparse.BooleanOptionalAction)
     model_group.add_argument("--shifted_gelu_initial_shift", type=float, default=0.0)
+
+    ## Softshrink
+    model_group.add_argument("--softshrink_lambda", type=float, default=0.5)
 
     ## PiecewiseLearnableActivation - pla
     model_group.add_argument("--pla_num_points", type=int, default=7)

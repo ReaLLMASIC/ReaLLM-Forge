@@ -359,6 +359,9 @@ class GPTConfig:
     shifted_gelu_learnable_shift: bool = True
     shifted_gelu_initial_shift: float = 0.0
 
+    ## Softshrink
+    softshrink_lambda: float = 0.5
+
     ## PiecewiseLearnableActivation - pla
     pla_num_points: int = 7
     pla_left_bound: float = -2.0
