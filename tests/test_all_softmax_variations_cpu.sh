@@ -13,6 +13,8 @@ softmax_variation=( \
   "polymax" \
   "softermax" \
   "sigsoftmax" \
+  "stablemax" \
+  "sparsemax" \
   "exppolymax" \
   "saturatingconsmax" \
   "strongermax")

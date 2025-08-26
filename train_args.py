@@ -163,6 +163,7 @@ def parse_args():
             "swats",
             "sophiag",
             "soap",
+            "muon",
             "var_adaptive_lr",
             "lookahead",
             ]
@@ -296,6 +297,14 @@ def parse_args():
     training_group.add_argument("--shampoo_momentum", type=float, default=0.0)
     training_group.add_argument("--shampoo_eps", type=float, default=1e-4)
     training_group.add_argument("--shampoo_update_freq", type=int, default=1)
+
+    # Muon
+    training_group.add_argument("--muon_momentum", type=float, default=0.95,
+                                help="Momentum term for Muon optimizer.")
+    training_group.add_argument("--muon_ns_iters", type=int, default=5,
+                                help="Newton-Schulz iteration steps for Muon.")
+    training_group.add_argument("--muon_scale", type=float, default=0.2,
+                                help="Update scaling factor for Muon optimizer.")
 
     # ASGD-like PID
     training_group.add_argument("--pid_momentum",  type=float, default=0.0)
