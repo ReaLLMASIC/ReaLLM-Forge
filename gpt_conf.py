@@ -202,6 +202,11 @@ class GPTConfig:
     shared_attn_sym: bool = False
     shared_attn_seq: int = 1
 
+    # KV Cache
+    shared_kv_cache_size: int = 1
+    shared_kv_cache_sym: bool = False
+    shared_kv_cache_seq: int = 1
+
     # Softmax Alternatives and Options
     softmax_variant_attn: str = "softmax" # Choices: "softmax" "softermax" "sigsoftmax" "polymax" "strongermax" "consmax"
     softmax_variant_output: str = "softmax" # Choices: "softmax" "softermax" "sigsoftmax" "polymax" "strongermax" "consmax"
