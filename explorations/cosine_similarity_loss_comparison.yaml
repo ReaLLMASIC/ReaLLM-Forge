@@ -1,0 +1,61 @@
+# explorations/cosine_similarity_loss_comparison.yaml
+---
+# Compare cross entropy, focal loss, and cosine-similarity-based losses.
+
+parameter_groups:
+  # Baseline Cross Entropy
+  - loss_fn: ["cross_entropy"]
+    learning_rate: ["0.001", "0.01", "0.1"]
+    #
+  # Cosine similarity with Huber
+  - loss_fn: ["cosine_huber"]
+    cosine_huber_delta: [1.0]
+    learning_rate: ["0.001", "0.01", "0.1"]
+
+  # Baseline Focal Loss
+  - loss_fn: ["focal"]
+    focal_gamma: [0.1, 0.5, 1.0, 2.0]
+    learning_rate: ["0.001", "0.01", "0.1"]
+
+  # Cosine similarity loss
+  - loss_fn: ["cosine"]
+    learning_rate: ["0.001", "0.01", "0.1"]
+
+  # Cosine similarity with MSE
+  - loss_fn: ["cosine_mse"]
+    learning_rate: ["0.001", "0.01", "0.1"]
+
+
+# base hyperparameters
+max_iters: [10000]
+eval_interval: [1000]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+block_size: [256]
+batch_size: [32]
+max_sample_tokens: [256]
+sample_each_eval: [true]
+colorize_mode: ["all"]
+
+dataset: ["minipile"]
+device: ["cuda"]
+dtype: ["bfloat16"]
+never_save_checkpoint: [true]
+sample_file: ["${RUN_NAME}"]
+
+# position encodings
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# norm
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+use_peri_ln: [true]
+
+# optimizer
+optimizer: ["adamw"]
+
+# misc
+compile: [true]
+tensorboard_run_name: ["cosine_loss_comp"]

@@ -1,0 +1,47 @@
+# explorations/focal_gamma_schedule_comparison.yaml
+---
+# Compare cross entropy, baseline focal loss, and scheduled focal gamma.
+
+parameter_groups:
+  # Baseline Cross Entropy
+  - loss_fn: ["cross_entropy"]
+
+  # Baseline Focal Loss
+  - loss_fn: ["focal"]
+    focal_gamma: [2.0]
+
+  # Early emphasis on focal loss
+  - loss_fn: ["focal"]
+    focal_gamma: [2.0]
+    focal_gamma_schedule: ["0:0.0,2000:2.0"]
+    focal_gamma_schedule_interp: ["linear"]
+
+  # Late emphasis on focal loss
+  - loss_fn: ["focal"]
+    focal_gamma: [2.0]
+    focal_gamma_schedule: ["0:0.0,8000:2.0"]
+    focal_gamma_schedule_interp: ["linear"]
+
+# base hyperparameters
+max_iters: [10000]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+block_size: [256]
+batch_size: [32]
+eval_interval: [500]
+dataset: ["minipile"]
+device: ["cuda"]
+dtype: ["bfloat16"]
+never_save_checkpoint: [true]
+
+# position encodings
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# optimizer
+optimizer: ["adamw"]
+
+# misc
+compile: [true]
+tensorboard_run_name: ["focal_gamma_sched_comp"]

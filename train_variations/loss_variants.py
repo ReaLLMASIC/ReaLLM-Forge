@@ -312,6 +312,77 @@ def entropy_rank_distance_focal_loss(
     return loss + beta * entropy[mask].mean()
 
 
+# ---------------------------------------------------------------------------
+# Cosine-similarity based losses
+# ---------------------------------------------------------------------------
+
+def _cosine_to_target(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    """Compute cosine similarity between predicted distribution and one-hot target."""
+    logits_flat = logits.view(-1, logits.size(-1))
+    targets_flat = targets.view(-1)
+    mask = targets_flat != -1
+    if not mask.any():
+        return torch.tensor([], device=logits.device)
+    probs = torch.softmax(logits_flat[mask], dim=-1)
+    one_hot = F.one_hot(targets_flat[mask], num_classes=logits.size(-1)).float()
+    return F.cosine_similarity(probs, one_hot, dim=-1)
+
+
+def cosine_similarity_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    iter_num: int | None = None,
+) -> torch.Tensor:
+    """Minimise ``1 - cos_sim`` between probs and one-hot target."""
+    cos_sim = _cosine_to_target(logits, targets)
+    if cos_sim.numel() == 0:
+        return torch.tensor(0.0, device=logits.device)
+    return (1 - cos_sim).mean()
+
+
+def cosine_mse_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    iter_num: int | None = None,
+) -> torch.Tensor:
+    """Squared error on cosine similarity to encourage alignment."""
+    cos_sim = _cosine_to_target(logits, targets)
+    if cos_sim.numel() == 0:
+        return torch.tensor(0.0, device=logits.device)
+    return F.mse_loss(cos_sim, torch.ones_like(cos_sim))
+
+
+def cosine_huber_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    iter_num: int | None = None,
+    delta: float = 1.0,
+) -> torch.Tensor:
+    """Huber loss on cosine similarity toward ``1``."""
+    cos_sim = _cosine_to_target(logits, targets)
+    if cos_sim.numel() == 0:
+        return torch.tensor(0.0, device=logits.device)
+    target = torch.ones_like(cos_sim)
+    return F.huber_loss(cos_sim, target, delta=delta)
+
+
+def cosine_log_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    iter_num: int | None = None,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """Negative log of cosine similarity to the target."""
+    cos_sim = _cosine_to_target(logits, targets)
+    if cos_sim.numel() == 0:
+        return torch.tensor(0.0, device=logits.device)
+    return -torch.log(cos_sim + eps).mean()
+
+
 LOSS_VARIANTS: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {
     "cross_entropy": cross_entropy_loss,
     "label_smoothing": label_smoothing_loss,
@@ -325,6 +396,10 @@ LOSS_VARIANTS: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] =
     "entropy_focal": entropy_focal_loss,
     "rank_distance_focal": rank_distance_focal_loss,
     "entropy_rank_distance_focal": entropy_rank_distance_focal_loss,
+    "cosine": cosine_similarity_loss,
+    "cosine_mse": cosine_mse_loss,
+    "cosine_huber": cosine_huber_loss,
+    "cosine_log": cosine_log_loss,
 }
 
 
@@ -333,24 +408,41 @@ LOSS_VARIANTS: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] =
 # ---------------------------------------------------------------------------
 
 
+def _interpolate_scalar(start: float, end: float, ratio: float, method: str) -> float:
+    """Interpolate between ``start`` and ``end`` according to ``method``."""
+    if method == "linear":
+        return start + ratio * (end - start)
+    if method == "cosine":
+        return start + 0.5 * (1 - math.cos(math.pi * ratio)) * (end - start)
+    if method == "exponential":
+        if start <= 0 or end <= 0:
+            return start + ratio * (end - start)
+        return start * ((end / start) ** ratio)
+    return start
+
+
 @dataclass
 class ScheduledValue:
     """Schedule a scalar value over training iterations."""
 
     schedule: List[Tuple[int, float]]
+    interpolation: str = "step"
 
     def __post_init__(self) -> None:
         self.schedule.sort(key=lambda x: x[0])
 
     def __call__(self, iter_num: int | None) -> float:
-        val = self.schedule[0][1]
-        if iter_num is not None:
-            for step, candidate in self.schedule:
-                if iter_num >= step:
-                    val = candidate
-                else:
-                    break
-        return val
+        if iter_num is None or iter_num <= self.schedule[0][0]:
+            return self.schedule[0][1]
+        for i in range(1, len(self.schedule)):
+            prev_step, prev_val = self.schedule[i - 1]
+            next_step, next_val = self.schedule[i]
+            if iter_num < next_step:
+                if self.interpolation == "step":
+                    return prev_val
+                ratio = (iter_num - prev_step) / (next_step - prev_step)
+                return _interpolate_scalar(prev_val, next_val, ratio, self.interpolation)
+        return self.schedule[-1][1]
 
 @dataclass
 class ScheduledLoss:
@@ -382,13 +474,13 @@ def parse_loss_schedule(schedule_str: str) -> List[Tuple[int, str]]:
     return schedule
 
 
-def parse_value_schedule(schedule_str: str) -> ScheduledValue:
+def parse_value_schedule(schedule_str: str, method: str = "step") -> ScheduledValue:
     """Parse a schedule string like ``"0:1.0,1000:2.0"`` for scalar values."""
     schedule: List[Tuple[int, float]] = []
     for part in schedule_str.split(","):
         step_str, value_str = part.split(":")
         schedule.append((int(step_str), float(value_str)))
-    return ScheduledValue(schedule)
+    return ScheduledValue(schedule, interpolation=method)
 
 
 def build_loss_function(args) -> Callable[[torch.Tensor, torch.Tensor], torch.Tensor]:
@@ -397,10 +489,19 @@ def build_loss_function(args) -> Callable[[torch.Tensor, torch.Tensor], torch.Te
 
     base = getattr(args, "rank_scale", 1.0)
     scale_sched_str = getattr(args, "rank_scale_schedule", None)
-    scaler = parse_value_schedule(scale_sched_str) if scale_sched_str else None
+    scale_interp = getattr(args, "rank_scale_schedule_interp", "step")
+    scaler = parse_value_schedule(scale_sched_str, scale_interp) if scale_sched_str else None
 
     def rank_gamma(iter_num: int | None) -> float:
         return scaler(iter_num) if scaler else base
+
+    focal_base = getattr(args, "focal_gamma", 2.0)
+    focal_sched_str = getattr(args, "focal_gamma_schedule", None)
+    focal_interp = getattr(args, "focal_gamma_schedule_interp", "step")
+    focal_sched = parse_value_schedule(focal_sched_str, focal_interp) if focal_sched_str else None
+
+    def focal_gamma(iter_num: int | None) -> float:
+        return focal_sched(iter_num) if focal_sched else focal_base
 
     built_losses: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {
         "cross_entropy": LOSS_VARIANTS["cross_entropy"],
@@ -408,7 +509,7 @@ def build_loss_function(args) -> Callable[[torch.Tensor, torch.Tensor], torch.Te
             l, t, iter_num=iter_num, smoothing=getattr(args, "label_smoothing", 0.1)
         ),
         "focal": lambda l, t, *, iter_num=None: LOSS_VARIANTS["focal"](
-            l, t, iter_num=iter_num, gamma=getattr(args, "focal_gamma", 2.0)
+            l, t, iter_num=iter_num, gamma=focal_gamma(iter_num)
         ),
         "top1_focus": lambda l, t, *, iter_num=None: LOSS_VARIANTS["top1_focus"](
             l, t, iter_num=iter_num, alpha=getattr(args, "top1_focus_alpha", 0.5)
@@ -432,7 +533,7 @@ def build_loss_function(args) -> Callable[[torch.Tensor, torch.Tensor], torch.Te
             l,
             t,
             iter_num=iter_num,
-            gamma=getattr(args, "focal_gamma", 2.0),
+            gamma=focal_gamma(iter_num),
             beta=getattr(args, "entropy_beta", 0.01),
         ),
         "rank_distance_focal": lambda l, t, *, iter_num=None: LOSS_VARIANTS["rank_distance_focal"](
@@ -440,22 +541,37 @@ def build_loss_function(args) -> Callable[[torch.Tensor, torch.Tensor], torch.Te
             t,
             iter_num=iter_num,
             gamma=rank_gamma(iter_num),
-            focal_gamma=getattr(args, "focal_gamma", 2.0),
+            focal_gamma=focal_gamma(iter_num),
         ),
         "rank_distance_focal_v2": lambda l, t, *, iter_num=None: LOSS_VARIANTS["rank_distance_focal"](
             l,
             t,
             iter_num=iter_num,
             gamma=rank_gamma(iter_num),
-            focal_gamma=getattr(args, "focal_gamma", 2.0),
+            focal_gamma=focal_gamma(iter_num),
         ),
         "entropy_rank_distance_focal": lambda l, t, *, iter_num=None: LOSS_VARIANTS["entropy_rank_distance_focal"](
             l,
             t,
             iter_num=iter_num,
             gamma=rank_gamma(iter_num),
-            focal_gamma=getattr(args, "focal_gamma", 2.0),
+            focal_gamma=focal_gamma(iter_num),
             beta=getattr(args, "entropy_beta", 0.01),
+        ),
+        "cosine": lambda l, t, *, iter_num=None: LOSS_VARIANTS["cosine"](
+            l, t, iter_num=iter_num
+        ),
+        "cosine_mse": lambda l, t, *, iter_num=None: LOSS_VARIANTS["cosine_mse"](
+            l, t, iter_num=iter_num
+        ),
+        "cosine_huber": lambda l, t, *, iter_num=None: LOSS_VARIANTS["cosine_huber"](
+            l,
+            t,
+            iter_num=iter_num,
+            delta=getattr(args, "cosine_huber_delta", 1.0),
+        ),
+        "cosine_log": lambda l, t, *, iter_num=None: LOSS_VARIANTS["cosine_log"](
+            l, t, iter_num=iter_num
         ),
     }
 

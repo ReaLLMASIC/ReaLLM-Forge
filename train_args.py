@@ -89,6 +89,13 @@ def parse_args():
         default=None,
         help="Schedule for rank_distance's scaling factor, e.g. 0:1.0,1000:2.0",
     )
+    training_group.add_argument(
+        '--rank_scale_schedule_interp',
+        type=str,
+        default='step',
+        choices=['step', 'linear', 'cosine', 'exponential'],
+        help="Interpolation method for rank_distance's scaling schedule.",
+    )
 
     # Loss hyperparameters
     training_group.add_argument(
@@ -102,6 +109,19 @@ def parse_args():
         type=float,
         default=2.0,
         help='Gamma parameter for focal-style losses.',
+    )
+    training_group.add_argument(
+        '--focal_gamma_schedule',
+        type=str,
+        default=None,
+        help='Schedule for focal gamma, e.g. 0:0.0,1000:2.0',
+    )
+    training_group.add_argument(
+        '--focal_gamma_schedule_interp',
+        type=str,
+        default='step',
+        choices=['step', 'linear', 'cosine', 'exponential'],
+        help='Interpolation method for focal gamma schedule.',
     )
     training_group.add_argument(
         '--top1_focus_alpha',
@@ -132,6 +152,12 @@ def parse_args():
         type=float,
         default=1.0,
         help='Scaling for flatness_boost loss when predictions are flat.',
+    )
+    training_group.add_argument(
+        '--cosine_huber_delta',
+        type=float,
+        default=1.0,
+        help='Delta parameter for cosine_huber loss.',
     )
 
     # Sample args
