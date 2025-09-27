@@ -461,8 +461,11 @@ def parse_args():
     model_group.add_argument('--wte_weight_tying', default=True, action=argparse.BooleanOptionalAction, help="Enable weight tying for non-factorized wte")
     model_group.add_argument('--dropout', default=0.0, type=float)
     model_group.add_argument('--use_pre_ln', default=True,   action=argparse.BooleanOptionalAction, help="apply before any attn or mlp")
+    model_group.add_argument('--use_pre_ln_layerlist', nargs='+', action=LayerListAction, default=None, help="override use_pre_ln per layer")
     model_group.add_argument('--use_peri_ln', default=False, action=argparse.BooleanOptionalAction, help="apply directly after each attn and mlp")
+    model_group.add_argument('--use_peri_ln_layerlist', nargs='+', action=LayerListAction, default=None, help="override use_peri_ln per layer")
     model_group.add_argument('--use_post_ln', default=False, action=argparse.BooleanOptionalAction, help="apply after recombining the residual")
+    model_group.add_argument('--use_post_ln_layerlist', nargs='+', action=LayerListAction, default=None, help="override use_post_ln per layer")
     model_group.add_argument('--use_pre_ln_attn', default=None, action=argparse.BooleanOptionalAction, help="override pre-LN for attention block")
     model_group.add_argument('--use_pre_ln_mlp', default=None, action=argparse.BooleanOptionalAction, help="override pre-LN for MLP block")
     model_group.add_argument('--use_peri_ln_attn', default=None, action=argparse.BooleanOptionalAction, help="override peri-LN for attention block")
@@ -470,6 +473,16 @@ def parse_args():
     model_group.add_argument('--use_post_ln_attn', default=None, action=argparse.BooleanOptionalAction, help="override post-LN for attention block")
     model_group.add_argument('--use_post_ln_mlp', default=None, action=argparse.BooleanOptionalAction, help="override post-LN for MLP block")
     model_group.add_argument('--window_size', default=None, type=int, help="Sliding window size, note this cannot be greater than block size")
+    model_group.add_argument('--block_mask', default=None, type=str, help="Attention block mask strategy, e.g. 'sliding' or 'global'")
+    model_group.add_argument('--block_mask_layerlist', nargs='+', action=LayerListAction, default=None, help="override block_mask per layer")
+    model_group.add_argument('--block_mask_learned_min_window', type=float, default=1.0,
+                             help='Minimum window size (tokens) for learned sliding block masks.')
+    model_group.add_argument('--block_mask_learned_max_window', type=int, default=None,
+                             help='Maximum window size clamp for learned sliding block masks.')
+    model_group.add_argument('--block_mask_learned_temperature', type=float, default=1.0,
+                             help='Temperature controlling softness of learned sliding block masks.')
+    model_group.add_argument('--block_mask_learned_penalty', type=float, default=30.0,
+                             help='Log-bias multiplier applied to learned sliding block mask gating.')
     model_group.add_argument('--gate', default=False, action=argparse.BooleanOptionalAction, help="option for gated attention see https://arxiv.org/abs/2306.12929")
     model_group.add_argument('--use_moe', default=False,  action=argparse.BooleanOptionalAction, help="option for Mixture of Experts (MoE) architecture")
     model_group.add_argument('--moe_layer_freq', default=2, type=int, help="set frequency for replacing FFNs with MoE layers")
@@ -1298,5 +1311,18 @@ class LayerListAction(argparse.Action):
     type happens later inside SharedParamGroupCreator.
     """
     def __call__(self, parser, namespace, values, option_string=None):
-        setattr(namespace, self.dest, list(values))
+        flattened = []
+        for val in values:
+            if isinstance(val, str):
+                stripped = val.strip()
+                if not stripped:
+                    continue
+                if re.search(r'[\s,]', stripped):
+                    parts = [p for p in re.split(r'[\s,]+', stripped) if p]
+                    flattened.extend(parts)
+                else:
+                    flattened.append(stripped)
+            else:
+                flattened.append(val)
+        setattr(namespace, self.dest, flattened)
 

@@ -13,6 +13,7 @@ from variations.position_encoding_variations import (
     FIRE, RotaryEmbedding, SymmetricalOverlapAngularPositions)
 from variations.softmax_variations import softmax_dictionary
 from variations.triadic_modulation_variations import mod_fn_dict
+from variations.blockmask_variations import build_block_mask_strategy
 # Mamba related imports
 # if torch.cuda.is_available():
 #     from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
@@ -104,9 +105,14 @@ class CausalSelfAttention(nn.Module):
                 self.rotary_emb_q = RotaryEmbedding(config, size=config.n_embd // self.n_head)
                 self.rotary_emb_k = RotaryEmbedding(config, size=config.n_embd // self.n_head)
 
-        # Sliding window size
+        # Sliding window / block mask configuration
         self.window_size = config.window_size
         print(f"sliding window size: {self.window_size}")
+        self.block_mask_strategy = build_block_mask_strategy(config, getattr(config, "block_mask", None))
+        self.block_mask = self.block_mask_strategy.selected_name
+        self.use_sliding_window = self.block_mask_strategy.is_sliding
+        if self.block_mask_strategy.is_active:
+            print(f"attention block mask: {self.block_mask}")
 
         # qk_norm and v_norm
         self.use_qk_norm = config.use_qk_norm
@@ -128,7 +134,7 @@ class CausalSelfAttention(nn.Module):
                 self.flash_lobo_log_const = nn.Parameter(torch.tensor(config.flash_lobo_log_const))  # log C  (0 → C = 1)
 
         # Using flex attention
-        self.use_flex_attn = config.use_flex_attn
+        self.use_flex_attn = bool(config.use_flex_attn)
 
         # Gating
         self.gate = config.gate
@@ -164,10 +170,9 @@ class CausalSelfAttention(nn.Module):
             self.qk_norm_factor = nn.Parameter(torch.tensor(g0))
 
         self.flash = True
-        if self.window_size is not None:
-            # TODO: look into supporting sliding window attn for flash attn
+        if self.use_flex_attn:
             self.flash = False
-            print("flash attention removed due to windowed attention")
+            print("flash attention removed due to flex attention")
 
         if self.n_kv_group != self.n_head:
             self.flash = False
@@ -213,28 +218,6 @@ class CausalSelfAttention(nn.Module):
             self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                         .view(1, 1, config.block_size, config.block_size))
 
-    # Flex Attention Related
-    def sliding_window_causal(self, b, h, q_idx, kv_idx):
-        causal_mask = q_idx >= kv_idx
-        window_mask = q_idx - kv_idx <= self.window_size
-        return causal_mask & window_mask
-
-    def get_block_mask(self, T, device):
-        if T not in self.block_masks:
-            block_mask = create_block_mask(
-                    self.sliding_window_causal,
-                    B=None,
-                    H=None,
-                    Q_LEN=T,
-                    KV_LEN=T,
-                    device=device
-                    )
-            self.block_masks[T] = block_mask
-        else:
-            block_mask = self.block_masks[T]
-        return block_mask
-    # End Flex Attention Related
-
     def forward(self, x, iter_num):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
@@ -247,13 +230,18 @@ class CausalSelfAttention(nn.Module):
         k = self.c_attn_k(x)
         v = self.c_attn_v(x)
 
-        if self.window_size is not None:
-            if self.use_flex_attn is not None:
-                self.block_masks = {}
-            else:
-                self.window_mask = torch.ones((1, 1, T, T), device=x.device)
-                self.window_mask = torch.triu(self.window_mask, diagonal=-self.window_size)
-                self.window_mask = self.bias[:,:,:T,:T] * self.window_mask
+        self.window_mask = None
+        if self.block_mask_strategy.is_active:
+            if self.use_flex_attn:
+                self.block_mask_strategy.reset_sequence_cache()
+            elif not self.flash:
+                base_causal = self.bias[:, :, :T, :T].to(x.device)
+                self.window_mask = self.block_mask_strategy.fallback_mask(
+                    seq_len=T,
+                    device=x.device,
+                    base_causal_mask=base_causal,
+                    dtype=x.dtype,
+                )
 
         if self.gate:
             if self.n_kv_group == self.n_head:
@@ -319,6 +307,14 @@ class CausalSelfAttention(nn.Module):
                 else:
                     attn_bias[..., 0] = self.flash_lobo_log_const    # first column only
 
+            if self.block_mask_strategy.is_active and not self.use_flex_attn:
+                mask_bias = self.block_mask_strategy.sdpa_bias(T, k.size(2), x.device, q.dtype)
+                if mask_bias is not None:
+                    if attn_bias is None:
+                        attn_bias = mask_bias
+                    else:
+                        attn_bias = attn_bias + mask_bias
+
 
             # Efficient attention using Flash Attention CUDA kernels
             y = torch.nn.functional.scaled_dot_product_attention(
@@ -329,8 +325,10 @@ class CausalSelfAttention(nn.Module):
                 dropout_p=self.dropout if self.training else 0,
                 is_causal=True,
             )
-        elif self.use_flex_attn and self.window_size is not None:
-            block_mask = self.get_block_mask(T, x.device)
+        elif self.use_flex_attn:
+            block_mask = None
+            if self.block_mask_strategy.supports_flex:
+                block_mask = self.block_mask_strategy.flex_block_mask(T, x.device)
             y = torch.nn.attention.flex_attention.flex_attention(q, k, v, block_mask=block_mask)
         else:
             if self.quantization_attn_dict["quantize_attn_act_qk_mult_q_input"]:
@@ -363,7 +361,7 @@ class CausalSelfAttention(nn.Module):
                 att = att * self.attn_logit_softcapping
 
             # apply masks
-            if self.window_size is not None:
+            if self.block_mask_strategy.is_active and self.window_mask is not None:
                 # add mask for sliding window attention
                 att = att.masked_fill(self.window_mask == 0, float('-inf'))
             else:

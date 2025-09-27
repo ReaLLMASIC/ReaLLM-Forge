@@ -1,0 +1,37 @@
+# explorations/global_vs_sliding_sdpa.yaml
+---
+parameter_groups:
+  # Baseline: softmax across all layers
+  - softmax_variant_attn: ["softmax"]
+  # Variant: relu2max with peri-LN disabled on global layers only
+  - softmax_variant_attn: ["relu2max"]
+    use_peri_ln_layerlist:
+      - "false false true true false true true false false"
+
+# Attention structure
+block_mask: ["sliding"]
+block_mask_layerlist:
+  - "global global sliding sliding global sliding sliding global global"
+window_size: [128]
+
+# Model shape
+n_layer: [9]
+n_head: [8]
+n_embd: [512]
+block_size: [1024]
+
+# Normalization defaults
+use_pre_ln: [true]
+use_peri_ln: [true]
+use_post_ln: [false]
+
+# Training setup
+max_iters: [5000]
+eval_interval: [5000]
+batch_size: [32]
+learning_rate: [3e-4]
+optimizer: ["adamw"]
+dataset: ["minipile"]
+device: ["cuda"]
+dtype: ["bfloat16"]
+compile: [true]

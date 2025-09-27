@@ -24,6 +24,10 @@ class GPTConfig:
     n_qk_head_dim_layerlist: List[int] = field(default_factory=list)
     n_v_head_dim_layerlist: List[int] = field(default_factory=list)
     mlp_size_layerlist: List[int] = field(default_factory=list)
+    block_mask_layerlist: List[str] = field(default_factory=list)
+    use_pre_ln_layerlist: List[bool] = field(default_factory=list)
+    use_peri_ln_layerlist: List[bool] = field(default_factory=list)
+    use_post_ln_layerlist: List[bool] = field(default_factory=list)
 
     # For multicontext training
     multicontext: bool = False
@@ -142,6 +146,11 @@ class GPTConfig:
 
     dropout: float = 0.0
     window_size: int = None
+    block_mask: str | None = None
+    block_mask_learned_min_window: float = 1.0
+    block_mask_learned_max_window: int | None = None
+    block_mask_learned_temperature: float = 1.0
+    block_mask_learned_penalty: float = 30.0
     use_flex_attn: bool = None
 
     gate: bool = False
