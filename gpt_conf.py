@@ -383,6 +383,13 @@ class GPTConfig:
     dact_use_beta: bool = True
     dact_use_alpha: bool = True
     use_embedding_scale: bool = False
+    l2_norm_embed: bool = False
+    l2_norm_embed_scale: float | None = None
+    l2_norm_embed_scale_learnable: bool = True
+
+    l2_norm_lm_head: bool = False
+    l2_norm_lm_head_scale: float | None = None
+    l2_norm_lm_head_scale_learnable: bool = True
 
     # Activation Alternatives
 

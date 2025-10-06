@@ -146,6 +146,20 @@ class GPT(nn.Module):
         if config.use_embedding_scale:
             self.embedding_scale = nn.Parameter(torch.sqrt(torch.tensor(config.n_embd)))
 
+        self.l2_norm_embed = config.l2_norm_embed
+        if self.l2_norm_embed:
+            init_val = config.l2_norm_embed_scale if config.l2_norm_embed_scale is not None else math.sqrt(config.n_embd)
+            self.embed_l2_scale = nn.Parameter(torch.tensor(init_val, dtype=torch.float32))
+            if not config.l2_norm_embed_scale_learnable:
+                self.embed_l2_scale.requires_grad = False
+
+        self.l2_norm_lm_head = config.l2_norm_lm_head
+        if self.l2_norm_lm_head:
+            init_val = config.l2_norm_lm_head_scale if config.l2_norm_lm_head_scale is not None else math.sqrt(config.n_embd)
+            self.lm_head_l2_scale = nn.Parameter(torch.tensor(init_val, dtype=torch.float32))
+            if not config.l2_norm_lm_head_scale_learnable:
+                self.lm_head_l2_scale.requires_grad = False
+
         # Learned Steering Vectors
         self.use_lsv = config.use_lsv
         self.lsv_index = config.lsv_index
@@ -412,6 +426,10 @@ class GPT(nn.Module):
 
                 x = token_repr if x is None else x + token_repr
 
+            if self.l2_norm_embed:
+                x = F.normalize(x, dim=-1)
+                x = x * self.embed_l2_scale
+        
             if self.config.use_embedding_scale:
                 x = x * self.embedding_scale
 
@@ -487,6 +505,7 @@ class GPT(nn.Module):
             if self.n_embd_wte:
                 x = F.linear(x, self.transformer.scale_down.weight.t())
 
+            logits = []
             # 5. Compute separate logits
             if self.uses_numerical_multicontext:
                 logits = [self.numerical_output_mlps[str(i)](x) for i in range(len(token_list))]
@@ -509,8 +528,17 @@ class GPT(nn.Module):
                 else:
                     logits = [pred[:, [-1], :] for pred in logits]
                     losses = None
-            else:
-                logits = [self.transformer[f'lm_head_{i}'](x) for i in range(len(token_list))]
+            else:                
+                for i in range(len(token_list)):
+                     lm_head = self.transformer[f'lm_head_{i}']
+
+                     if self.l2_norm_lm_head:
+                         # normalize + scale this head’s weight
+                         weight = F.normalize(lm_head.weight, dim=1) * self.lm_head_l2_scale
+                         logits.append(F.linear(x, weight, lm_head.bias))
+                     else:
+                         # standard forward pass (no weight substitution)
+                         logits.append(lm_head(x))
 
                 # Soft‑cap **each** logits tensor (training & inference)
                 if self.config.final_logit_softcapping is not None:
@@ -554,6 +582,10 @@ class GPT(nn.Module):
             else:
                 tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
             x = None
+
+            if self.l2_norm_embed:
+                tok_emb = F.normalize(tok_emb, dim=-1)
+                tok_emb = tok_emb * self.embed_l2_scale
 
             if self.config.use_embedding_scale:
                 tok_emb = tok_emb * self.embedding_scale
@@ -634,12 +666,19 @@ class GPT(nn.Module):
                 x = F.linear(x, self.transformer.scale_down.weight.t())
 
 
-            if targets is not None:
-                # if we are given some desired targets also calculate the loss
+            if targets is not None:                
                 if self.config.multidataset_wte and dataset_idx is not None:
-                    logits = self.transformer[f'lm_head_{dataset_idx}'](x)
+                    lm_head = self.transformer[f'lm_head_{dataset_idx}']
                 else:
-                    logits = self.lm_head(x)
+                    lm_head = self.lm_head
+                
+                if self.l2_norm_lm_head:
+                    # normalize + scale the chosen head’s weight
+                    weight = F.normalize(lm_head.weight, dim=1) * self.lm_head_l2_scale
+                    logits = F.linear(x, weight, lm_head.bias)
+                else:
+                    # normal forward
+                    logits = lm_head(x)
 
                 if self.config.final_logit_softcapping is not None:
                     logits = logits / self.config.final_logit_softcapping
@@ -653,9 +692,13 @@ class GPT(nn.Module):
             else:
                 # inference-time mini-optimization: only forward the lm_head on the very last position
                 if self.config.multidataset_wte and dataset_idx is not None:
-                    logits = self.transformer[f'lm_head_{dataset_idx}'](x[:, [-1], :])
+                    weight = self.transformer[f'lm_head_{dataset_idx}'].weight
                 else:
-                    logits = self.lm_head(x[:, [-1], :]) # note: using list [-1] to preserve the time dim
+                    weight = self.lm_head.weight
+                if self.l2_norm_lm_head:
+                    weight = F.normalize(weight, dim=1)
+                    weight = weight * self.lm_head_l2_scale
+                logits = F.linear(x[:, [-1], :], weight) # note: using list [-1] to preserve the time dim
 
                 if self.config.final_logit_softcapping is not None:
                     logits = logits / self.config.final_logit_softcapping
@@ -681,10 +724,13 @@ class GPT(nn.Module):
             tok_emb = self.transformer[f'wte_{dataset_idx}'](idx)
         else:
             tok_emb = self.transformer.wte(idx)
-        if self.n_embd_wte:
-            tok_emb = self.transformer.scale_up(tok_emb)
+        if self.l2_norm_embed:
+            tok_emb = F.normalize(tok_emb, dim=-1)
+            tok_emb = tok_emb * self.embed_l2_scale
         if self.config.use_embedding_scale:
             tok_emb = tok_emb * self.embedding_scale
+        if self.n_embd_wte:
+            tok_emb = self.transformer.scale_up(tok_emb)
         if self.config.use_abs_pos_embeddings:
             t = idx.size(1)
             pos = torch.arange(0, t, dtype=torch.long, device=device)
@@ -728,9 +774,13 @@ class GPT(nn.Module):
             x = F.linear(x, self.transformer.scale_down.weight.t())
 
         if self.config.multidataset_wte and dataset_idx is not None:
-            logits = self.transformer[f'lm_head_{dataset_idx}'](x)
+            weight = self.transformer[f'lm_head_{dataset_idx}'].weight
         else:
-            logits = self.lm_head(x)
+            weight = self.lm_head.weight
+        if self.l2_norm_lm_head:
+            weight = F.normalize(weight, dim=1)
+            weight = weight * self.lm_head_l2_scale
+        logits = F.linear(x, weight)
         if self.final_logit_softcapping is not None:
             logits = torch.tanh(logits / self.final_logit_softcapping) \
                      * self.final_logit_softcapping

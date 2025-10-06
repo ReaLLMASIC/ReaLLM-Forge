@@ -691,6 +691,21 @@ def parse_args():
     model_group.add_argument("--dact_use_alpha",  type=bool, default=True, action=argparse.BooleanOptionalAction)
 
     model_group.add_argument("--use_embedding_scale", type=bool, default=False, action=argparse.BooleanOptionalAction)
+    model_group.add_argument("--l2_norm_embed", default=False, action=argparse.BooleanOptionalAction,
+                             help="L2 normalize token embeddings output from wte")
+    model_group.add_argument("--l2_norm_embed_scale", type=float, default=None,
+                             help="Initial scale for embedding L2 normalization (default sqrt(n_embd))")
+    model_group.add_argument("--l2_norm_embed_scale_learnable", default=True,
+                             action=argparse.BooleanOptionalAction,
+                             help="Learn multiplicative constant for embedding L2 normalization")
+
+    model_group.add_argument("--l2_norm_lm_head", default=False, action=argparse.BooleanOptionalAction,
+                             help="L2 normalize LM head weights")
+    model_group.add_argument("--l2_norm_lm_head_scale", type=float, default=None,
+                             help="Initial scale for LM head L2 normalization (default sqrt(n_embd))")
+    model_group.add_argument("--l2_norm_lm_head_scale_learnable", default=True,
+                             action=argparse.BooleanOptionalAction,
+                             help="Learn multiplicative constant for LM head L2 normalization")
 
     # ACTIVATION VARIATIONS
     model_group.add_argument( "--activation_variant", type=str, default="gelu", choices=activation_variations)
