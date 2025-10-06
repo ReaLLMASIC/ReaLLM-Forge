@@ -628,6 +628,8 @@ def parse_args():
             "krmsnorm",
             "prmsnorm",
             "rmsnorm",
+            "rmsnorm_linear_post",
+            "rmsnorm_linear_pre",
             "layernorm",
             "hyperspherenorm",
             "dact",
@@ -636,6 +638,35 @@ def parse_args():
 
     model_group.add_argument("--norm_variant_attn", type=str, default="rmsnorm", choices=norm_variations)
     model_group.add_argument("--norm_variant_output", type=str, default="rmsnorm", choices=norm_variations)
+
+    model_group.add_argument(
+        "--rmsnorm_linear_post_init",
+        type=str,
+        default="default",
+        choices=["default", "identity"],
+        help="Initialization for the linear matrix used in rmsnorm_linear_post."
+    )
+    model_group.add_argument(
+        "--rmsnorm_linear_post_divisor_mode",
+        type=str,
+        default="default",
+        choices=["default", "constant", "learnable"],
+        help="Divisor mode for the normalization step in rmsnorm_linear_post."
+    )
+    model_group.add_argument(
+        "--rmsnorm_linear_pre_init",
+        type=str,
+        default="default",
+        choices=["default", "identity"],
+        help="Initialization for the linear matrix used in rmsnorm_linear_pre."
+    )
+    model_group.add_argument(
+        "--rmsnorm_linear_pre_divisor_mode",
+        type=str,
+        default="default",
+        choices=["default", "constant", "learnable"],
+        help="Divisor mode for the normalization step in rmsnorm_linear_pre."
+    )
 
     ## Layernorm
     model_group.add_argument('--bias', default=False, action=argparse.BooleanOptionalAction, help="only used for layernorm variation option")
@@ -651,9 +682,17 @@ def parse_args():
     model_group.add_argument("--krmsnorm_recompute_percentage", type=float, default=None, help="percentage needed within the total RMS to not trigger recompute")
 
     ## HyperSphereNorm
-    model_group.add_argument("--hsnorm_gain", default=False, action=argparse.BooleanOptionalAction)
     model_group.add_argument("--hsnorm_radius", type=float, default=None)
-    model_group.add_argument("--hsnorm_radius_learning", default=False, action=argparse.BooleanOptionalAction)
+    model_group.add_argument(
+        "--hsnorm_radius_mode",
+        type=str,
+        default="fixed",
+        choices=["dynamic", "fixed", "learned_param"],
+        help=(
+            "Select how HyperSphereNorm determines its target radius: dynamically via sqrt(feature dim), "
+            "a fixed constant, or a learned parameter."
+        ),
+    )
 
     activation_variations = [
             "celu",

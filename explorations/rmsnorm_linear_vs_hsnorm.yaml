@@ -1,0 +1,53 @@
+# rmsnorm_linear_vs_hsnorm.yaml
+---
+
+parameter_groups:
+  - norm_variant_attn: ["rmsnorm_linear_post"]
+    norm_variant_output: ["rmsnorm_linear_post"]
+    tensorboard_log_name: ["rmsnorm_linear_post"]
+  - norm_variant_attn: ["rmsnorm_linear_pre"]
+    norm_variant_output: ["rmsnorm_linear_pre"]
+    tensorboard_log_name: ["rmsnorm_linear_pre"]
+  - norm_variant_attn: ["hyperspherenorm"]
+    norm_variant_output: ["hyperspherenorm"]
+    hsnorm_radius_mode: ["fixed"]
+    tensorboard_log_name: ["hyperspherenorm_fixed_radius"]
+  - norm_variant_attn: ["hyperspherenorm"]
+    norm_variant_output: ["hyperspherenorm"]
+    hsnorm_radius_mode: ["learned_param"]
+    tensorboard_log_name: ["hyperspherenorm_learned_radius"]
+
+# GPT-2 124M architecture
+n_layer: [12]
+n_head: [12]
+n_embd: [768]
+block_size: [1024]
+
+device: ["cuda"]
+dtype: ["bfloat16"]
+dataset: ["minipile"]
+batch_size: [16]
+learning_rate: ["6e-4"]
+min_lr: ["6e-5"]
+beta1: [0.9]
+beta2: [0.95]
+max_iters: [30000]
+lr_decay_iters: [30000]
+warmup_iters: [3000]
+decay_lr: [true]
+eval_interval: [5000]
+
+# normalization extras
+use_peri_ln: [true, false]
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+
+# positional embeddings
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# compilation and checkpointing
+compile: [true]
+only_save_checkpoint_at_end: [true]
+
+tensorboard_run_name: ["rmsnorm_linear_vs_hsnorm"]

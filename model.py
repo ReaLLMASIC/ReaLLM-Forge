@@ -293,6 +293,19 @@ class GPT(nn.Module):
         Custom weight initialization logic for GPT model.
         """
         if isinstance(module, nn.Linear):
+            init_type = getattr(module, "_nano_linear_init_type", "default")
+            if init_type == "identity":
+                if module.weight.shape[0] != module.weight.shape[1]:
+                    raise ValueError(
+                        "Identity initialization requested for a non-square linear layer"
+                    )
+                with torch.no_grad():
+                    eye = torch.eye(module.weight.shape[0], dtype=module.weight.dtype, device=module.weight.device)
+                    module.weight.copy_(eye)
+                if module.bias is not None:
+                    torch.nn.init.zeros_(module.bias)
+                return
+
             torch.nn.init.normal_(module.weight, mean=self.config.linear_mean_init, std=self.config.linear_std_init)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
