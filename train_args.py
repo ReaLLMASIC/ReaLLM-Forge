@@ -146,7 +146,7 @@ def parse_args():
     training_group.add_argument('--save_major_ckpt_interval', default=None, type=int, help="Interval for saving major checkpoints.")
     training_group.add_argument('--only_save_checkpoint_at_end', default=False, action=argparse.BooleanOptionalAction)
     training_group.add_argument('--always_save_checkpoint', default=False, action=argparse.BooleanOptionalAction)
-    training_group.add_argument('--never_save_checkpoint', default=False, action=argparse.BooleanOptionalAction, help="If set, disables saving of all checkpoints.")
+    training_group.add_argument('--never_save_checkpoint', default=False, action=argparse.BooleanOptionalAction, help="If set, disables saving of all checkpoints. Is overriden by 'only_save_checkpoint_at_end'")
     training_group.add_argument('--patience', default=None, type=int, help="if set, will stop training if the number of evaluations since val loss was seen to decrease exceeds 'patience' setting.")
     training_group.add_argument('--init_from', default='scratch', choices=['scratch', 'prev_run', 'resume', 'gpt2'], type=str)
     training_group.add_argument('--gpt2_type', default='gpt2', type=str)
@@ -628,6 +628,8 @@ def parse_args():
             "krmsnorm",
             "prmsnorm",
             "rmsnorm",
+            "rmsnorm_linear_post",
+            "rmsnorm_linear_pre",
             "layernorm",
             "hyperspherenorm",
             "dact",
@@ -636,6 +638,35 @@ def parse_args():
 
     model_group.add_argument("--norm_variant_attn", type=str, default="rmsnorm", choices=norm_variations)
     model_group.add_argument("--norm_variant_output", type=str, default="rmsnorm", choices=norm_variations)
+
+    model_group.add_argument(
+        "--rmsnorm_linear_post_init",
+        type=str,
+        default="default",
+        choices=["default", "identity"],
+        help="Initialization for the linear matrix used in rmsnorm_linear_post."
+    )
+    model_group.add_argument(
+        "--rmsnorm_linear_post_divisor_mode",
+        type=str,
+        default="default",
+        choices=["default", "constant", "learnable"],
+        help="Divisor mode for the normalization step in rmsnorm_linear_post."
+    )
+    model_group.add_argument(
+        "--rmsnorm_linear_pre_init",
+        type=str,
+        default="default",
+        choices=["default", "identity"],
+        help="Initialization for the linear matrix used in rmsnorm_linear_pre."
+    )
+    model_group.add_argument(
+        "--rmsnorm_linear_pre_divisor_mode",
+        type=str,
+        default="default",
+        choices=["default", "constant", "learnable"],
+        help="Divisor mode for the normalization step in rmsnorm_linear_pre."
+    )
 
     ## Layernorm
     model_group.add_argument('--bias', default=False, action=argparse.BooleanOptionalAction, help="only used for layernorm variation option")
@@ -651,9 +682,17 @@ def parse_args():
     model_group.add_argument("--krmsnorm_recompute_percentage", type=float, default=None, help="percentage needed within the total RMS to not trigger recompute")
 
     ## HyperSphereNorm
-    model_group.add_argument("--hsnorm_gain", default=False, action=argparse.BooleanOptionalAction)
     model_group.add_argument("--hsnorm_radius", type=float, default=None)
-    model_group.add_argument("--hsnorm_radius_learning", default=False, action=argparse.BooleanOptionalAction)
+    model_group.add_argument(
+        "--hsnorm_radius_mode",
+        type=str,
+        default="fixed",
+        choices=["dynamic", "fixed", "learned_param"],
+        help=(
+            "Select how HyperSphereNorm determines its target radius: dynamically via sqrt(feature dim), "
+            "a fixed constant, or a learned parameter."
+        ),
+    )
 
     activation_variations = [
             "celu",

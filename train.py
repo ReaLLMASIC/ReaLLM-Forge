@@ -1896,9 +1896,8 @@ class Trainer:
                 if self.iter_num > self.args.max_iters:
                     print(self.best_val_loss, self.best_iter, self.best_tokens)
                     if self.args.only_save_checkpoint_at_end:
-                        if not self.args.never_save_checkpoint:
-                            self.save_checkpoint('ckpt.pt')
-                            print(f"Saved checkpoint to {self.args.out_dir}")
+                        self.save_checkpoint('ckpt.pt')
+                        print(f"Saved checkpoint to {self.args.out_dir}")
 
                         # Sample if set
                         if self.args.max_sample_tokens:

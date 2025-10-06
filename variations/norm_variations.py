@@ -62,6 +62,73 @@ class RMSNorm(nn.Module):
         rms = x.norm(2, dim=-1, keepdim=True) / math.sqrt(x.size(-1))
         return x / rms * self.gain
 
+
+class RMSNormLinearPost(nn.Module):
+    """RMS Normalization followed by a learned linear mixing matrix."""
+
+    def __init__(self, config):
+        super().__init__()
+        ndim = config.n_embd
+        self.linear = nn.Linear(ndim, ndim, bias=False)
+        init_type = getattr(config, "rmsnorm_linear_post_init", "default")
+        # Store desired init type on the module so the global initializer can honor it
+        setattr(self.linear, "_nano_linear_init_type", init_type)
+        self.divisor_mode = getattr(config, "rmsnorm_linear_post_divisor_mode", "default")
+        if self.divisor_mode == "constant":
+            self.register_buffer("divisor_value", torch.tensor(math.sqrt(ndim)), persistent=False)
+        elif self.divisor_mode == "learnable":
+            self.divisor_value = nn.Parameter(torch.tensor(math.sqrt(ndim)))
+        elif self.divisor_mode != "default":
+            raise ValueError(f"Unsupported rmsnorm_linear_post_divisor_mode: {self.divisor_mode}")
+
+    def forward(self, x):
+        norm = x.norm(2, dim=-1, keepdim=True)
+        divisor = self._get_divisor(x)
+        rms = norm / divisor
+        x = x / rms
+        return self.linear(x)
+
+    def _get_divisor(self, x):
+        if self.divisor_mode == "default":
+            return math.sqrt(x.size(-1))
+        divisor = self.divisor_value
+        if isinstance(divisor, torch.Tensor):
+            divisor = divisor.to(dtype=x.dtype, device=x.device)
+        return divisor
+
+
+class RMSNormLinearPre(nn.Module):
+    """Linear mixing matrix followed by RMS Normalization."""
+
+    def __init__(self, config):
+        super().__init__()
+        ndim = config.n_embd
+        self.linear = nn.Linear(ndim, ndim, bias=False)
+        init_type = getattr(config, "rmsnorm_linear_pre_init", "default")
+        setattr(self.linear, "_nano_linear_init_type", init_type)
+        self.divisor_mode = getattr(config, "rmsnorm_linear_pre_divisor_mode", "default")
+        if self.divisor_mode == "constant":
+            self.register_buffer("divisor_value", torch.tensor(math.sqrt(ndim)), persistent=False)
+        elif self.divisor_mode == "learnable":
+            self.divisor_value = nn.Parameter(torch.tensor(math.sqrt(ndim)))
+        elif self.divisor_mode != "default":
+            raise ValueError(f"Unsupported rmsnorm_linear_pre_divisor_mode: {self.divisor_mode}")
+
+    def forward(self, x):
+        x = self.linear(x)
+        norm = x.norm(2, dim=-1, keepdim=True)
+        divisor = self._get_divisor(x)
+        rms = norm / divisor
+        return x / rms
+
+    def _get_divisor(self, x):
+        if self.divisor_mode == "default":
+            return math.sqrt(x.size(-1))
+        divisor = self.divisor_value
+        if isinstance(divisor, torch.Tensor):
+            divisor = divisor.to(dtype=x.dtype, device=x.device)
+        return divisor
+
 class HyperSphereNorm(nn.Module):
     """Normalization to the surface of Hypersphere"""
 
@@ -69,27 +136,41 @@ class HyperSphereNorm(nn.Module):
         super().__init__()
 
         ndim = config.n_embd
-        if config.hsnorm_gain:
-            self.gain = nn.Parameter(torch.ones(ndim))
-        else:
-            self.gain = 1.0
+        self.radius_mode = getattr(config, "hsnorm_radius_mode", "fixed")
 
-        # Determine radius initialization value
-        radius_init = None
-        if config.hsnorm_radius is not None:
-            radius_init = config.hsnorm_radius
+        if self.radius_mode == "dynamic":
+            self.radius_value = None
+        elif self.radius_mode in {"fixed", "learned_param"}:
+            radius_init = (
+                config.hsnorm_radius
+                if getattr(config, "hsnorm_radius", None) is not None
+                else math.sqrt(ndim)
+            )
+            if self.radius_mode == "fixed":
+                self.register_buffer(
+                    "radius_value",
+                    torch.tensor(radius_init),
+                    persistent=False,
+                )
+            else:
+                self.radius_value = nn.Parameter(torch.tensor(radius_init))
         else:
-            radius_init = math.sqrt(ndim)
-
-        # Set as constant or learned param
-        if config.hsnorm_radius_learning:
-            self.radius = nn.Parameter(torch.tensor([radius_init]))
-        else:
-            self.radius = radius_init
+            raise ValueError(
+                f"Unsupported hsnorm_radius_mode: {self.radius_mode}"
+            )
 
     def forward(self, x):
-        hypersphere_norm = x.norm(2, dim=-1, keepdim=True)
-        return  x / hypersphere_norm * self.radius
+        norm = x.norm(2, dim=-1, keepdim=True)
+        radius = self._get_radius(x)
+        return x / norm * radius
+
+    def _get_radius(self, x):
+        if self.radius_mode == "dynamic":
+            return math.sqrt(x.size(-1))
+        radius = self.radius_value
+        if isinstance(radius, torch.Tensor):
+            radius = radius.to(dtype=x.dtype, device=x.device)
+        return radius
 
 class pRMSNorm(nn.Module):
     """Partial RMS Normalization"""
@@ -206,6 +287,8 @@ class IdentityNorm(nn.Module):
 norm_dictionary = {
     "layernorm": LayerNorm,
     "rmsnorm": RMSNorm,
+    "rmsnorm_linear_post": RMSNormLinearPost,
+    "rmsnorm_linear_pre": RMSNormLinearPre,
     "prmsnorm": pRMSNorm,
     "krmsnorm": kRMSNorm,
     "hyperspherenorm": HyperSphereNorm,

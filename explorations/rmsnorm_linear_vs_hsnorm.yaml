@@ -1,0 +1,59 @@
+# rmsnorm_linear_vs_hsnorm.yaml
+---
+
+parameter_groups:
+  # rmsnorm_linear_post variants
+  - norm_variant_attn: ["rmsnorm_linear_post"]
+    norm_variant_output: ["rmsnorm_linear_post"]
+    rmsnorm_linear_post_init: ["default", "identity"]
+    rmsnorm_linear_post_divisor_mode: ["default", "constant", "learnable"]
+
+  # rmsnorm_linear_pre variants
+  - norm_variant_attn: ["rmsnorm_linear_pre"]
+    norm_variant_output: ["rmsnorm_linear_pre"]
+    rmsnorm_linear_pre_init: ["default", "identity"]
+    rmsnorm_linear_pre_divisor_mode: ["default", "constant", "learnable"]
+
+  # HyperSphereNorm variants
+  - norm_variant_attn: ["hyperspherenorm"]
+    norm_variant_output: ["hyperspherenorm"]
+    hsnorm_radius_mode: ["dynamic", "fixed", "learned_param"]
+  - norm_variant_attn: ["hyperspherenorm"]
+    norm_variant_output: ["hyperspherenorm"]
+    hsnorm_radius_mode: ["fixed", "learned_param"]
+    hsnorm_radius: [27.7128]
+
+# GPT-2 124M architecture
+n_layer: [12]
+n_head: [12]
+n_embd: [768]
+block_size: [256]
+
+device: ["cuda"]
+dtype: ["bfloat16"]
+dataset: ["minipile"]
+batch_size: [16]
+learning_rate: ["6e-4"]
+min_lr: ["6e-5"]
+beta1: [0.9]
+beta2: [0.95]
+max_iters: [10000]
+lr_decay_iters: [10000]
+warmup_iters: [1000]
+decay_lr: [true]
+eval_interval: [1000]
+
+# normalization extras
+use_peri_ln: [true, false]
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+
+# positional embeddings
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# compilation and checkpointing
+compile: [true]
+never_save_checkpoint: [true]
+
+tensorboard_run_name: ["rmsnorm_linear_vs_hsnorm"]

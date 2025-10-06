@@ -1,35 +1,83 @@
-
 [
     {
-      "parameter_groups": [
-          {
-          "norm_variant_attn" : ["rmsnorm"],
-          "norm_variant_output" : ["rmsnorm"],
-          "tensorboard_log_name": ["regular_rmsnorm"]
-          },
-          {
-          "norm_variant_attn" : ["hyperspherenorm"],
-          "norm_variant_output" : ["hyperspherenorm"],
-          "hsnorm_radius": ["5", "10", "15", "20", "25"],
-          "hsnorm_radius_learning": [true, false],
-          "tensorboard_log_name": ["set_radius"]
-          },
-          {
-          "norm_variant_attn" : ["hyperspherenorm"],
-          "norm_variant_output" : ["hyperspherenorm"],
-          "hsnorm_radius_learning": [true, false],
-          "tensorboard_log_name": ["root_embd_dim_radius"]
-          }
-      ],
-      "max_iters": ["3500"],
-      "n_layer": ["6"],
-      "n_kv_group": ["6"],
-      "n_head": ["6"],
-      "n_embd": ["384"],
-      "block_size":["256"],
-      "device": ["cuda"],
-      "dtype": ["float16", "bfloat16", "float32"],
-      "compile": [true]
+        "parameter_groups": [
+            {
+                "norm_variant_attn": [
+                    "rmsnorm"
+                ],
+                "norm_variant_output": [
+                    "rmsnorm"
+                ],
+                "tensorboard_log_name": [
+                    "regular_rmsnorm"
+                ]
+            },
+            {
+                "norm_variant_attn": [
+                    "hyperspherenorm"
+                ],
+                "norm_variant_output": [
+                    "hyperspherenorm"
+                ],
+                "hsnorm_radius": [
+                    "5",
+                    "10",
+                    "15",
+                    "20",
+                    "25"
+                ],
+                "tensorboard_log_name": [
+                    "set_radius"
+                ],
+                "hsnorm_radius_mode": [
+                    "fixed",
+                    "learned_param"
+                ]
+            },
+            {
+                "norm_variant_attn": [
+                    "hyperspherenorm"
+                ],
+                "norm_variant_output": [
+                    "hyperspherenorm"
+                ],
+                "tensorboard_log_name": [
+                    "root_embd_dim_radius"
+                ],
+                "hsnorm_radius_mode": [
+                    "dynamic",
+                    "learned_param"
+                ]
+            }
+        ],
+        "max_iters": [
+            "3500"
+        ],
+        "n_layer": [
+            "6"
+        ],
+        "n_kv_group": [
+            "6"
+        ],
+        "n_head": [
+            "6"
+        ],
+        "n_embd": [
+            "384"
+        ],
+        "block_size": [
+            "256"
+        ],
+        "device": [
+            "cuda"
+        ],
+        "dtype": [
+            "float16",
+            "bfloat16",
+            "float32"
+        ],
+        "compile": [
+            true
+        ]
     }
 ]
-
