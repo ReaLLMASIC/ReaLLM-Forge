@@ -37,5 +37,7 @@ alias wd="watch --color 'df -h .'"
 alias gf="git fetch --all"
 alias gs="git status"
 alias gl="git log --stat -p"
+alias gc="git checkout"
+alias gb="git branch"
 
 alias c="clear"
