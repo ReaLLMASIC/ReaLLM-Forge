@@ -68,10 +68,10 @@ bindkey "^[[F" end-of-line        # [End] - move to the end of the line
 # COMPLETION SYSTEM (COMPINIT)
 # ------------------------------------------------------------------------------
 
-# Initialize the completion system
-autoload -Uz compinit && compinit
-
-zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}' 'l:|=* r:|=*' '*'
+zstyle ':completion:*' completer _complete
+zstyle ':completion:*' matcher-list '' 'm:{[:lower:][:upper:]}={[:upper:][:lower:]}' '+l:|=* r:|=*'
+autoload -Uz compinit
+compinit
 
 # Enable completion caching to speed up shell startup
 zstyle ':completion::complete:*' use-cache 1
