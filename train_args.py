@@ -873,6 +873,7 @@ def parse_args():
     model_group.add_argument("--activation_end", type=str, default="relu", choices=activation_variations)
     model_group.add_argument("--activation_transition_start_iter", type=int, default=0)
     model_group.add_argument("--activation_transition_end_iter", type=int, default=None, help="If None, defaults to max_iters from training config.")
+    model_group.add_argument('--use_offchip_peri_ln', default=False, action=argparse.BooleanOptionalAction, help="apply after combining the residual off chip")
 
     # Quantization
     model_group.add_argument("--full_quant_iteration", type=int, default=None,

@@ -232,6 +232,11 @@ def edgellm_asic_forward(block, x: torch.Tensor, iter_num: int) -> torch.Tensor:
     # Therefore subtract initial before merging
     # x = (chip_output - x_quantized_residual_initial) + x
     adj_chip_output = chip_output - x_quantized_residual_initial
+
+    # Off-Chip Peri-LN
+    if getattr(block, "use_offchip_peri_ln", False):
+        x = block.offchip_peri_ln(x)
+
     x = block._combine_resid("mlp", x, adj_chip_output)
 
     if block.quantization_dict["quantize_asic_offchip_residual"]:
@@ -313,6 +318,10 @@ def _setup_norms_sequential(self, config, norm_cls) -> None:
     if getattr(self, "use_post_ln_mlp", False):
         self.post_ln_mlp = norm_cls(config)
 
+    # Off-chip Peri-LN (EdgeLLM ASIC only)
+    if getattr(self, "use_offchip_peri_ln", False):
+        self.offchip_peri_ln = norm_cls(config)
+
 
 normalization_setup_variations = {
     "parallel_mlp": _setup_norms_parallel,
@@ -377,6 +386,7 @@ class Block(nn.Module):
         self.use_pre_ln  = getattr(config, "use_pre_ln",  False)
         self.use_post_ln = getattr(config, "use_post_ln", False)
         self.use_peri_ln = getattr(config, "use_peri_ln", False)
+        self.use_offchip_peri_ln = getattr(config, "use_offchip_peri_ln", False)
 
         # Forward variation choice
         self.use_parallel_mlp = getattr(config, "use_parallel_mlp", False)
