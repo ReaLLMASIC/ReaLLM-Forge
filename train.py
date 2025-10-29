@@ -9,7 +9,7 @@ import pickle
 import shutil
 import sys
 import time
-from collections import deque
+from collections import deque, defaultdict
 from datetime import datetime, timedelta
 
 from rich.console import Group
@@ -24,6 +24,7 @@ from train_variations.optimizer_variants import (
 )
 from train_variations.eta_variants import build_eta_estimator, ETAUpdate
 from train_variations.loss_variants import build_loss_function
+from train_variations.distillation_loss_variants import build_distillation_loss
 
 from utils.gpu_monitoring import get_gpu_memory_info
 from torch.cuda import reset_peak_memory_stats, max_memory_allocated
@@ -184,6 +185,33 @@ class Trainer:
 
         # Loss function (potentially scheduled)
         self.loss_fn = build_loss_function(self.args)
+        self.distillation_loss_fn = build_distillation_loss(self.args)
+        self.distillation_weight = getattr(self.args, "distillation_weight", 1.0)
+        self.teacher_model = None
+        self.latest_distillation_loss = float('nan')
+        if self.distillation_loss_fn is not None and self.args.training_mode == 'multicontext':
+            raise ValueError("Knowledge distillation is not supported with multicontext training mode.")
+
+        self._distillation_requires_layer_activations = bool(
+            getattr(self.distillation_loss_fn, "requires_layer_activations", False)
+        )
+        self._distillation_activation_layers = tuple(
+            getattr(self.distillation_loss_fn, "activation_layers", ())
+        )
+        if self._distillation_requires_layer_activations and getattr(self.args, "compile", False):
+            raise ValueError(
+                "Layer-activation distillation is not compatible with --compile on the student model."
+            )
+        if self._distillation_requires_layer_activations:
+            self._student_activation_cache = defaultdict(dict)
+            self._teacher_activation_cache = defaultdict(dict)
+            self._student_activation_context = None
+            self._teacher_activation_context = None
+            self._student_activation_handles = []
+            self._teacher_activation_handles = []
+        else:
+            self._student_activation_cache = None
+            self._teacher_activation_cache = None
 
         # Learning Rate Settings
         self.lr = self.args.learning_rate
@@ -376,6 +404,11 @@ class Trainer:
             self.scaler = torch.amp.GradScaler(self.device_type, enabled=(self.args.dtype == 'float16'))
             self.scheduler = self.create_scheduler()
 
+        if self._distillation_requires_layer_activations:
+            self._register_student_activation_hooks()
+
+        self._initialize_teacher_if_needed()
+
         if self.args.block_size < self.model.config.block_size:
             self.model.crop_block_size(self.args.block_size)
             self.model_args['block_size'] = self.args.block_size
@@ -438,6 +471,138 @@ class Trainer:
             self.args.csv_name = wandb_run_name
             wandb.init(project=self.args.wandb_project, name=self.args.wandb_run_name, config=self.args)
         self.load_tokenizer()
+
+
+    def _initialize_teacher_if_needed(self):
+        teacher_path = getattr(self.args, "distillation_teacher_ckpt", None)
+        if not teacher_path:
+            if self.distillation_loss_fn is not None:
+                raise ValueError(
+                    "A distillation loss was selected but no teacher checkpoint was provided via --distillation_teacher_ckpt."
+                )
+            return
+
+        if self.distillation_loss_fn is None:
+            raise ValueError(
+                "A teacher checkpoint was supplied without selecting a distillation loss variant. Use --distillation_loss."
+            )
+
+        expanded = os.path.expanduser(teacher_path)
+        if not os.path.exists(expanded):
+            candidate = os.path.join(self.args.out_dir, teacher_path)
+            if os.path.exists(candidate):
+                expanded = candidate
+
+        checkpoint = torch.load(expanded, map_location=self.device)
+        teacher_args = checkpoint.get('model_args')
+        if teacher_args is None:
+            raise ValueError("Teacher checkpoint does not contain 'model_args'.")
+
+        teacher_config = GPTConfig(**teacher_args)
+        teacher_model = GPT(teacher_config)
+
+        state_dict = checkpoint['model']
+        for key in list(state_dict.keys()):
+            if key.startswith('_orig_mod.'):
+                state_dict[key[len('_orig_mod.'):]] = state_dict.pop(key)
+
+        teacher_model.load_state_dict(state_dict)
+
+        dtype_aliases = {
+            'float32': torch.float32,
+            'float16': torch.float16,
+            'bfloat16': torch.bfloat16,
+        }
+        teacher_dtype = getattr(self.args, "distillation_teacher_dtype", None)
+        to_kwargs = {"device": self.device}
+        if teacher_dtype is not None:
+            try:
+                to_kwargs["dtype"] = dtype_aliases[teacher_dtype]
+            except KeyError as exc:
+                raise ValueError(
+                    "Unsupported distillation_teacher_dtype '{}'. Choose from {}.".format(
+                        teacher_dtype, list(dtype_aliases.keys())
+                    )
+                ) from exc
+
+        teacher_model.to(**to_kwargs)
+        teacher_model.eval()
+        for param in teacher_model.parameters():
+            param.requires_grad_(False)
+
+        if self._distillation_requires_layer_activations:
+            self._teacher_activation_handles = self._register_activation_hooks(
+                teacher_model,
+                self._teacher_activation_cache,
+                detach_outputs=True,
+                context_attr="_teacher_activation_context",
+            )
+
+        if getattr(self.args, "distillation_teacher_compile", False):
+            torch_compile = getattr(torch, "compile", None)
+            if torch_compile is None:
+                raise RuntimeError(
+                    "torch.compile is not available but --distillation_teacher_compile was set."
+                )
+            if self._distillation_requires_layer_activations:
+                raise RuntimeError(
+                    "Layer-activation distillation does not support compiling the teacher model."
+                )
+            teacher_model = torch_compile(teacher_model)
+
+        self.teacher_model = teacher_model
+        if self.master_process:
+            print(f"Loaded teacher checkpoint from {expanded}")
+
+    def _register_student_activation_hooks(self):
+        if not self._distillation_requires_layer_activations:
+            return
+        self._student_activation_handles = self._register_activation_hooks(
+            self.model,
+            self._student_activation_cache,
+            detach_outputs=False,
+            context_attr="_student_activation_context",
+        )
+
+    def _register_activation_hooks(self, model, cache, *, detach_outputs: bool, context_attr: str):
+        handles = []
+        module_list = model.transformer['h']
+        for layer_idx in self._distillation_activation_layers:
+            if layer_idx < 0 or layer_idx >= len(module_list):
+                raise ValueError(
+                    f"Layer index {layer_idx} requested for distillation is out of bounds for model with {len(module_list)} blocks."
+                )
+
+            def hook(module, inputs, output, *, idx=layer_idx):
+                context_key = getattr(self, context_attr)
+                if context_key is None:
+                    return
+                tensor = output[0] if isinstance(output, (tuple, list)) else output
+                if detach_outputs:
+                    tensor = tensor.detach()
+                cache[context_key][idx] = tensor
+
+            handles.append(module_list[layer_idx].register_forward_hook(hook))
+        return handles
+
+    def _activation_dataset_key(self, dataset_idx):
+        return int(dataset_idx) if dataset_idx is not None else -1
+
+    def _prepare_student_activation_storage(self, dataset_idx):
+        if not self._distillation_requires_layer_activations:
+            return None
+        key = self._activation_dataset_key(dataset_idx)
+        self._student_activation_context = key
+        self._student_activation_cache[key] = {}
+        return key
+
+    def _prepare_teacher_activation_storage(self, dataset_idx):
+        if not self._distillation_requires_layer_activations:
+            return None
+        key = self._activation_dataset_key(dataset_idx)
+        self._teacher_activation_context = key
+        self._teacher_activation_cache[key] = {}
+        return key
 
 
     def create_optimizer(self):
@@ -1266,6 +1431,13 @@ class Trainer:
             self.writer.add_scalar(f"{target_dataset}/std_val_iters", losses['val_std'].item(), self.iter_num)
             self.writer.add_scalar(f"{target_dataset}/std_val_tokens", losses['val_std'].item(), tokens_trained)
 
+            if not math.isnan(self.latest_distillation_loss):
+                self.writer.add_scalar(
+                    f"{target_dataset}/distillation_loss",
+                    self.latest_distillation_loss,
+                    self.iter_num,
+                )
+
             if 'top1_prob' in losses:
                 self.writer.add_scalar(f"{target_dataset}/avg_top1_prob", losses['top1_prob'], self.iter_num)
                 self.writer.add_scalar(f"{target_dataset}/avg_top1_correct", losses['top1_correct'], self.iter_num)
@@ -1339,6 +1511,13 @@ class Trainer:
 
             self.writer.add_scalar(f"{target_dataset}/batch_size_iter", self.args.batch_size, self.iter_num)
             self.writer.add_scalar(f"{target_dataset}/batch_size_tokens", self.args.batch_size, tokens_trained)
+
+            if not math.isnan(self.latest_distillation_loss):
+                self.writer.add_scalar(
+                    f"{target_dataset}/distillation_loss",
+                    self.latest_distillation_loss,
+                    self.iter_num,
+                )
 
             if self.args.log_grad_norm:
                 self.writer.add_scalar(f"{target_dataset}/grad_norm_iters", self.grad_norm, self.iter_num)
@@ -1713,6 +1892,10 @@ class Trainer:
                             loss = sum(training_losses) / len(training_losses)
                         else:
                             idx_ds = self.args.dataset_list.index(current_dataset) if self.args.dataset_list else None
+                            activation_dataset_idx = idx_ds
+                            activation_key = None
+                            if self._distillation_requires_layer_activations:
+                                activation_key = self._prepare_student_activation_storage(activation_dataset_idx)
                             logits, loss = self.model(
                                 self.X,
                                 targets=self.Y,
@@ -1720,15 +1903,57 @@ class Trainer:
                                 dataset_idx=idx_ds if self.args.multidataset_wte else None,
                                 loss_fn=self.loss_fn,
                             )
+                            if self._distillation_requires_layer_activations:
+                                self._student_activation_context = None
 
-                        if hasattr(self.optimizer, "set_entropy") and not isinstance(logits, (list, tuple)):
-                            with torch.no_grad():
-                                probs = torch.softmax(logits, dim=-1)
-                                ent = -(probs * torch.log(probs + 1e-9)).sum(dim=-1).mean()
-                                ent = ent / math.log(logits.size(-1))
-                            self.optimizer.set_entropy(float(ent))
+                    if hasattr(self.optimizer, "set_entropy") and not isinstance(logits, (list, tuple)):
+                        with torch.no_grad():
+                            probs = torch.softmax(logits, dim=-1)
+                            ent = -(probs * torch.log(probs + 1e-9)).sum(dim=-1).mean()
+                            ent = ent / math.log(logits.size(-1))
+                        self.optimizer.set_entropy(float(ent))
 
-                        loss = loss / self.args.gradient_accumulation_steps
+                    distill_component = None
+                    if (
+                        self.teacher_model is not None
+                        and self.distillation_loss_fn is not None
+                        and self.args.training_mode != 'multicontext'
+                    ):
+                        with torch.no_grad():
+                            if self._distillation_requires_layer_activations:
+                                self._prepare_teacher_activation_storage(activation_dataset_idx)
+                            teacher_logits, _ = self.teacher_model(
+                                self.X,
+                                targets=self.Y,
+                                iter_num=self.iter_num,
+                                dataset_idx=idx_ds if self.args.multidataset_wte else None,
+                                loss_fn=None,
+                            )
+                            if self._distillation_requires_layer_activations:
+                                self._teacher_activation_context = None
+                        distill_component = self.distillation_loss_fn(
+                            logits,
+                            teacher_logits,
+                            self.Y,
+                            iter_num=self.iter_num,
+                            student_activations=self._student_activation_cache
+                            if self._distillation_requires_layer_activations
+                            else None,
+                            teacher_activations=self._teacher_activation_cache
+                            if self._distillation_requires_layer_activations
+                            else None,
+                            dataset_idx=activation_key if self._distillation_requires_layer_activations else None,
+                        )
+                        distill_component = distill_component.to(loss.dtype)
+                        loss = loss + self.distillation_weight * distill_component
+
+                    self.latest_distillation_loss = (
+                        float(distill_component.detach().float().item())
+                        if distill_component is not None
+                        else float('nan')
+                    )
+
+                    loss = loss / self.args.gradient_accumulation_steps
 
                     prior_dataset = current_dataset
                     tokens_trained_this_batch = self.args.batch_size * self.args.block_size

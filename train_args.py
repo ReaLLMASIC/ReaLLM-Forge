@@ -4,6 +4,9 @@ import math
 import re
 
 from train_variations.loss_variants import LOSS_VARIANTS
+from train_variations.distillation_loss_variants import (
+    DISTILLATION_LOSS_VARIANTS,
+)
 
 def clean_dataset_path(dataset_name):
     """Removes leading './data/' or 'data/' from dataset paths."""
@@ -144,6 +147,58 @@ def parse_args():
         type=float,
         default=0.0,
         help='Strength of distance-based attenuation in distance_attenuated_top1 loss.',
+    )
+
+    # Distillation options
+    training_group.add_argument(
+        '--distillation_teacher_ckpt',
+        type=str,
+        default=None,
+        help='Path to a teacher checkpoint (ckpt.pt) for knowledge distillation.',
+    )
+    training_group.add_argument(
+        '--distillation_loss',
+        type=str,
+        default=None,
+        choices=sorted(DISTILLATION_LOSS_VARIANTS.keys()),
+        help='Distillation loss variant applied when a teacher checkpoint is provided.',
+    )
+    training_group.add_argument(
+        '--distillation_weight',
+        type=float,
+        default=1.0,
+        help='Scaling factor applied to the distillation loss before combining with the student loss.',
+    )
+    training_group.add_argument(
+        '--distillation_temperature',
+        type=float,
+        default=1.0,
+        help='Logit temperature used when computing distillation losses.',
+    )
+    training_group.add_argument(
+        '--distillation_eps',
+        type=float,
+        default=1e-8,
+        help='Numerical stability epsilon for distillation losses.',
+    )
+    training_group.add_argument(
+        '--distillation_teacher_compile',
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help='If set, torch.compile the teacher model for faster distillation forward passes.',
+    )
+    training_group.add_argument(
+        '--distillation_teacher_dtype',
+        type=str,
+        default=None,
+        choices=['float32', 'float16', 'bfloat16'],
+        help='Optional dtype to cast the teacher model to after loading (defaults to checkpoint dtype).',
+    )
+    training_group.add_argument(
+        '--distillation_activation_layers',
+        type=str,
+        default=None,
+        help='Comma-separated zero-based transformer block indices whose activations should be matched when using layer_activation_mse.',
     )
 
     # Sample args
