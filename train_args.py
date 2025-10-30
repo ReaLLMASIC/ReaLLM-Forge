@@ -57,6 +57,8 @@ def parse_args():
     training_group.add_argument('--log_interval', default=10, type=int)
     training_group.add_argument('--eval_iters', default=200, type=int)
     training_group.add_argument('--eval_only', default=False, action=argparse.BooleanOptionalAction)
+    training_group.add_argument('--check_val_at_end', default=False, action=argparse.BooleanOptionalAction,
+                                help='Run a final validation pass after training completes.')
 
     # latency / ETA estimate options
     training_group.add_argument('--eta_variant', choices=['iteration', 'eval_cycle'], default='eval_cycle', help="iteration - estimates only based on training iterations -- use if doing one eval at the end; eval_cycle -- use if doing multiple evals, will use a single cycle for the estimation.")
