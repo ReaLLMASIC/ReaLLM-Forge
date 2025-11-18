@@ -1,5 +1,6 @@
 # train_args.py
 import argparse
+import json
 import math
 import re
 
@@ -1277,6 +1278,36 @@ def parse_args():
     model_group.add_argument("--lpe_mlp_variant", type=str, default="mlp", choices=mlp_variants, help="MLP variation type")
     # Optimizer args
     training_group.add_argument('--max_iters', default=3500, type=int)
+    training_group.add_argument(
+        '--max_epochs',
+        default=None,
+        type=float,
+        help=(
+            'If set, stop training after this many epochs. '
+            'For multidataset runs the first dataset is used to compute epoch length.'
+        ),
+    )
+    training_group.add_argument(
+        '--max_tokens',
+        default=None,
+        type=int,
+        help='If set, stop training after this many tokens have been processed.',
+    )
+    training_group.add_argument(
+        '--eval_interval_epochs',
+        default=None,
+        type=float,
+        help=(
+            'Evaluation cadence when using --max_epochs, expressed as a fraction '
+            'of an epoch for the primary dataset.'
+        ),
+    )
+    training_group.add_argument(
+        '--eval_interval_tokens',
+        default=None,
+        type=int,
+        help='Evaluation cadence when using --max_tokens, expressed in tokens.',
+    )
     training_group.add_argument('--weight_decay', default=1e-1, type=float)
     training_group.add_argument('--beta1', default=0.9, type=float)
     training_group.add_argument('--beta2', default=0.99, type=float)
@@ -1380,6 +1411,23 @@ def parse_args():
     logging_group.add_argument('--print_model_info', default=True, action=argparse.BooleanOptionalAction)
 
     args = parser.parse_args()
+
+    # Validate mutually exclusive training duration options.
+    limit_flags = [args.max_epochs is not None, args.max_tokens is not None]
+    if sum(limit_flags) > 1:
+        parser.error('--max_epochs and --max_tokens cannot be used together.')
+
+    if args.eval_interval_epochs is not None and args.max_epochs is None:
+        parser.error('--eval_interval_epochs requires --max_epochs.')
+
+    if args.eval_interval_tokens is not None and args.max_tokens is None:
+        parser.error('--eval_interval_tokens requires --max_tokens.')
+
+    if args.max_epochs is not None and args.max_epochs <= 0:
+        parser.error('--max_epochs must be positive.')
+
+    if args.max_tokens is not None and args.max_tokens <= 0:
+        parser.error('--max_tokens must be positive.')
 
     if args.log_all_metrics:
         args.log_btc_train = True

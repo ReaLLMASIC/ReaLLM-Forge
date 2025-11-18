@@ -1,0 +1,25 @@
+# training_duration_modes.yaml
+---
+
+# base hyperparameters shared across runs
+n_layer: ["2"]
+n_head: ["2"]
+n_embd: ["128"]
+block_size: ["64"]
+batch_size: ["16"]
+dataset: ["shakespeare_char"]
+device: ["cuda"]
+dtype: ["bfloat16"]
+learning_rate: ["3e-4"]
+max_iters: ["512"]
+eval_interval: ["128"]
+never_save_checkpoint: [true]
+
+parameter_groups:
+  - log_run_name: ["iteration-default"]
+  - max_epochs: ["1.0"]
+    eval_interval_epochs: ["0.25"]
+    log_run_name: ["epoch-mode"]
+  - max_tokens: ["65536"]
+    eval_interval_tokens: ["16384"]
+    log_run_name: ["token-mode"]
