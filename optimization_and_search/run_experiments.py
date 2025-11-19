@@ -25,6 +25,8 @@ METRIC_KEYS = [
     "btc_per_param",
     "peak_gpu_mb",
     "iter_latency_avg",
+    "tokens_trained",
+    "epochs_trained",
     "avg_top1_prob",
     "avg_top1_correct",
     "avg_target_rank",
@@ -548,7 +550,27 @@ def read_metrics(out_dir: str) -> dict:
     line = path.read_text().strip()
     parts = [p.strip() for p in line.split(',')]
 
-    casts = [float, int, int, int, float, float, float, float, float, float, float, float, float, float, float, float, float]
+    casts = [
+        float,  # best_val_loss
+        int,    # best_val_iter
+        int,    # best_val_tokens
+        int,    # num_params
+        float,  # better_than_chance
+        float,  # btc_per_param
+        float,  # peak_gpu_mb
+        float,  # iter_latency_avg
+        int,    # tokens_trained
+        float,  # epochs_trained
+        float,  # avg_top1_prob
+        float,  # avg_top1_correct
+        float,  # avg_target_rank
+        float,  # avg_target_left_prob
+        float,  # avg_target_prob
+        float,  # target_rank_95
+        float,  # left_prob_95
+        float,  # ln_f_cosine
+        float,  # ln_f_cosine_95
+    ]
 
     return {k: typ(v) for k, typ, v in zip(METRIC_KEYS, casts, parts)}
 

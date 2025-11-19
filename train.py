@@ -98,6 +98,7 @@ class Trainer:
         self.grad_norm = None
         self.grad_std = None
         self.tokens_trained = 0
+        self.current_epoch = 0.0 if self.args.dataset_list is None else float('nan')
         self.best_tokens = 0
         self.peak_gpu_usage = 0.0
         self.total_training_time_ms: float = 0.0   # total run-time from start of training
@@ -172,6 +173,8 @@ class Trainer:
             # Track tokens and epochs trained per dataset
             self.tokens_trained_dict = {dataset: 0 for dataset in self.args.dataset_list}
             self.epochs_trained_dict = {dataset: 0 for dataset in self.args.dataset_list}
+            # No global epoch concept when training across multiple datasets
+            self.current_epoch = float('nan')
 
             # Also, set self.args.dataset to the first dataset in the list
             self.args.dataset = self.args.dataset_list[0]
@@ -1568,7 +1571,7 @@ class Trainer:
         t0 = t_start
         local_iter_num = 0
         running_mfu = -1.0
-        current_epoch = 0.0
+        self.current_epoch = 0.0 if self.args.dataset_list is None else float('nan')
         self.evaluations_remaining = (self.args.max_iters - self.iter_num) // self.args.eval_interval + 1
         self.eta = build_eta_estimator(self.args, t_start, self.evaluations_remaining, self.formatted_completion_eta)
         num_steps_with_worse_loss = 0
@@ -1698,7 +1701,7 @@ class Trainer:
                             log_message+=f", tokens_trained {self.tokens_trained:.2e}"
                             self.console.print(log_message)
                             better_than_chance = self.vocab_sizes[dataset] / math.exp(dataset_losses['val'].item())
-                            self.log_metrics(dataset_losses, running_mfu, current_epoch, self.tokens_trained, dataset, better_than_chance)
+                            self.log_metrics(dataset_losses, running_mfu, self.current_epoch, self.tokens_trained, dataset, better_than_chance)
                     else:
                         # Default behavior for a single dataset
                         better_than_chance = self.model_args['vocab_size'] / math.exp(losses['val'].item())
@@ -1715,7 +1718,7 @@ class Trainer:
                         log_message+=f", batch_size {self.args.batch_size}"
                         log_message+=f", lr {self.lr:.4f}"
                         self.console.print(log_message)
-                        self.log_metrics(losses, running_mfu, current_epoch, self.tokens_trained, current_dataset, better_than_chance)
+                        self.log_metrics(losses, running_mfu, self.current_epoch, self.tokens_trained, current_dataset, better_than_chance)
 
                     if math.isnan(losses["val"]):
                         # If val loss is nan, then exit.
@@ -1749,6 +1752,8 @@ class Trainer:
                                         f"{chance_ratio/self.model.num_param:.3e}",
                                         f"{peak_mb:.1f}",
                                         f"{self.iter_latency_avg:.1f}",
+                                        f"{self.tokens_trained}",
+                                        f"{self.current_epoch:.6f}",
                                         f"{losses.get('top1_prob', float('nan')):.6f}",
                                         f"{losses.get('top1_correct', float('nan')):.6f}",
                                         f"{losses.get('target_rank', float('nan')):.2f}",
@@ -1882,19 +1887,21 @@ class Trainer:
 
                     prior_dataset = current_dataset
                     tokens_trained_this_batch = self.args.batch_size * self.args.block_size
+                    # Always track aggregate tokens across all datasets
+                    self.tokens_trained += tokens_trained_this_batch
                     if self.args.dataset_list:
-                        # Update per–dataset count
+                        # Update per-dataset count as well
                         self.tokens_trained_dict[current_dataset] += tokens_trained_this_batch
-                        self.tokens_trained = self.tokens_trained_dict[current_dataset]
+                        current_epoch = (
+                            self.tokens_trained_dict[current_dataset]
+                            / self.dataset_size_tokens[current_dataset]
+                        )
+                        self.epochs_trained_dict[current_dataset] = current_epoch
+                        # No meaningful global epoch in multi-dataset mode
+                        self.current_epoch = float('nan')
                     else:
-                        self.tokens_trained += tokens_trained_this_batch
-
-                    # Compute epoch for logging:
-                        if self.args.dataset_list:
-                            current_epoch = self.tokens_trained_dict[current_dataset] / self.dataset_size_tokens[current_dataset]
-                            self.epochs_trained_dict[current_dataset] = current_epoch
-                        else:
-                            current_epoch = self.tokens_trained / self.dataset_size_tokens
+                        current_epoch = self.tokens_trained / self.dataset_size_tokens
+                        self.current_epoch = current_epoch
 
                     self.scaler.scale(loss).backward()
 
@@ -1988,7 +1995,7 @@ class Trainer:
                         log_message+= f", tokens_trained {self.tokens_trained_dict[prior_dataset]:.2e}"
                         log_message+= f", dataset: {prior_dataset}"
                     else:
-                        log_message+= f", epoch {current_epoch:6.2f}"
+                        log_message+= f", epoch {self.current_epoch:6.2f}"
                         log_message+= f", tokens_trained {self.tokens_trained:.2e}"
                     log_message+= f", mfu {running_mfu*100:.2f}%"
                     if self.args.gns_type is not None:
@@ -2014,9 +2021,9 @@ class Trainer:
                         self.log_metrics_non_validation(lossf, running_mfu, self.epochs_trained_dict[prior_dataset], self.tokens_trained_dict[prior_dataset], prior_dataset, better_than_chance)
                     if self.args.multicontext_datasets:
                         for i, mc_dataset in enumerate(self.args.multicontext_datasets):
-                            self.log_metrics_non_validation(training_losses[i].item(), running_mfu, current_epoch, self.tokens_trained, mc_dataset, self.mc_btc_train[mc_dataset])
+                            self.log_metrics_non_validation(training_losses[i].item(), running_mfu, self.current_epoch, self.tokens_trained, mc_dataset, self.mc_btc_train[mc_dataset])
                     else:
-                        self.log_metrics_non_validation(lossf, running_mfu, current_epoch, self.tokens_trained, prior_dataset, better_than_chance)
+                        self.log_metrics_non_validation(lossf, running_mfu, self.current_epoch, self.tokens_trained, prior_dataset, better_than_chance)
 
                 if self.args.create_statistics and local_iter_num % self.args.softmax_io_log_interval == 0:
                     create_statistics(self, graph_y_labels)
@@ -2050,8 +2057,17 @@ class Trainer:
                 live.update(Group(progress.get_renderable(), cli_text))
 
                 # End of training actions
-                if self.iter_num > self.args.max_iters:
+                if (
+                    self.iter_num > self.args.max_iters
+                    or (self.args.tokens_limit is not None and self.tokens_trained >= self.args.tokens_limit)
+                    or (
+                        self.args.dataset_list is None
+                        and self.args.epochs_limit is not None
+                        and self.current_epoch >= self.args.epochs_limit
+                    )
+                ):
                     print(self.best_val_loss, self.best_iter, self.best_tokens)
+      
                     if self.args.only_save_checkpoint_at_end:
                         if not self.args.never_save_checkpoint:
                             self.save_checkpoint('ckpt.pt')

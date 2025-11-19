@@ -173,6 +173,8 @@ class MonitorApp(App):
             "num_params",
             "peak_gpu_mb",
             "iter_latency_avg",
+            "tokens_trained",
+            "epochs_trained",
             "avg_top1_prob",
             "avg_top1_correct",
             "avg_target_rank",
