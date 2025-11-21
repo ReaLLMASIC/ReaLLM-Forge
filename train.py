@@ -52,6 +52,8 @@ from sample import (
     get_tokenizer_functions,
 )
 
+from benchmarks.gpt_lm_eval_wrapper import NanoGPTLM
+
 from rich.progress import (
         Progress,
         TextColumn,
@@ -202,6 +204,15 @@ class Trainer:
 
         if self.args.sample_only:
             self.sample_and_print()
+
+        if self.args.lm_eval_tasks:
+            # build the wrapped evaluator from the raw GPT model + tokenizer fns
+            self.wrapped = NanoGPTLM.create_model(
+                model=self.raw_model,         # de-wrapped model
+                encode_fn=self.encode,
+                decode_fn=self.decode,
+                args=self.args
+            )
 
         if self.args.create_statistics:
             self.stats = initialize_statistics(self.args.n_layer, self.args.n_head)
@@ -1782,6 +1793,15 @@ class Trainer:
                             live.stop()
                             self.sample_and_print()
                             live.start()
+
+                        if self.args.lm_eval_tasks:
+                            self.wrapped.evaluate_and_save(
+                                tasks=self.args.lm_eval_tasks.split(","),
+                                batch_size=self.args.batch_size,
+                                out_dir=self.args.out_dir,
+                                results_output=self.args.lm_eval_results_output
+                            )
+
                         # export embedding table to npy file
                         if self.args.export_wte_npy:
                             self.raw_model.export_wte(self.args.export_wte_npy)
@@ -1792,9 +1812,19 @@ class Trainer:
                         if self.args.sample_each_eval:
                             # Try model inference (e.g. exploring inference from overfitting)
                             if self.args.max_sample_tokens:
+                                self.sample_and_print(self.args.max_sample_tokens, start_tokens=self.args.sample_start_tokens)
                                 live.stop()
                                 self.sample_and_print()
                                 live.start()
+                        
+                        if self.args.lm_eval_tasks and self.args.benchmark_each_eval:
+                            self.wrapped.evaluate_and_save(
+                                tasks=self.args.lm_eval_tasks.split(","),
+                                batch_size=self.args.batch_size,
+                                out_dir=self.args.out_dir,
+                                results_output=self.args.lm_eval_results_output
+                            )
+
                         if self.args.export_wte_each_eval:
                             # export wte table to npy file
                             if self.args.export_wte_npy:
