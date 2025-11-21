@@ -160,6 +160,12 @@ class GPTConfig:
     plot_statistics: bool = False
     softmax_io_log_interval: int = 1
 
+    # Snap-to-grid options
+    enable_snap_to_grid: bool = False
+    snap_to_grid_layers: List[int] = field(default_factory=list)
+    snap_to_grid_components: str = "both"
+    snap_to_grid_sizes: List[int] = field(default_factory=list)
+
     # Training options
     ## Gradient Checkpointing - More memory efficient (can do long contexts), but is slower
     use_gradient_checkpointing: bool = False

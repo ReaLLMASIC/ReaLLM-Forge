@@ -11,6 +11,7 @@ from variations.mlp_variations import get_mlp_instance
 from variations.norm_variations import norm_dictionary
 from variations.learned_confidence_variations import learned_confidence_dictionary
 from quantization.quantize import fake_quantize_act
+from utils.snap_to_grid import apply_snap_to_grid_tensor
 
 # type alias for the forward function
 BlockForward = Callable[['Block', torch.Tensor, int], torch.Tensor]
@@ -110,6 +111,9 @@ def attn_then_mlp_forward(block, x: torch.Tensor, iter_num: int) -> torch.Tensor
     # Make sure not to override skip connection
     x_attn_in = x
 
+    # Snap-to-grid before the attention pre-norm
+    x_attn_in = block._maybe_snap_to_grid("attn", x_attn_in)
+
     # Attn Pre-LN
     if block.use_pre_ln_attn:
         x_attn_in = block.pre_ln_attn(x_attn_in)
@@ -134,6 +138,9 @@ def attn_then_mlp_forward(block, x: torch.Tensor, iter_num: int) -> torch.Tensor
 
     # Make sure not to override skip connection
     x_mlp_in = x
+
+    # Snap-to-grid before the MLP pre-norm
+    x_mlp_in = block._maybe_snap_to_grid("mlp", x_mlp_in)
 
     # MLP Pre-LN
     if block.use_pre_ln_mlp:
@@ -364,7 +371,7 @@ resid_scaler_setup_variations = {
 class Block(nn.Module):
     """Transformer block supporting multiple normalization strategies."""
 
-    def __init__(self, config, mlp=None, attn=None):
+    def __init__(self, config, layer_idx=None, mlp=None, attn=None):
         super().__init__()
 
         # Choose norm class for attention/MLP blocks
@@ -383,6 +390,9 @@ class Block(nn.Module):
         self.use_edgellm_asic = getattr(config, "use_edgellm_asic", False)
 
         self.use_flash_norm = getattr(config, "use_flash_norm", False)
+
+        self.layer_idx = layer_idx
+        self.snap_to_grid_registry = getattr(config, "snap_to_grid_registry", None)
 
         if self.use_parallel_mlp:
             variant = "parallel_mlp"
@@ -467,4 +477,12 @@ class Block(nn.Module):
         """Helper method to streamline forward block skip connections"""
         alpha = self.alpha_fns[kind](out)
         return self.resid_fns[kind](x, out, alpha, self.residual_slerp_eps)
+
+    def _maybe_snap_to_grid(self, component: str, tensor: torch.Tensor) -> torch.Tensor:
+        if self.snap_to_grid_registry is None or self.layer_idx is None:
+            return tensor
+        grid = self.snap_to_grid_registry.get_grid(self.layer_idx, component)
+        if grid is None:
+            return tensor
+        return apply_snap_to_grid_tensor(tensor, grid)
 

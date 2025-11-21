@@ -52,6 +52,8 @@ from sample import (
     get_tokenizer_functions,
 )
 
+from utils.snap_to_grid import generate_snap_to_grid_registry, save_registry
+
 from rich.progress import (
         Progress,
         TextColumn,
@@ -249,6 +251,22 @@ class Trainer:
         self.model_args = {action.dest: getattr(self.args, action.dest) for action in self.model_group._group_actions}
         self.model_args['vocab_size'] = None
         self.model_args['eval_interval'] = self.args.eval_interval
+
+        # Normalise snap-to-grid configuration
+        snap_sizes = getattr(self.args, 'snap_to_grid_sizes', None)
+        snap_layers = getattr(self.args, 'snap_to_grid_layers', None)
+        if snap_sizes:
+            self.model_args['enable_snap_to_grid'] = True
+            self.model_args['snap_to_grid_sizes'] = snap_sizes
+        else:
+            self.model_args['snap_to_grid_sizes'] = snap_sizes or []
+            if getattr(self.args, 'enable_snap_to_grid', False):
+                self.model_args['enable_snap_to_grid'] = True
+        if snap_layers is not None:
+            self.model_args['snap_to_grid_layers'] = snap_layers
+        else:
+            self.model_args['snap_to_grid_layers'] = []
+        self.model_args['snap_to_grid_components'] = getattr(self.args, 'snap_to_grid_components', 'both')
 
         # Training settings
         self.training_args = {action.dest: getattr(self.args, action.dest) for action in self.training_group._group_actions}
@@ -580,50 +598,69 @@ class Trainer:
         # Do one iteration per lsv, default to one with no lsv
         sample_iterations = 1
 
+        snap_sizes = getattr(self.args, 'snap_to_grid_sizes', None) or []
+        if not snap_sizes:
+            snap_sizes = [None]
+
+        base_registry = getattr(self.raw_model, 'snap_to_grid_registry', None)
+        layers = self._get_snap_to_grid_layers()
+        component = getattr(self.args, 'snap_to_grid_components', 'both')
+
         self.model.eval()
 
         if self.args.dataset_list is not None:
             sample_iterations = len(self.args.dataset_list)
 
-        for i in range(sample_iterations):
-            if self.args.use_lsv:
-                self.model.set_lsv_index(i)
-                print(f"lsv index {i}")
-
-            if hasattr(self, 'encode_dict'):
-                encode_fn = self.encode_dict[self.args.dataset_list[i]]
-                decode_fn = self.decode_dict[self.args.dataset_list[i]]
+        for snap_size in snap_sizes:
+            if snap_size is None:
+                self.raw_model.set_snap_to_grid_registry(base_registry)
+                self.console.print("[bold cyan]Sampling without snap-to-grid[/bold cyan]")
             else:
-                encode_fn = self.encode
-                decode_fn = self.decode
+                registry = generate_snap_to_grid_registry(self.raw_model, layers, component, snap_size)
+                self.raw_model.set_snap_to_grid_registry(registry)
+                self.console.print(f"[bold cyan]Sampling with snap-to-grid size {snap_size}[/bold cyan]")
 
-            start_ids = torch.tensor(encode_fn(self.args.sample_start_tokens), dtype=torch.long, device=self.device)[None, ...]
+            for i in range(sample_iterations):
+                if self.args.use_lsv:
+                    self.model.set_lsv_index(i)
+                    print(f"lsv index {i}")
 
-            with torch.no_grad():
-                sample_with_existing_model(
-                    model=self.model,
-                    start_ids=start_ids,
-                    start_tokens=self.args.sample_start_tokens,
-                    decode=decode_fn,
-                    device=self.device,
-                    out_dir=self.args.out_dir,
-                    max_new_tokens=self.args.max_sample_tokens,
-                    temperature=self.args.temperature,
-                    top_k=self.args.top_k,
-                    colorize_output=self.args.colorize_output,
-                    colorize_mode=self.args.colorize_mode,
-                    token_boundary=(self.args.token_boundary or None),
-                    show_heatmaps=self.args.show_heatmaps,
-                    sample_file=self.args.sample_file,
-                    num_samples=self.args.num_samples,
-                    iter_num=self.iter_num,
-                    best_val_loss=self.best_val_loss,
-                    run_name=self.args.tensorboard_run_name,
-                    args=self.args,
-                    writer=self.writer if self.args.tensorboard_log else None,
-                    dataset_idx=i if hasattr(self, 'encode_dict') else None,
-                    console=self.console,
-                )
+                if hasattr(self, 'encode_dict'):
+                    encode_fn = self.encode_dict[self.args.dataset_list[i]]
+                    decode_fn = self.decode_dict[self.args.dataset_list[i]]
+                else:
+                    encode_fn = self.encode
+                    decode_fn = self.decode
+
+                start_ids = torch.tensor(encode_fn(self.args.sample_start_tokens), dtype=torch.long, device=self.device)[None, ...]
+
+                with torch.no_grad():
+                    sample_with_existing_model(
+                        model=self.model,
+                        start_ids=start_ids,
+                        start_tokens=self.args.sample_start_tokens,
+                        decode=decode_fn,
+                        device=self.device,
+                        out_dir=self.args.out_dir,
+                        max_new_tokens=self.args.max_sample_tokens,
+                        temperature=self.args.temperature,
+                        top_k=self.args.top_k,
+                        colorize_output=self.args.colorize_output,
+                        colorize_mode=self.args.colorize_mode,
+                        token_boundary=(self.args.token_boundary or None),
+                        show_heatmaps=self.args.show_heatmaps,
+                        sample_file=self.args.sample_file,
+                        num_samples=self.args.num_samples,
+                        iter_num=self.iter_num,
+                        best_val_loss=self.best_val_loss,
+                        run_name=self.args.tensorboard_run_name,
+                        args=self.args,
+                        writer=self.writer if self.args.tensorboard_log else None,
+                        dataset_idx=i if hasattr(self, 'encode_dict') else None,
+                        console=self.console,
+                    )
+
+        self.raw_model.set_snap_to_grid_registry(base_registry)
 
         # After sampling from the model, optionally run simple dataset benchmarks
         if self.args.dataset_benchmarks and self.args.max_sample_tokens:
@@ -632,6 +669,41 @@ class Trainer:
         self.model.train()
         self.console.rule("[bold green]End Samples[/bold green]")
         self.console.print("\n"*8)
+
+    def _get_snap_to_grid_layers(self):
+        if self.args.snap_to_grid_layers is not None:
+            return self.args.snap_to_grid_layers
+        return list(range(1, getattr(self.raw_model.config, 'n_layer', 0)))
+
+    def run_snap_to_grid_evaluations(self):
+        sizes = getattr(self.args, 'snap_to_grid_sizes', None) or []
+        if not sizes and not getattr(self.args, 'enable_snap_to_grid', False):
+            return
+        if not sizes:
+            return
+
+        layers = self._get_snap_to_grid_layers()
+        component = getattr(self.args, 'snap_to_grid_components', 'both')
+
+        base_registry = getattr(self.raw_model, 'snap_to_grid_registry', None)
+
+        for size in sizes:
+            registry = generate_snap_to_grid_registry(self.raw_model, layers, component, size)
+            self.raw_model.set_snap_to_grid_registry(registry)
+            losses = self.estimate_loss()
+            val_loss = losses.get('val')
+            if self.writer is not None:
+                self.writer.add_scalar(f'snap_to_grid/val_loss_size_{size}', val_loss, self.iter_num)
+
+            snap_dir = os.path.join(self.args.out_dir, 'snap_to_grid')
+            filename = f"iter_{self.iter_num:06d}_size{size}.pt"
+            save_registry(os.path.join(snap_dir, filename), registry)
+
+            self.console.print(
+                f"[bold cyan]Snap-to-grid[/bold cyan] size {size}: val loss {val_loss:.4f}"
+            )
+
+        self.raw_model.set_snap_to_grid_registry(base_registry)
 
     def get_vocab_size_from_meta(self):
         # Data loader
@@ -1776,6 +1848,7 @@ class Trainer:
                             print(f"saving checkpoint to {self.args.out_dir}")
                             # Save checkpoint
                             self.save_checkpoint('ckpt.pt')
+                            self.run_snap_to_grid_evaluations()
 
                         # Sample
                         if self.args.max_sample_tokens:

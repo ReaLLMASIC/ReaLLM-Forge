@@ -32,6 +32,7 @@ from variations.model_variations import model_variation_dictionary
 import lm_eval
 from benchmarks.gpt_lm_eval_wrapper import NanoGPTLM
 from benchmarks import run_all
+from utils.snap_to_grid import generate_snap_to_grid_registry, save_registry
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Inference from trained models")
@@ -93,6 +94,18 @@ def parse_args():
         help="Enable softmax threshold sampling. Only considers tokens with a probability within this percentage of the top probability. "
              "Use without a value for default 50%% (0.5), or provide one e.g. '--softmax_threshold 0.2'. Overrides --top_k.")
 
+
+
+
+    # Snap-to-grid controls
+    parser.add_argument('--enable_snap_to_grid', default=False, action=argparse.BooleanOptionalAction,
+                        help="Enable snap-to-grid projections before attention/MLP pre-norms.")
+    parser.add_argument('--snap_to_grid_layers', type=int, nargs='+', default=None,
+                        help="Zero-indexed layers (>=1) to apply snap-to-grid. Defaults to all layers except the first.")
+    parser.add_argument('--snap_to_grid_components', type=str, default='both', choices=['attn', 'mlp', 'both'],
+                        help="Apply snap-to-grid to attention, MLP, or both components.")
+    parser.add_argument('--snap_to_grid_sizes', type=int, nargs='+', default=None,
+                        help="Number of random combinations per location. Multiple values evaluate each size independently.")
 
 
 
@@ -1267,6 +1280,15 @@ def main():
         )
         return
 
+    snap_sizes = args.snap_to_grid_sizes or []
+    base_registry = getattr(model, 'snap_to_grid_registry', None)
+    if args.snap_to_grid_layers is not None:
+        snap_layers = args.snap_to_grid_layers
+    else:
+        snap_layers = list(range(1, getattr(model.config, 'n_layer', 0)))
+    snap_component = args.snap_to_grid_components
+    dataset_idx = 0
+
     if args.eval_only:
         print("Running in eval_only mode...")
         dataset_name = args.eval_dataset
@@ -1284,187 +1306,225 @@ def main():
         print(f"Using validation dataset: {dataset_name}")
         print(f"Model block size: {model.config.block_size}")
         val_data = load_validation_data(model.config.block_size, dataset_name)
-        metrics = calculate_validation_loss(
-            model,
-            val_data,
-            model.config.block_size,
-            args.eval_iters,
-            args.device,
-            ptdtype,
-        )
+        size_values = snap_sizes or [None]
+        for snap_size in size_values:
+            if snap_size is None:
+                model.set_snap_to_grid_registry(base_registry)
+                print("Evaluating without snap-to-grid")
+            else:
+                registry = generate_snap_to_grid_registry(model, snap_layers, snap_component, snap_size)
+                model.set_snap_to_grid_registry(registry)
+                snap_dir = os.path.join(args.out_dir, 'snap_to_grid')
+                filename = f"eval_{timestamp}_size{snap_size}.pt"
+                save_registry(os.path.join(snap_dir, filename), registry)
+                print(f"Evaluating with snap-to-grid size {snap_size}")
 
-        val_loss = metrics.get("val", float("nan"))
-        print(f"Validation Loss: {val_loss:.4f}")
-        if metrics.get("elapsed_time_s") is not None:
-            print(f"Elapsed time: {metrics['elapsed_time_s']:.4f} seconds")
-
-        summary: Dict[str, object] = dict(metrics)
-        summary.setdefault("eval_dataset", dataset_name)
-        summary.setdefault("timestamp", timestamp)
-        summary.setdefault("out_dir", args.out_dir)
-        summary.setdefault("init_from", args.init_from)
-
-        write_eval_summary(
-            args.out_dir,
-            summary,
-            extra_dirs=[out_dir],
-        )
-        return
-
-    x = torch.tensor(start_ids, dtype=torch.long, device=args.device)[None, ...]
-    # Obtain vector from the specified layer and save it to a file if required
-    if args.save_avg_vector:
-        x = torch.tensor(start_ids, dtype=torch.long, device=args.device)[None, ...]
-        # Run the model to trigger vector extraction
-        with torch.no_grad():
-            with ctx:
-                block_size = args.block_size if args.block_size else model.config.block_size
-                idx_cond = x if x.size(1) <= block_size else x[:, -block_size:]
-                logits, _ = model(idx_cond, dataset_idx=dataset_idx)
-        print(f"Obtained vector saved to {args.save_avg_vector}")
-
-    if args.interactive:
-        interactive_generation(model, start_ids, args.device, args.max_new_tokens, args.temperature, args.top_k, args.stop_strings, decode, encode)
-    elif args.multicontext:
-        if not args.multicontext_datasets:
-            raise ValueError("Must specify --multicontext_datasets when using --multicontext")
-        if args.multicontext_start is None:
-            raise ValueError("Must specify --multicontext_start when using --multicontext")
-        if len(args.multicontext_datasets) != len(args.multicontext_start):
-            raise ValueError(
-                "Number of --multicontext_datasets must match number of --multicontext_start strings."
+            metrics = calculate_validation_loss(
+                model,
+                val_data,
+                model.config.block_size,
+                args.eval_iters,
+                args.device,
+                ptdtype,
             )
 
-        dataset_names = list(args.multicontext_datasets)
-        start_strings = list(args.multicontext_start)
+            val_loss = metrics.get("val", float("nan"))
+            print(f"Validation Loss (size={snap_size or 'baseline'}): {val_loss:.4f}")
+            if metrics.get("elapsed_time_s") is not None:
+                print(f"Elapsed time: {metrics['elapsed_time_s']:.4f} seconds")
 
-        dataset_meta: Dict[str, Dict[str, object]] = {}
-        decode_lookup: Dict[str, Callable[[Sequence[int]], str]] = {}
-        initial_tokens: Dict[str, torch.Tensor] = {}
+            summary: Dict[str, object] = dict(metrics)
+            summary.setdefault("eval_dataset", dataset_name)
+            summary.setdefault("timestamp", timestamp)
+            summary.setdefault("out_dir", args.out_dir)
+            summary.setdefault("init_from", args.init_from)
+            summary["snap_to_grid_size"] = snap_size
 
-        for dataset_name, start_str in zip(dataset_names, start_strings):
-            meta_path = os.path.join("data", dataset_name, "meta.pkl")
-            if not os.path.exists(meta_path):
-                raise FileNotFoundError(f"meta.pkl not found at {meta_path}")
-            with open(meta_path, "rb") as f:
-                dataset_meta[dataset_name] = pickle.load(f)
+            write_eval_summary(
+                args.out_dir,
+                summary,
+                extra_dirs=[out_dir],
+            )
+        model.set_snap_to_grid_registry(base_registry)
+        return
 
-            encode_i, decode_i = get_tokenizer_functions(dataset_meta[dataset_name])
-            token_ids = encode_i(start_str)
-            if len(token_ids) == 0:
-                if dataset_meta[dataset_name].get('tokenizer') == 'sinewave':
-                    print(
-                        f"Start string for dataset '{dataset_name}' produced no tokens; defaulting to '0'."
-                    )
-                    token_ids = [0]
-                else:
-                    raise ValueError(
-                        f"Start string for dataset '{dataset_name}' produced no tokens. "
-                        "Provide a valid prompt or comma-separated values for numerical tokenizers."
-                    )
+    if args.interactive and len(snap_sizes) > 1:
+        print("Multiple snap-to-grid sizes requested for interactive mode; only the first size will be used.")
+        snap_sizes = snap_sizes[:1]
 
-            token_tensor = torch.tensor(token_ids, dtype=torch.long, device=args.device)[None, ...]
-            initial_tokens[dataset_name] = token_tensor
-            decode_lookup[dataset_name] = decode_i
+    size_values = snap_sizes or [None]
 
-        block_size = args.block_size if args.block_size else model.config.block_size
-        with torch.no_grad(), ctx:
-            for sample_idx in range(args.num_samples):
-                if args.use_lsv and hasattr(args, 'lsv_size'):
-                    model.set_lsv_index(sample_idx % args.lsv_size)
-                    if args.lsv_scaling_factor is not None:
-                        model.set_lsv_scaling_factor(args.lsv_scaling_factor)
-                    if args.lsv_mixture is not None:
-                        model.set_lsv_mode(2)
-                        model.set_lsv_mixture(args.lsv_mixture)
-                    else:
-                        model.set_lsv_mode(1)
+    def execute_generation_for_current_registry():
+        local_start = torch.tensor(start_ids, dtype=torch.long, device=args.device)[None, ...]
+        if args.save_avg_vector:
+            with torch.no_grad():
+                with ctx:
+                    block_size = args.block_size if args.block_size else model.config.block_size
+                    idx_cond = local_start if local_start.size(1) <= block_size else local_start[:, -block_size:]
+                    model(idx_cond, dataset_idx=dataset_idx)
+            print(f"Obtained vector saved to {args.save_avg_vector}")
 
-                token_state = {name: tensor.clone() for name, tensor in initial_tokens.items()}
+        if args.interactive:
+            interactive_generation(model, start_ids, args.device, args.max_new_tokens, args.temperature, args.top_k, args.stop_strings, decode, encode)
+            return
 
-                for _ in range(args.max_new_tokens):
-                    idx_cond_dict = {}
-                    for name in dataset_names:
-                        tokens = token_state[name]
-                        idx_cond_dict[name] = tokens if tokens.size(1) <= block_size else tokens[:, -block_size:]
-
-                    logits_list, _ = model(None, token_dict=idx_cond_dict, target_dict=None)
-
-                    for i, name in enumerate(dataset_names):
-                        if model.config.numerical_multicontext:
-                            preds = logits_list[i][:, -1]
-                            preds = preds.squeeze(-1)
-                            if preds.ndim == 0:
-                                preds = preds.unsqueeze(0)
-                            rounded = preds.round()
-                            min_val = 0.0
-                            max_val = None
-                            meta_info = dataset_meta.get(name, {})
-                            tokenizer_name = meta_info.get('tokenizer') if isinstance(meta_info, dict) else None
-                            if tokenizer_name == 'sinewave':
-                                max_val = 255.0
-                            elif isinstance(meta_info, dict) and 'vocab_size' in meta_info:
-                                max_val = float(meta_info['vocab_size'] - 1)
-
-                            if max_val is not None:
-                                rounded = torch.clamp(rounded, min=min_val, max=max_val)
-                            else:
-                                rounded = torch.clamp(rounded, min=min_val)
-
-                            idx_next = rounded.to(torch.long).unsqueeze(-1)
-                        else:
-                            cur_logits = logits_list[i][:, -1, :] / args.temperature
-                            if args.top_k is not None:
-                                top_k_val = (
-                                    args.top_k[0]
-                                    if isinstance(args.top_k, (list, tuple))
-                                    else args.top_k
-                                )
-                                k = min(top_k_val, cur_logits.size(-1))
-                                v, _ = torch.topk(cur_logits, k)
-                                cur_logits[cur_logits < v[:, [-1]]] = -float("inf")
-
-                            probs = F.softmax(cur_logits, dim=-1)
-                            idx_next = torch.multinomial(probs, num_samples=1)
-
-                        token_state[name] = torch.cat((token_state[name], idx_next), dim=1)
-
-                output_dict: Dict[str, str] = {}
-                for name in dataset_names:
-                    decode_fn = decode_lookup[name]
-                    output_dict[name] = decode_fn(token_state[name][0].tolist())
-
-                for name, text in output_dict.items():
-                    key_color = "bold light_slate_blue"
-                    text_color = "bold cyan"
-                    print(f"\n[{key_color}]{name}:[/{key_color}]\n[{text_color}]{text}[/{text_color}]")
-                print("---------------")
-
-                if args.sample_file:
-                    with open(args.sample_file, "w") as file:
-                        for name, text in output_dict.items():
-                            file.write(f"\n{name}: \n{text}\n")
-    else:
-        sample_with_existing_model(
-                model,
-                torch.tensor(start_ids, dtype=torch.long, device=args.device)[None, ...],
-                decode,
-                device=args.device,
-                max_new_tokens=args.max_new_tokens,
-                temperature=args.temperature,
-                top_k=args.top_k,
-                num_samples=args.num_samples,
-                colorize_output=args.colorize_output,
-                colorize_mode=args.colorize_mode,
-                token_boundary=args.token_boundary,
-                show_heatmaps=args.show_heatmaps,
-                chart_type=args.chart_type,
-                last_k_tokens=args.last_k_tokens,
-                out_dir=out_dir,
-                sample_file=args.sample_file,
-                args=args,
-                dataset_idx=0,
+        if args.multicontext:
+            if not args.multicontext_datasets:
+                raise ValueError("Must specify --multicontext_datasets when using --multicontext")
+            if args.multicontext_start is None:
+                raise ValueError("Must specify --multicontext_start when using --multicontext")
+            if len(args.multicontext_datasets) != len(args.multicontext_start):
+                raise ValueError(
+                    "Number of --multicontext_datasets must match number of --multicontext_start strings."
                 )
+
+            dataset_names = list(args.multicontext_datasets)
+            start_strings = list(args.multicontext_start)
+
+            dataset_meta: Dict[str, Dict[str, object]] = {}
+            decode_lookup: Dict[str, Callable[[Sequence[int]], str]] = {}
+            initial_tokens: Dict[str, torch.Tensor] = {}
+
+            for dataset_name, start_str in zip(dataset_names, start_strings):
+                meta_path = os.path.join("data", dataset_name, "meta.pkl")
+                if not os.path.exists(meta_path):
+                    raise FileNotFoundError(f"meta.pkl not found at {meta_path}")
+                with open(meta_path, "rb") as f:
+                    dataset_meta[dataset_name] = pickle.load(f)
+
+                encode_i, decode_i = get_tokenizer_functions(dataset_meta[dataset_name])
+                token_ids = encode_i(start_str)
+                if len(token_ids) == 0:
+                    if dataset_meta[dataset_name].get('tokenizer') == 'sinewave':
+                        print(
+                            f"Start string for dataset '{dataset_name}' produced no tokens; defaulting to '0'."
+                        )
+                        token_ids = [0]
+                    else:
+                        raise ValueError(
+                            f"Start string for dataset '{dataset_name}' produced no tokens. "
+                            "Provide a valid prompt or comma-separated values for numerical tokenizers."
+                        )
+
+                token_tensor = torch.tensor(token_ids, dtype=torch.long, device=args.device)[None, ...]
+                initial_tokens[dataset_name] = token_tensor
+                decode_lookup[dataset_name] = decode_i
+
+            block_size = args.block_size if args.block_size else model.config.block_size
+            with torch.no_grad(), ctx:
+                for sample_idx in range(args.num_samples):
+                    if args.use_lsv and hasattr(args, 'lsv_size'):
+                        model.set_lsv_index(sample_idx % args.lsv_size)
+                        if args.lsv_scaling_factor is not None:
+                            model.set_lsv_scaling_factor(args.lsv_scaling_factor)
+                        if args.lsv_mixture is not None:
+                            model.set_lsv_mode(2)
+                            model.set_lsv_mixture(args.lsv_mixture)
+                        else:
+                            model.set_lsv_mode(1)
+
+                    token_state = {name: tensor.clone() for name, tensor in initial_tokens.items()}
+
+                    for _ in range(args.max_new_tokens):
+                        idx_cond_dict = {}
+                        for name in dataset_names:
+                            tokens = token_state[name]
+                            idx_cond_dict[name] = tokens if tokens.size(1) <= block_size else tokens[:, -block_size:]
+
+                        logits_list, _ = model(None, token_dict=idx_cond_dict, target_dict=None)
+
+                        for i, name in enumerate(dataset_names):
+                            if model.config.numerical_multicontext:
+                                preds = logits_list[i][:, -1]
+                                preds = preds.squeeze(-1)
+                                if preds.ndim == 0:
+                                    preds = preds.unsqueeze(0)
+                                rounded = preds.round()
+                                min_val = 0.0
+                                max_val = None
+                                meta_info = dataset_meta.get(name, {})
+                                tokenizer_name = meta_info.get('tokenizer') if isinstance(meta_info, dict) else None
+                                if tokenizer_name == 'sinewave':
+                                    max_val = 255.0
+                                elif isinstance(meta_info, dict) and 'vocab_size' in meta_info:
+                                    max_val = float(meta_info['vocab_size'] - 1)
+
+                                if max_val is not None:
+                                    rounded = torch.clamp(rounded, min=min_val, max=max_val)
+                                else:
+                                    rounded = torch.clamp(rounded, min=min_val)
+
+                                idx_next = rounded.to(torch.long).unsqueeze(-1)
+                            else:
+                                cur_logits = logits_list[i][:, -1, :] / args.temperature
+                                if args.top_k is not None:
+                                    top_k_val = (
+                                        args.top_k[0]
+                                        if isinstance(args.top_k, (list, tuple))
+                                        else args.top_k
+                                    )
+                                    k = min(top_k_val, cur_logits.size(-1))
+                                    v, _ = torch.topk(cur_logits, k)
+                                    cur_logits[cur_logits < v[:, [-1]]] = -float("inf")
+
+                                probs = F.softmax(cur_logits, dim=-1)
+                                idx_next = torch.multinomial(probs, num_samples=1)
+
+                            token_state[name] = torch.cat((token_state[name], idx_next), dim=1)
+
+                    output_dict: Dict[str, str] = {}
+                    for name in dataset_names:
+                        decode_fn = decode_lookup[name]
+                        output_dict[name] = decode_fn(token_state[name][0].tolist())
+
+                    for name, text in output_dict.items():
+                        key_color = "bold light_slate_blue"
+                        text_color = "bold cyan"
+                        print(f"\n[{key_color}]{name}:[/{key_color}]\n[{text_color}]{text}[/{text_color}]")
+                    print("---------------")
+
+                    if args.sample_file:
+                        with open(args.sample_file, "w") as file:
+                            for name, text in output_dict.items():
+                                file.write(f"\n{name}: \n{text}\n")
+            return
+
+        sample_with_existing_model(
+            model,
+            local_start,
+            decode,
+            device=args.device,
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+            top_k=args.top_k,
+            num_samples=args.num_samples,
+            colorize_output=args.colorize_output,
+            colorize_mode=args.colorize_mode,
+            token_boundary=args.token_boundary,
+            show_heatmaps=args.show_heatmaps,
+            chart_type=args.chart_type,
+            last_k_tokens=args.last_k_tokens,
+            out_dir=out_dir,
+            sample_file=args.sample_file,
+            args=args,
+            dataset_idx=0,
+        )
+
+    for snap_size in size_values:
+        if snap_size is None:
+            model.set_snap_to_grid_registry(base_registry)
+            print("Sampling without snap-to-grid")
+        else:
+            registry = generate_snap_to_grid_registry(model, snap_layers, snap_component, snap_size)
+            model.set_snap_to_grid_registry(registry)
+            snap_dir = os.path.join(args.out_dir, 'snap_to_grid')
+            filename = f"sample_{timestamp}_size{snap_size}.pt"
+            save_registry(os.path.join(snap_dir, filename), registry)
+            print(f"Sampling with snap-to-grid size {snap_size}")
+
+        execute_generation_for_current_registry()
+
+    model.set_snap_to_grid_registry(base_registry)
 
 if __name__ == "__main__":
     main()

@@ -1308,6 +1308,16 @@ def parse_args():
     model_group.add_argument('--softmax_io_logging', default=False, action=argparse.BooleanOptionalAction, help="logs inputs and outputs of supported softmaxes")
     model_group.add_argument('--softmax_io_log_interval', default=1, type=int)
     model_group.add_argument('--consmax_beta_gamma_logging', default=False, action=argparse.BooleanOptionalAction, help="logs beta and gamma")
+
+    # Snap-to-grid
+    model_group.add_argument('--enable_snap_to_grid', default=False, action=argparse.BooleanOptionalAction,
+                             help='Enable snap-to-grid projections before pre-norm in attention/MLP layers (experimental).')
+    model_group.add_argument('--snap_to_grid_layers', type=int, nargs='+', default=None,
+                             help='Zero-indexed layer IDs (>=1) that should use snap-to-grid. Defaults to all layers except the first.')
+    model_group.add_argument('--snap_to_grid_components', type=str, default='both', choices=['attn', 'mlp', 'both'],
+                             help='Apply snap-to-grid to attention, MLP, or both components.')
+    model_group.add_argument('--snap_to_grid_sizes', type=int, nargs='+', default=None,
+                             help='Number of random combinations to generate per location. Multiple values trigger evaluation for each size.')
     logging_group.add_argument('--create_statistics', default=False, action=argparse.BooleanOptionalAction)
     logging_group.add_argument('--plot_statistics', default=False, action=argparse.BooleanOptionalAction)
 

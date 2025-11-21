@@ -45,6 +45,7 @@ from initializations.initialization_variations import init_dictionary
 
 from shared_param_utils import SharedParamGroupCreator
 from variations.block_variations import Block
+from utils.snap_to_grid import SnapToGridRegistry
 
 class LearnedPositionEmbedding(nn.Module):
     """
@@ -68,7 +69,7 @@ class LearnedPositionEmbedding(nn.Module):
 
         self.drop = nn.Dropout(config.dropout)
         # reuse the same Block init as GPT.transformer.h
-        self.blocks = nn.ModuleList([Block(self.lpe_config) for _ in range(self.lpe_config.n_layer)])
+        self.blocks = nn.ModuleList([Block(self.lpe_config, layer_idx=i) for i in range(self.lpe_config.n_layer)])
 
     def forward(self, b, t, x, iter_num=None):
         # add absolute position embeddings if used
@@ -91,6 +92,14 @@ class GPT(nn.Module):
         assert config.block_size is not None
 
         self.config = config
+
+        n_head = getattr(config, "n_head", None)
+        if n_head:
+            if config.n_embd % n_head != 0:
+                raise ValueError(
+                    f"n_embd ({config.n_embd}) must be divisible by n_head ({n_head}); "
+                    "adjust the configuration (e.g. change --n_embd or --n_head)."
+                )
 
         self.uses_numerical_multicontext = bool(config.numerical_multicontext)
         if self.uses_numerical_multicontext:
@@ -195,20 +204,30 @@ class GPT(nn.Module):
 
 
         self.transformer['drop'] = nn.Dropout(config.dropout)
-        self.transformer['h'] = nn.ModuleList([Block(config, mlp=shared_mlp_array[i], attn=shared_attn_array[i]) for i in range(config.n_layer)])
+        if getattr(config, "enable_snap_to_grid", False) and getattr(config, "snap_to_grid_registry", None) is None:
+            config.snap_to_grid_registry = SnapToGridRegistry()
+
+        self.transformer['h'] = nn.ModuleList([
+            Block(config, layer_idx=i, mlp=shared_mlp_array[i], attn=shared_attn_array[i])
+            for i in range(config.n_layer)
+        ])
         self.transformer['ln_f'] = norm_dictionary[config.norm_variant_output](config)
+
+        self.snap_to_grid_registry = getattr(config, "snap_to_grid_registry", None)
+        self.config.snap_to_grid_registry = self.snap_to_grid_registry
+        self._apply_snap_to_grid_registry(self.snap_to_grid_registry)
 
         # Optional post-embedding normalizations
         if self.config.norm_variant_wte is not None:
-            self.transformer['post_embedding_norm'] = self.build_norm_from_variant(config, "norm_variant_wte", "norm_wte")
+            self.transformer['post_embedding_norm'] = self.build_norm_from_variant(self.config, "norm_variant_wte", "norm_wte")
         if self.config.norm_variant_abs is not None:
-            self.transformer['post_abs_norm'] = self.build_norm_from_variant(config, "norm_variant_abs", "norm_abs")
+            self.transformer['post_abs_norm'] = self.build_norm_from_variant(self.config, "norm_variant_abs", "norm_abs")
 
         if self.config.use_abs_pos_embeddings:
-            if config.quantize_wpe:
-                pos_embd = QuantizedEmbedding(config.block_size, config.n_embd, config.quantize_wpe_method, config.quantize_wpe_bits)
+            if self.config.quantize_wpe:
+                pos_embd = QuantizedEmbedding(self.config.block_size, self.config.n_embd, self.config.quantize_wpe_method, self.config.quantize_wpe_bits)
             else:
-                pos_embd = nn.Embedding(config.block_size, config.n_embd)
+                pos_embd = nn.Embedding(self.config.block_size, self.config.n_embd)
             self.transformer['wpe'] = pos_embd
 
         # Select softmax variant for output layer
@@ -270,6 +289,15 @@ class GPT(nn.Module):
 
         # report number of parameters
         print("number of parameters: %.2fM" % (self.get_num_params()/1e6,))
+
+    def _apply_snap_to_grid_registry(self, registry: SnapToGridRegistry | None) -> None:
+        for block in self.transformer['h']:
+            block.snap_to_grid_registry = registry
+
+    def set_snap_to_grid_registry(self, registry: SnapToGridRegistry | None) -> None:
+        self.snap_to_grid_registry = registry
+        self.config.snap_to_grid_registry = registry
+        self._apply_snap_to_grid_registry(registry)
 
     def get_num_params(self, non_embedding=True):
         """
