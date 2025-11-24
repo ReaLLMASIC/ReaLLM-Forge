@@ -172,6 +172,7 @@ def main(
     append,
     list_key,
     role_prefixes,
+    skip_emit,
 ):
     parquet_links = find_parquet_links(url)
     download_dir = "./downloaded_parquets"
@@ -179,7 +180,7 @@ def main(
     os.makedirs(download_dir, exist_ok=True)
     os.makedirs(json_dir, exist_ok=True)
 
-    if not append:
+    if not append and not skip_emit:
         open(output_text_file, "w").close()
 
     for link in parquet_links:
@@ -195,17 +196,18 @@ def main(
         convert_to_json(parquet_path, json_path)
 
         # Emit the JSON contents and write output to a text file
-        emit_json_contents(
-            json_path,
-            output_text_file,
-            include_keys,
-            value_prefixes,
-            required_key,
-            skip_empty,
-            exclude,
-            list_key=list_key,
-            role_prefixes=role_prefixes,
-        )
+        if not skip_emit:
+            emit_json_contents(
+                json_path,
+                output_text_file,
+                include_keys,
+                value_prefixes,
+                required_key,
+                skip_empty,
+                exclude,
+                list_key=list_key,
+                role_prefixes=role_prefixes,
+            )
 
 
 if __name__ == "__main__":
@@ -284,6 +286,12 @@ if __name__ == "__main__":
         metavar=("ROLE", "PREFIX"),
         help="Specify prefixes for roles. Use the format: --role_prefixes ROLE PREFIX [ROLE PREFIX ...]",
     )
+    parser.add_argument(
+        "--skip_emit",
+        action="store_true",
+        default=False,
+        help="Only download parquet files and convert them to JSON without emitting to a text file.",
+    )
     args = parser.parse_args()
     main(
         args.url,
@@ -296,5 +304,6 @@ if __name__ == "__main__":
         args.append,
         args.list_key,
         args.role_prefixes,
+        args.skip_emit,
     )
 
