@@ -37,6 +37,10 @@ class Tokenizer:
             meta["token_counts"] = dict(self.token_counts)
         self.save_meta(meta)
 
+    def get_vocabulary(self):
+        """Return the list of string representations that make up the tokenizer's vocabulary."""
+        raise NotImplementedError("Vocabulary extraction is not implemented for this tokenizer.")
+
     @staticmethod
     def get_key_from_meta(keyname):
         meta_path = 'meta.pkl'
@@ -118,6 +122,11 @@ class SentencePieceTokenizer(Tokenizer):
         if not self.sp:
             raise ValueError("SentencePiece model is not loaded.")
         return self.sp.decode_ids(ids)
+
+    def get_vocabulary(self):
+        if not self.sp:
+            raise ValueError("SentencePiece model is not loaded.")
+        return [self.sp.id_to_piece(i) for i in range(self.sp.GetPieceSize())]
 
 class TiktokenTokenizer(Tokenizer):
     def __init__(self, args):
@@ -220,6 +229,29 @@ class TiktokenTokenizer(Tokenizer):
 
         return ''.join(result)
 
+    def get_vocabulary(self):
+        vocab = []
+        seen = set()
+        for token_id in range(self.enc.n_vocab):
+            token_bytes = self.enc.decode_single_token_bytes(token_id)
+            token_str = token_bytes.decode('utf-8', errors='replace')
+            if token_str not in seen:
+                seen.add(token_str)
+                vocab.append(token_str)
+
+        # Include known special tokens (base and additional)
+        special_tokens = {}
+        if hasattr(self.enc, "_special_tokens") and isinstance(self.enc._special_tokens, dict):
+            special_tokens.update(self.enc._special_tokens)
+        special_tokens.update(self.special_tokens)
+
+        for token in special_tokens.keys():
+            if token not in seen:
+                seen.add(token)
+                vocab.append(token)
+
+        return vocab
+
 
 class CustomTokenizer(Tokenizer):
     def __init__(self, args):
@@ -263,6 +295,9 @@ class CustomTokenizer(Tokenizer):
     def detokenize(self, ids):
         return ''.join([self.itos[id] for id in ids])
 
+    def get_vocabulary(self):
+        return list(self.tokens)
+
 class ByteTokenizer(Tokenizer):
     def __init__(self, args):
         super().__init__(args)
@@ -282,6 +317,9 @@ class ByteTokenizer(Tokenizer):
 
     def detokenize(self, ids):
         return bytes(ids).decode('utf-8', errors='replace')
+
+    def get_vocabulary(self):
+        return [chr(i) for i in range(256)]
 
 
 class CharTokenizer(Tokenizer):
@@ -316,6 +354,9 @@ class CharTokenizer(Tokenizer):
 
     def detokenize(self, ids):
         return ''.join([self.itos[id] for id in ids])
+
+    def get_vocabulary(self):
+        return list(self.chars)
 
 class CustomCharTokenizerWithByteFallback(Tokenizer):
     """
@@ -446,6 +487,15 @@ class CustomCharTokenizerWithByteFallback(Tokenizer):
             out_pieces.append(all_bytes.decode('utf-8', errors='replace'))
 
         return ''.join(out_pieces)
+
+    def get_vocabulary(self):
+        vocab = []
+        for token in self.itos.values():
+            if isinstance(token, bytes):
+                vocab.append(token.decode('utf-8', errors='replace'))
+            else:
+                vocab.append(token)
+        return vocab
 
 class JsonByteTokenizerWithByteFallback(Tokenizer):
     """
@@ -578,6 +628,15 @@ class JsonByteTokenizerWithByteFallback(Tokenizer):
             out_pieces.append(all_bytes.decode('utf-8', errors='replace'))
 
         return ''.join(out_pieces)
+
+    def get_vocabulary(self):
+        vocab = []
+        for token in self.itos.values():
+            if isinstance(token, bytes):
+                vocab.append(token.decode('utf-8', errors='replace'))
+            else:
+                vocab.append(token)
+        return vocab
 
 
 def _load_python_token_processor():

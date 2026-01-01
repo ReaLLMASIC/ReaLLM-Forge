@@ -65,6 +65,7 @@ def parse_arguments():
 
     # Additional options
     parser.add_argument("-T", "--track_token_counts", action="store_true", help="Track how often each token appears and store in meta.pkl")
+    parser.add_argument("-E", "--extract-vocab", action="store_true", help="Export the tokenizer vocabulary to a JSON file")
 
     return parser.parse_args()
 
@@ -165,6 +166,20 @@ def main():
     save_tokens(train_ids, args.train_output, dtype)
     if val_ids is not None:
         save_tokens(val_ids, args.val_output, dtype)
+
+    if args.extract_vocab:
+        if not hasattr(tokenizer, "get_vocabulary"):
+            raise ValueError(f"Vocabulary extraction is not supported for tokenizer method '{args.method}'.")
+
+        vocab = tokenizer.get_vocabulary()
+        # Ensure string representations for all tokens
+        vocab_strings = [token if isinstance(token, str) else str(token) for token in vocab]
+        vocab_strings.sort(key=lambda token: (-len(token), token))
+
+        vocab_filename = f"{args.method}_vocab.json"
+        with open(vocab_filename, 'w', encoding='utf-8') as f:
+            json.dump(vocab_strings, f, ensure_ascii=False, indent=2)
+        print(f"Saved vocabulary to {vocab_filename}")
 
     if args.method == "sinewave":
         meta = {
