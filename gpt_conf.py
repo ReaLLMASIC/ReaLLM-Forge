@@ -375,6 +375,7 @@ class GPTConfig:
     use_mlp_resid_const: bool = False
     mlp_resid_const: float = 0.0
     learn_mlp_resid_const: bool = False
+    use_residual_dual: bool = False
     resid_gaussian_mean_init: float = 0.0
     resid_gaussian_std_init: float = 0.02
     attn_residual_combination: str = "add"

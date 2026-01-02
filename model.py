@@ -92,6 +92,14 @@ class GPT(nn.Module):
 
         self.config = config
 
+        if config.use_residual_dual:
+            # Enable post-layer norms for the main stream and disable pre-layer norms
+            config.use_pre_ln = False
+            config.use_pre_ln_attn = False
+            config.use_pre_ln_mlp = False
+            config.use_post_ln_attn = True
+            config.use_post_ln_mlp = True
+
         self.uses_numerical_multicontext = bool(config.numerical_multicontext)
         if self.uses_numerical_multicontext:
             if not config.multicontext:
@@ -197,6 +205,10 @@ class GPT(nn.Module):
         self.transformer['drop'] = nn.Dropout(config.dropout)
         self.transformer['h'] = nn.ModuleList([Block(config, mlp=shared_mlp_array[i], attn=shared_attn_array[i]) for i in range(config.n_layer)])
         self.transformer['ln_f'] = norm_dictionary[config.norm_variant_output](config)
+
+        if self.config.use_residual_dual:
+            self.transformer['dual_input_norm'] = norm_dictionary[config.norm_variant_attn](config)
+            self.transformer['dual_output_norm'] = norm_dictionary[config.norm_variant_output](config)
 
         # Optional post-embedding normalizations
         if self.config.norm_variant_wte is not None:
@@ -461,12 +473,18 @@ class GPT(nn.Module):
             if self.use_lsv and self.config.apply_lsv_at_layer_idx == 0:
                 x = self.lsv_matrix(x)
 
+            if self.config.use_residual_dual:
+                dual = x
+                x = self.transformer.dual_input_norm(dual)
             if self.use_ln_f_input_mixer:
                 layer_outputs = [x]
 
             layer_idx = 1
             for block in self.transformer.h:
-                x = block(x, iter_num)
+                if self.config.use_residual_dual:
+                    x, dual = block((x, dual), iter_num)
+                else:
+                    x = block(x, iter_num)
 
                 # TODO: abstact into a method
                 if self.config.n_lpe != 0 and self.config.target_layer_in_lpe == layer_idx:
@@ -477,18 +495,34 @@ class GPT(nn.Module):
 
                 if self.config.n_lpe != 0 and self.config.target_layer_out_lpe == layer_idx:
                     # Add learned embeddings to x
-                    x = x + learned_sum
+                    if self.config.use_residual_dual:
+                        dual = dual + learned_sum
+                        x = self.transformer.dual_input_norm(dual)
+                    else:
+                        x = x + learned_sum
                 # END lpe section
 
                 # Steering logic
                 if self.use_lsv and layer_idx == self.config.apply_lsv_at_layer_idx:
-                    x = self.lsv_matrix(x)
+                    if self.config.use_residual_dual:
+                        dual = self.lsv_matrix(dual)
+                        x = self.transformer.dual_input_norm(dual)
+                    else:
+                        x = self.lsv_matrix(x)
                 if (self.config.apply_vector_at_layer_idx is not None
                         and layer_idx == self.config.apply_vector_at_layer_idx):
-                    x = self.apply_vector_to_layer_output(x)
+                    if self.config.use_residual_dual:
+                        dual = self.apply_vector_to_layer_output(dual)
+                        x = self.transformer.dual_input_norm(dual)
+                    else:
+                        x = self.apply_vector_to_layer_output(x)
                 if (self.config.obtain_vector_at_layer_idx is not None
                         and layer_idx == self.config.obtain_vector_at_layer_idx):
-                    x = self.obtain_vector_from_layer_output(x)
+                    if self.config.use_residual_dual:
+                        dual = self.obtain_vector_from_layer_output(dual)
+                        x = self.transformer.dual_input_norm(dual)
+                    else:
+                        x = self.obtain_vector_from_layer_output(x)
 
                 if self.use_ln_f_input_mixer:
                     layer_outputs.append(x)
@@ -499,6 +533,9 @@ class GPT(nn.Module):
                 x = self.ln_f_mixer(layer_outputs)
 
             # 3. Final layer norm
+            if self.config.use_residual_dual:
+                x = x + self.transformer.dual_output_norm(dual)
+
             x = self.transformer.ln_f(x)
 
             # 4. Optionally scale down
@@ -612,17 +649,27 @@ class GPT(nn.Module):
             if self.use_lsv and self.config.apply_lsv_at_layer_idx == 0:
                 x = self.lsv_matrix(x)
 
+            if self.config.use_residual_dual:
+                dual = x
+                x = self.transformer.dual_input_norm(dual)
             if self.use_ln_f_input_mixer:
                 layer_outputs = [x]
 
             layer_idx = 1
             for block in self.transformer.h:
-                # Propagate tokens through layers
-                x = block(x, iter_num)
+                if self.config.use_residual_dual:
+                    x, dual = block((x, dual), iter_num)
+                else:
+                    # Propagate tokens through layers
+                    x = block(x, iter_num)
 
                 # Intercept for Learned Steering Vectors
                 if self.use_lsv and layer_idx == self.config.apply_lsv_at_layer_idx:
-                    x = self.lsv_matrix(x)
+                    if self.config.use_residual_dual:
+                        dual = self.lsv_matrix(dual)
+                        x = self.transformer.dual_input_norm(dual)
+                    else:
+                        x = self.lsv_matrix(x)
                     # x = self.apply_learned_vector_to_layer_output(x)
 
                 # TODO: abstact into a method
@@ -634,15 +681,27 @@ class GPT(nn.Module):
 
                 if self.config.n_lpe != 0 and self.config.target_layer_out_lpe == layer_idx:
                     # Add learned embeddings to x
-                    x = x + learned_sum
+                    if self.config.use_residual_dual:
+                        dual = dual + learned_sum
+                        x = self.transformer.dual_input_norm(dual)
+                    else:
+                        x = x + learned_sum
                 # END lpe section
 
                 # Intercept for Steering Vectors
                 if self.config.apply_vector_at_layer_idx is not None and layer_idx == self.config.apply_vector_at_layer_idx:
-                    x = self.apply_vector_to_layer_output(x)
+                    if self.config.use_residual_dual:
+                        dual = self.apply_vector_to_layer_output(dual)
+                        x = self.transformer.dual_input_norm(dual)
+                    else:
+                        x = self.apply_vector_to_layer_output(x)
                 if self.config.obtain_vector_at_layer_idx is not None and layer_idx == self.config.obtain_vector_at_layer_idx:
                     print(layer_idx, self.config.obtain_vector_at_layer_idx)
-                    x = self.obtain_vector_from_layer_output(x)
+                    if self.config.use_residual_dual:
+                        dual = self.obtain_vector_from_layer_output(dual)
+                        x = self.transformer.dual_input_norm(dual)
+                    else:
+                        x = self.obtain_vector_from_layer_output(x)
 
                 if self.use_ln_f_input_mixer:
                     layer_outputs.append(x)
@@ -651,6 +710,9 @@ class GPT(nn.Module):
 
             if self.use_ln_f_input_mixer:
                 x = self.ln_f_mixer(layer_outputs)
+
+            if self.config.use_residual_dual:
+                x = x + self.transformer.dual_output_norm(dual)
 
             x = self.transformer.ln_f(x)
 
@@ -742,20 +804,35 @@ class GPT(nn.Module):
         if self.use_lsv and self.config.apply_lsv_at_layer_idx == 0:
             x = self.lsv_matrix(x)
 
+        if self.config.use_residual_dual:
+            dual = x
+            x = self.transformer.dual_input_norm(dual)
+
         if self.use_ln_f_input_mixer:
             layer_outputs = [x]
 
         layer_idx = 1
         for block in self.transformer.h:
-            x = block(x, iter_num)
+            if self.config.use_residual_dual:
+                x, dual = block((x, dual), iter_num)
+            else:
+                x = block(x, iter_num)
+
             if self.use_lsv and layer_idx == self.config.apply_lsv_at_layer_idx:
-                x = self.lsv_matrix(x)
+                if self.config.use_residual_dual:
+                    dual = self.lsv_matrix(dual)
+                    x = self.transformer.dual_input_norm(dual)
+                else:
+                    x = self.lsv_matrix(x)
             if self.use_ln_f_input_mixer:
                 layer_outputs.append(x)
             layer_idx += 1
 
         if self.use_ln_f_input_mixer:
             x = self.ln_f_mixer(layer_outputs)
+
+        if self.config.use_residual_dual:
+            x = x + self.transformer.dual_output_norm(dual)
 
         x = self.transformer.ln_f(x)
         if self.n_embd_wte:

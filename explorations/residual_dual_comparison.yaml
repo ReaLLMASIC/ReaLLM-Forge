@@ -1,0 +1,28 @@
+# Compare standard Transformer residual path against the optional ResiDual variant
+---
+
+# Named groupings for toggling the dual residual path
+named_static_groups:
+  - named_group: "pre_ln_baseline"
+    use_residual_dual: [false]
+  - named_group: "residual_dual"
+    use_residual_dual: [true]
+
+# Parameter groups: run both variants with the same hyperparameters
+parameter_groups:
+  - named_group_static: ["pre_ln_baseline"]
+  - named_group_static: ["residual_dual"]
+
+# Common parameters applied to all runs
+common_group:
+  max_iters: [3000]
+  block_size: [256]
+  n_layer: [6]
+  n_head: [6]
+  n_embd: [384]
+  dataset: ["minipile"]
+  dtype: ["bfloat16"]
+  device: ["cuda"]
+  use_rotary_embeddings: [true]
+  use_abs_pos_embeddings: [false]
+  compile: [true]

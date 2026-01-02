@@ -535,6 +535,7 @@ def parse_args():
     model_group.add_argument('--use_pre_ln', default=True,   action=argparse.BooleanOptionalAction, help="apply before any attn or mlp")
     model_group.add_argument('--use_peri_ln', default=False, action=argparse.BooleanOptionalAction, help="apply directly after each attn and mlp")
     model_group.add_argument('--use_post_ln', default=False, action=argparse.BooleanOptionalAction, help="apply after recombining the residual")
+    model_group.add_argument('--use_residual_dual', default=False, action=argparse.BooleanOptionalAction, help='enable the dual-residual (ResiDual) architecture')
     model_group.add_argument('--use_pre_ln_attn', default=None, action=argparse.BooleanOptionalAction, help="override pre-LN for attention block")
     model_group.add_argument('--use_pre_ln_mlp', default=None, action=argparse.BooleanOptionalAction, help="override pre-LN for MLP block")
     model_group.add_argument('--use_peri_ln_attn', default=None, action=argparse.BooleanOptionalAction, help="override peri-LN for attention block")

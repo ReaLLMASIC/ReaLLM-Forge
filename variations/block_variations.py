@@ -250,6 +250,7 @@ block_forward_variations = {
     "parallel_mlp": parallel_mlp_forward,
     "attn_then_mlp": attn_then_mlp_forward,
     "edgellm_asic": edgellm_asic_forward,
+    "residual_dual": None,  # placeholder; assigned after definition
 }
 
 
@@ -318,6 +319,7 @@ normalization_setup_variations = {
     "parallel_mlp": _setup_norms_parallel,
     "attn_then_mlp": _setup_norms_sequential,
     "edgellm_asic": _setup_norms_sequential,
+    "residual_dual": _setup_norms_sequential,
 }
 
 
@@ -358,7 +360,43 @@ resid_scaler_setup_variations = {
     "parallel_mlp": _setup_resid_scalers_parallel,
     "attn_then_mlp": _setup_resid_scalers_sequential,
     "edgellm_asic": _setup_resid_scalers_sequential,
+    "residual_dual": _setup_resid_scalers_sequential,
 }
+
+
+def residual_dual_forward(block, x: tuple[torch.Tensor, torch.Tensor], iter_num: int):
+    """Dual-residual forward used for ResiDual configuration."""
+
+    x_norm, dual_resid = x
+
+    attn_out = block.attn(x_norm, iter_num)
+    if block.use_peri_ln_attn:
+        attn_out = block.peri_ln_attn(attn_out)
+    if block.attn_resid_scaler is not None:
+        attn_out = block.attn_resid_scaler(attn_out)
+
+    attn_res = x_norm + attn_out
+    if block.use_post_ln_attn:
+        attn_res = block.post_ln_attn(attn_res)
+
+    mlp_out = block.mlp(attn_res, iter_num)
+    if block.use_peri_ln_mlp:
+        mlp_out = block.peri_ln_mlp(mlp_out)
+    if block.mlp_resid_scaler is not None:
+        mlp_out = block.mlp_resid_scaler(mlp_out)
+
+    combined = attn_res + mlp_out
+    if block.use_post_ln_mlp:
+        combined = block.post_ln_mlp(combined)
+
+    dual_resid = dual_resid + attn_out + mlp_out
+    x_norm = block.dual_residual_norm(dual_resid)
+
+    return x_norm, dual_resid
+
+
+# Late-bind the forward now that the function is defined
+block_forward_variations["residual_dual"] = residual_dual_forward
 
 
 class Block(nn.Module):
@@ -384,7 +422,10 @@ class Block(nn.Module):
 
         self.use_flash_norm = getattr(config, "use_flash_norm", False)
 
-        if self.use_parallel_mlp:
+        if getattr(config, "use_residual_dual", False):
+            variant = "residual_dual"
+            self.use_residual_dual = True
+        elif self.use_parallel_mlp:
             variant = "parallel_mlp"
         elif self.use_edgellm_asic:
             variant = "edgellm_asic"
@@ -406,6 +447,10 @@ class Block(nn.Module):
 
         ## Instantiate norms for Block Forward Variant
         normalization_setup_variations[variant](self, config, norm_cls)
+
+        # Additional normalization for dual-residual path
+        if getattr(self, "use_residual_dual", False):
+            self.dual_residual_norm = norm_cls(config)
 
         ## Instantiate (Optional) learned residual scalers for Block Forward Variant
         resid_scaler_setup_variations[variant](self, config)
@@ -459,8 +504,13 @@ class Block(nn.Module):
         self.use_gradient_checkpointing = getattr(config, "use_gradient_checkpointing", False)
 
     def forward(self, x: torch.Tensor, iter_num: int):
-        if self.use_gradient_checkpointing and x.requires_grad:
-            return checkpoint.checkpoint(self.block_forward, x, iter_num, use_reentrant=False)
+        if self.use_gradient_checkpointing:
+            if isinstance(x, torch.Tensor) and x.requires_grad:
+                return checkpoint.checkpoint(self.block_forward, x, iter_num, use_reentrant=False)
+            if isinstance(x, tuple):
+                tensors = [tensor for tensor in x if isinstance(tensor, torch.Tensor)]
+                if any(tensor.requires_grad for tensor in tensors):
+                    return checkpoint.checkpoint(self.block_forward, x, iter_num, use_reentrant=False)
         return self.block_forward(x, iter_num)
 
     def _combine_resid(self, kind: str, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
