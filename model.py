@@ -63,6 +63,9 @@ class LearnedPositionEmbedding(nn.Module):
                 core_key = key[len('lpe_'):]
                 setattr(self.lpe_config, core_key, val)
 
+        self.lpe_config.use_mhc = False
+        self.lpe_config.mhc_expansion_rate = 1
+
         if self.lpe_config.use_abs_pos_embeddings:
             self.wpe = nn.Embedding(self.lpe_config.block_size, self.lpe_config.n_embd)
 
@@ -91,6 +94,8 @@ class GPT(nn.Module):
         assert config.block_size is not None
 
         self.config = config
+        self.use_mhc = config.use_mhc
+        self.mhc_streams = config.mhc_expansion_rate
 
         self.uses_numerical_multicontext = bool(config.numerical_multicontext)
         if self.uses_numerical_multicontext:
@@ -218,6 +223,21 @@ class GPT(nn.Module):
 
         if config.n_embd_wte:
             self.lm_head = nn.Linear(config.n_embd_wte, config.vocab_size, bias=False)
+
+    def _mhc_expand_stream(self, x: torch.Tensor) -> torch.Tensor:
+        return x.unsqueeze(2).expand(-1, -1, self.mhc_streams, -1)
+
+    @staticmethod
+    def _mhc_reduce_stream(stream: torch.Tensor) -> torch.Tensor:
+        return stream.mean(dim=2)
+
+    def _mhc_add_to_stream(self, stream: torch.Tensor, residual: torch.Tensor) -> torch.Tensor:
+        return stream + residual.unsqueeze(2)
+
+    def _mhc_apply_to_stream(self, stream: torch.Tensor, fn) -> torch.Tensor:
+        reduced = self._mhc_reduce_stream(stream)
+        updated = fn(reduced)
+        return self._mhc_expand_stream(updated)
         else:
             #TODO: currently multicontext is in own category, add support later for WTE factorization
             if (config.multicontext or config.multidataset_wte) and not self.uses_numerical_multicontext:
@@ -447,22 +467,32 @@ class GPT(nn.Module):
 
 
             # TODO: abstact into a method
+            if self.use_mhc:
+                x = self._mhc_expand_stream(x)
+
             if self.config.n_lpe != 0 and self.config.target_layer_in_lpe == 0:
+                lpe_input = self._mhc_reduce_stream(x) if self.use_mhc else x
                 for lpe in self.learned_position_embeddings:
-                    out = lpe(b, t, x, iter_num)
+                    out = lpe(b, t, lpe_input, iter_num)
                     # Accumulate embedding sum
                     learned_sum = out if learned_sum is None else learned_sum + out
 
             if self.config.n_lpe != 0 and self.config.target_layer_out_lpe == 0:
                 # Add learned embeddings to x
-                x = x + learned_sum
+                if self.use_mhc:
+                    x = self._mhc_add_to_stream(x, learned_sum)
+                else:
+                    x = x + learned_sum
 
             # 2. Possibly apply LSV on input
             if self.use_lsv and self.config.apply_lsv_at_layer_idx == 0:
-                x = self.lsv_matrix(x)
+                if self.use_mhc:
+                    x = self._mhc_apply_to_stream(x, self.lsv_matrix)
+                else:
+                    x = self.lsv_matrix(x)
 
             if self.use_ln_f_input_mixer:
-                layer_outputs = [x]
+                layer_outputs = [self._mhc_reduce_stream(x) if self.use_mhc else x]
 
             layer_idx = 1
             for block in self.transformer.h:
@@ -470,33 +500,45 @@ class GPT(nn.Module):
 
                 # TODO: abstact into a method
                 if self.config.n_lpe != 0 and self.config.target_layer_in_lpe == layer_idx:
+                    lpe_input = self._mhc_reduce_stream(x) if self.use_mhc else x
                     for lpe in self.learned_position_embeddings:
-                        out = lpe(b, t, x, iter_num)
+                        out = lpe(b, t, lpe_input, iter_num)
                         # Accumulate embedding sum
                         learned_sum = out if learned_sum is None else learned_sum + out
 
                 if self.config.n_lpe != 0 and self.config.target_layer_out_lpe == layer_idx:
                     # Add learned embeddings to x
-                    x = x + learned_sum
+                    if self.use_mhc:
+                        x = self._mhc_add_to_stream(x, learned_sum)
+                    else:
+                        x = x + learned_sum
                 # END lpe section
 
                 # Steering logic
                 if self.use_lsv and layer_idx == self.config.apply_lsv_at_layer_idx:
-                    x = self.lsv_matrix(x)
+                    if self.use_mhc:
+                        x = self._mhc_apply_to_stream(x, self.lsv_matrix)
+                    else:
+                        x = self.lsv_matrix(x)
                 if (self.config.apply_vector_at_layer_idx is not None
                         and layer_idx == self.config.apply_vector_at_layer_idx):
-                    x = self.apply_vector_to_layer_output(x)
+                    reduced = self._mhc_reduce_stream(x) if self.use_mhc else x
+                    reduced = self.apply_vector_to_layer_output(reduced)
+                    x = self._mhc_expand_stream(reduced) if self.use_mhc else reduced
                 if (self.config.obtain_vector_at_layer_idx is not None
                         and layer_idx == self.config.obtain_vector_at_layer_idx):
-                    x = self.obtain_vector_from_layer_output(x)
+                    reduced = self._mhc_reduce_stream(x) if self.use_mhc else x
+                    self.obtain_vector_from_layer_output(reduced)
 
                 if self.use_ln_f_input_mixer:
-                    layer_outputs.append(x)
+                    layer_outputs.append(self._mhc_reduce_stream(x) if self.use_mhc else x)
 
                 layer_idx += 1
 
             if self.use_ln_f_input_mixer:
                 x = self.ln_f_mixer(layer_outputs)
+            elif self.use_mhc:
+                x = self._mhc_reduce_stream(x)
 
             # 3. Final layer norm
             x = self.transformer.ln_f(x)
@@ -595,25 +637,34 @@ class GPT(nn.Module):
             # sum all learned position residuals
             learned_sum = None
 
+            if self.use_mhc:
+                x = self._mhc_expand_stream(x)
 
             # TODO: abstact into a method
             if self.config.n_lpe != 0 and self.config.target_layer_in_lpe == 0:
+                lpe_input = self._mhc_reduce_stream(x) if self.use_mhc else x
                 for lpe in self.learned_position_embeddings:
-                    out = lpe(b, t, x, iter_num)
+                    out = lpe(b, t, lpe_input, iter_num)
                     # Accumulate embedding sum
                     learned_sum = out if learned_sum is None else learned_sum + out
 
             if self.config.n_lpe != 0 and self.config.target_layer_out_lpe == 0:
                 # Add learned embeddings to x
-                x = x + learned_sum
+                if self.use_mhc:
+                    x = self._mhc_add_to_stream(x, learned_sum)
+                else:
+                    x = x + learned_sum
 
             x.requires_grad_(True)  # Ensure requires_grad is True
 
             if self.use_lsv and self.config.apply_lsv_at_layer_idx == 0:
-                x = self.lsv_matrix(x)
+                if self.use_mhc:
+                    x = self._mhc_apply_to_stream(x, self.lsv_matrix)
+                else:
+                    x = self.lsv_matrix(x)
 
             if self.use_ln_f_input_mixer:
-                layer_outputs = [x]
+                layer_outputs = [self._mhc_reduce_stream(x) if self.use_mhc else x]
 
             layer_idx = 1
             for block in self.transformer.h:
@@ -622,35 +673,47 @@ class GPT(nn.Module):
 
                 # Intercept for Learned Steering Vectors
                 if self.use_lsv and layer_idx == self.config.apply_lsv_at_layer_idx:
-                    x = self.lsv_matrix(x)
+                    if self.use_mhc:
+                        x = self._mhc_apply_to_stream(x, self.lsv_matrix)
+                    else:
+                        x = self.lsv_matrix(x)
                     # x = self.apply_learned_vector_to_layer_output(x)
 
                 # TODO: abstact into a method
                 if self.config.n_lpe != 0 and self.config.target_layer_in_lpe == layer_idx:
+                    lpe_input = self._mhc_reduce_stream(x) if self.use_mhc else x
                     for lpe in self.learned_position_embeddings:
-                        out = lpe(b, t, x, iter_num)
+                        out = lpe(b, t, lpe_input, iter_num)
                         # Accumulate embedding sum
                         learned_sum = out if learned_sum is None else learned_sum + out
 
                 if self.config.n_lpe != 0 and self.config.target_layer_out_lpe == layer_idx:
                     # Add learned embeddings to x
-                    x = x + learned_sum
+                    if self.use_mhc:
+                        x = self._mhc_add_to_stream(x, learned_sum)
+                    else:
+                        x = x + learned_sum
                 # END lpe section
 
                 # Intercept for Steering Vectors
                 if self.config.apply_vector_at_layer_idx is not None and layer_idx == self.config.apply_vector_at_layer_idx:
-                    x = self.apply_vector_to_layer_output(x)
+                    reduced = self._mhc_reduce_stream(x) if self.use_mhc else x
+                    reduced = self.apply_vector_to_layer_output(reduced)
+                    x = self._mhc_expand_stream(reduced) if self.use_mhc else reduced
                 if self.config.obtain_vector_at_layer_idx is not None and layer_idx == self.config.obtain_vector_at_layer_idx:
                     print(layer_idx, self.config.obtain_vector_at_layer_idx)
-                    x = self.obtain_vector_from_layer_output(x)
+                    reduced = self._mhc_reduce_stream(x) if self.use_mhc else x
+                    self.obtain_vector_from_layer_output(reduced)
 
                 if self.use_ln_f_input_mixer:
-                    layer_outputs.append(x)
+                    layer_outputs.append(self._mhc_reduce_stream(x) if self.use_mhc else x)
 
                 layer_idx +=1
 
             if self.use_ln_f_input_mixer:
                 x = self.ln_f_mixer(layer_outputs)
+            elif self.use_mhc:
+                x = self._mhc_reduce_stream(x)
 
             x = self.transformer.ln_f(x)
 
@@ -736,26 +799,36 @@ class GPT(nn.Module):
         # ---- copy–paste from the “else:” branch of forward() ---------
         b, t, _ = x_emb.size()
         x = x_emb
+        if self.use_mhc:
+            x = self._mhc_expand_stream(x)
 
         # (learned position residuals, steering vectors, etc.)
         learned_sum = None
         if self.use_lsv and self.config.apply_lsv_at_layer_idx == 0:
-            x = self.lsv_matrix(x)
+            if self.use_mhc:
+                x = self._mhc_apply_to_stream(x, self.lsv_matrix)
+            else:
+                x = self.lsv_matrix(x)
 
         if self.use_ln_f_input_mixer:
-            layer_outputs = [x]
+            layer_outputs = [self._mhc_reduce_stream(x) if self.use_mhc else x]
 
         layer_idx = 1
         for block in self.transformer.h:
             x = block(x, iter_num)
             if self.use_lsv and layer_idx == self.config.apply_lsv_at_layer_idx:
-                x = self.lsv_matrix(x)
+                if self.use_mhc:
+                    x = self._mhc_apply_to_stream(x, self.lsv_matrix)
+                else:
+                    x = self.lsv_matrix(x)
             if self.use_ln_f_input_mixer:
-                layer_outputs.append(x)
+                layer_outputs.append(self._mhc_reduce_stream(x) if self.use_mhc else x)
             layer_idx += 1
 
         if self.use_ln_f_input_mixer:
             x = self.ln_f_mixer(layer_outputs)
+        elif self.use_mhc:
+            x = self._mhc_reduce_stream(x)
 
         x = self.transformer.ln_f(x)
         if self.n_embd_wte:

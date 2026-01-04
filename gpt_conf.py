@@ -158,6 +158,13 @@ class GPTConfig:
     window_size: int = None
     use_flex_attn: bool = None
 
+    # Manifold-Constrained Hyper-Connections (mHC)
+    use_mhc: bool = False
+    mhc_expansion_rate: int = 4
+    mhc_alpha_init: float = 0.01
+    mhc_sinkhorn_iters: int = 20
+    mhc_rmsnorm_eps: float = 1e-5
+
     gate: bool = False
     use_moe: bool = False
     moe_layer_freq: int = 2
@@ -582,4 +589,3 @@ class GPTConfig:
 
         with open(filename, 'w') as json_file:
             json.dump(conf_dict, json_file)
-

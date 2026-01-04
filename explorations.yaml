@@ -1,0 +1,49 @@
+# Exploration comparing default model settings against mHC-recommended settings.
+---
+
+named_static_groups:
+  - named_group: "default_model"
+    named_group_settings:
+      use_qk_norm: [true]
+      use_qk_norm_scale: [true]
+      norm_variant_wte: ["rmsnorm"]
+      use_rotary_embeddings: [true]
+      use_abs_pos_embeddings: [false]
+      use_pre_ln: [true]
+      use_peri_ln: [true]
+      use_post_ln: [false]
+      activation_variant: ["squared_relu"]
+      use_mhc: [false]
+
+  - named_group: "mhc_recommended"
+    named_group_settings:
+      use_qk_norm: [true]
+      use_qk_norm_scale: [true]
+      norm_variant_wte: ["rmsnorm"]
+      use_rotary_embeddings: [true]
+      use_abs_pos_embeddings: [false]
+      use_pre_ln: [true]
+      use_peri_ln: [true]
+      use_post_ln: [false]
+      activation_variant: ["squared_relu"]
+      use_mhc: [true]
+      mhc_expansion_rate: [4]
+      mhc_alpha_init: [0.01]
+      mhc_sinkhorn_iters: [20]
+      mhc_rmsnorm_eps: [1e-5]
+
+common_group:
+  dataset: ["shakespeare_char"]
+  block_size: [256]
+  n_layer: [6]
+  n_head: [6]
+  n_embd: [384]
+  batch_size: [8]
+  max_iters: [500]
+  device: ["cuda"]
+  dtype: ["bfloat16"]
+  never_save_checkpoint: [true]
+
+parameter_groups:
+  - named_group_static: ["default_model"]
+  - named_group_static: ["mhc_recommended"]

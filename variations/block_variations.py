@@ -10,6 +10,7 @@ from variations.attention_variations import attention_dictionary
 from variations.mlp_variations import get_mlp_instance
 from variations.norm_variations import norm_dictionary
 from variations.learned_confidence_variations import learned_confidence_dictionary
+from variations.mhc_variations import ManifoldHyperConnections
 from quantization.quantize import fake_quantize_act
 
 # type alias for the forward function
@@ -73,6 +74,9 @@ def parallel_mlp_forward(block, x: torch.Tensor, iter_num: int) -> torch.Tensor:
     # Make sure not to override skip connection
     x_in = x
 
+    if block.use_mhc:
+        x_in, cache = block.mhc_attn.pre_map(x_in)
+
     # Pre-LN
     if block.use_pre_ln:
         x_in = block.pre_ln(x_in)
@@ -95,11 +99,17 @@ def parallel_mlp_forward(block, x: torch.Tensor, iter_num: int) -> torch.Tensor:
 
     # Skip Connection
     combined = attn_out + mlp_out
-    x = block._combine_resid("attn", x, combined)
+    if block.use_mhc:
+        x = block.mhc_attn.post_map(x, combined, cache)
+    else:
+        x = block._combine_resid("attn", x, combined)
 
     # Post-LN
     if block.use_post_ln:
-        x = block.post_ln(x)
+        if block.use_mhc:
+            x = block._mhc_post_ln(x, block.post_ln)
+        else:
+            x = block.post_ln(x)
 
     return x
 
@@ -109,6 +119,9 @@ def attn_then_mlp_forward(block, x: torch.Tensor, iter_num: int) -> torch.Tensor
 
     # Make sure not to override skip connection
     x_attn_in = x
+
+    if block.use_mhc:
+        x_attn_in, attn_cache = block.mhc_attn.pre_map(x_attn_in)
 
     # Attn Pre-LN
     if block.use_pre_ln_attn:
@@ -126,14 +139,23 @@ def attn_then_mlp_forward(block, x: torch.Tensor, iter_num: int) -> torch.Tensor
         attn_out = block.attn_resid_scaler(attn_out)
 
     # Attn Skip Connection
-    x = block._combine_resid("attn", x, attn_out)
+    if block.use_mhc:
+        x = block.mhc_attn.post_map(x, attn_out, attn_cache)
+    else:
+        x = block._combine_resid("attn", x, attn_out)
 
     # Attn Post-LN
     if block.use_post_ln_attn:
-        x = block.post_ln_attn(x)
+        if block.use_mhc:
+            x = block._mhc_post_ln(x, block.post_ln_attn)
+        else:
+            x = block.post_ln_attn(x)
 
     # Make sure not to override skip connection
     x_mlp_in = x
+
+    if block.use_mhc:
+        x_mlp_in, mlp_cache = block.mhc_mlp.pre_map(x_mlp_in)
 
     # MLP Pre-LN
     if block.use_pre_ln_mlp:
@@ -151,11 +173,17 @@ def attn_then_mlp_forward(block, x: torch.Tensor, iter_num: int) -> torch.Tensor
         mlp_out = block.mlp_resid_scaler(mlp_out)
 
     # MLP Skip Connection
-    x = block._combine_resid("mlp", x, mlp_out)
+    if block.use_mhc:
+        x = block.mhc_mlp.post_map(x, mlp_out, mlp_cache)
+    else:
+        x = block._combine_resid("mlp", x, mlp_out)
 
     # MLP Post-LN
     if block.use_post_ln_mlp:
-        x = block.post_ln_mlp(x)
+        if block.use_mhc:
+            x = block._mhc_post_ln(x, block.post_ln_mlp)
+        else:
+            x = block.post_ln_mlp(x)
 
     return x
 
@@ -381,6 +409,10 @@ class Block(nn.Module):
         # Forward variation choice
         self.use_parallel_mlp = getattr(config, "use_parallel_mlp", False)
         self.use_edgellm_asic = getattr(config, "use_edgellm_asic", False)
+        self.use_mhc = getattr(config, "use_mhc", False)
+
+        if self.use_mhc and self.use_edgellm_asic:
+            raise ValueError("Manifold Hyper-Connections are not supported with EdgeLLM ASIC mode.")
 
         self.use_flash_norm = getattr(config, "use_flash_norm", False)
 
@@ -420,6 +452,10 @@ class Block(nn.Module):
             self.mlp = get_mlp_instance(config)
         else:
             self.mlp = mlp
+
+        if self.use_mhc:
+            self.mhc_attn = ManifoldHyperConnections(config)
+            self.mhc_mlp = ManifoldHyperConnections(config)
 
         self.attn_resid_type = getattr(config, "attn_residual_combination", "add")
         self.mlp_resid_type = getattr(config, "mlp_residual_combination", "add")
@@ -468,3 +504,11 @@ class Block(nn.Module):
         alpha = self.alpha_fns[kind](out)
         return self.resid_fns[kind](x, out, alpha, self.residual_slerp_eps)
 
+    @staticmethod
+    def _mhc_reduce(stream: torch.Tensor) -> torch.Tensor:
+        return stream.mean(dim=2)
+
+    def _mhc_post_ln(self, stream: torch.Tensor, norm: nn.Module) -> torch.Tensor:
+        reduced = self._mhc_reduce(stream)
+        normalized = norm(reduced)
+        return normalized.unsqueeze(2).expand_as(stream)
