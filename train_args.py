@@ -1323,6 +1323,11 @@ def parse_args():
     logging_group.add_argument('--tensorboard_log_dir', type=str, default='logs')
     logging_group.add_argument('--tensorboard_run_name', type=str, default=None)
     logging_group.add_argument('--tensorboard_graph', default=True, action=argparse.BooleanOptionalAction)
+    logging_group.add_argument('--zeus_profile', default=False, action=argparse.BooleanOptionalAction, help="Enable Zeus energy profiling")
+    logging_group.add_argument('--zeus_profile_gpu', default=True, action=argparse.BooleanOptionalAction, help="Enable GPU energy profiling with Zeus")
+    logging_group.add_argument('--zeus_profile_cpu', default=False, action=argparse.BooleanOptionalAction, help="Enable CPU energy profiling with Zeus")
+    logging_group.add_argument('--zeus_gpu_indices', type=int, nargs="+", default=None, help="GPU indices to profile with Zeus")
+    logging_group.add_argument('--zeus_cpu_indices', type=int, nargs="+", default=None, help="CPU indices to profile with Zeus")
 
     # Metric logging toggles
     logging_group.add_argument('--log_btc_train', default=False, action=argparse.BooleanOptionalAction, help='Log better-than-chance training metrics')

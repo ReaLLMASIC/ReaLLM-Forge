@@ -27,6 +27,7 @@ from rich.text import Text
 from torch.nn import functional as F
 
 from model import GPT, GPTConfig
+from utils.energy_profiling import ZeusProfiler
 from utils.model_info import print_summary, print_module_structure, print_model_blocks
 from variations.model_variations import model_variation_dictionary
 
@@ -36,6 +37,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Inference from trained models")
     parser.add_argument("--device", type=str, default="cuda", help="Device to run inference (e.g., 'cpu', 'cuda', 'cuda:0', 'cuda:1')")
     parser.add_argument("--out_dir", type=str, default="out", help="Directory to load checkpoint from")
+    parser.add_argument("--zeus_profile", default=False, action=argparse.BooleanOptionalAction, help="Enable Zeus energy profiling")
+    parser.add_argument("--zeus_profile_gpu", default=True, action=argparse.BooleanOptionalAction, help="Enable GPU energy profiling with Zeus")
+    parser.add_argument("--zeus_profile_cpu", default=False, action=argparse.BooleanOptionalAction, help="Enable CPU energy profiling with Zeus")
+    parser.add_argument("--zeus_gpu_indices", type=int, nargs="+", default=None, help="GPU indices to profile with Zeus")
+    parser.add_argument("--zeus_cpu_indices", type=int, nargs="+", default=None, help="CPU indices to profile with Zeus")
     parser.add_argument("--quantization_data_file", type=str, default=None, help="File name to export the quantized weights/activations, scale factor, and zero point")
     parser.add_argument("--init_from", type=str, default="resume", help="Either 'resume' (from an out_dir) or a GPT-2 variant (e.g., 'gpt2-xl')")
     parser.add_argument("--start", type=str, default="\n", help="Start text for generation. Can specify a file using 'FILE:prompt.txt'")
@@ -474,6 +480,8 @@ def sample_with_existing_model(
     writer: Optional[object] = None,
     dataset_idx: Optional[int] = None,
     console: Console | None = None,
+    zeus_profiler: ZeusProfiler | None = None,
+    zeus_window_prefix: str = "inference",
 ):
     """
     Generate text from an already-loaded GPT model.
@@ -510,6 +518,8 @@ def sample_with_existing_model(
     valid_modes = ["minmax", "softmax", "softmax_top_k", "dot_product", "rank", "topk"]
     modes_to_apply = valid_modes if colorize_mode == "all" else [colorize_mode]
 
+
+    energy_samples: List[float] = []
 
     for current_k in k_values:
         # Set a tag for logging/filenames based on the active sampling mode
@@ -553,99 +563,97 @@ def sample_with_existing_model(
             scalar_rows: List[torch.Tensor] = []
             ranks_list: List[int] = []  # NEW
 
-            with torch.no_grad():
-                for _step in range(max_new_tokens):
-                    idx_cond = (
-                        x
-                        if x.size(1) <= model.config.block_size
-                        else x[:, -model.config.block_size :]
-                    )
+            window_name = f"{zeus_window_prefix}_{k_tag}_sample_{sample_idx}"
+            with zeus_profiler.window(window_name) if zeus_profiler else nullcontext() as zeus_window:
+                with torch.no_grad():
+                    for _step in range(max_new_tokens):
+                        idx_cond = (
+                            x
+                            if x.size(1) <= model.config.block_size
+                            else x[:, -model.config.block_size :]
+                        )
 
-                    model_logits, _ = model(idx_cond, dataset_idx=dataset_idx)
-                    raw_logits_row = model_logits[:, -1, :]      # Raw logits from model
+                        model_logits, _ = model(idx_cond, dataset_idx=dataset_idx)
+                        raw_logits_row = model_logits[:, -1, :]      # Raw logits from model
 
-                    # --- Apply Cosine Similarity Penalty (if enabled) ---
-                    if args.cosine_penalty is not None:
-                        N = 5 if len(args.cosine_penalty) < 1 else int(args.cosine_penalty[0])
-                        alpha = 1.0 if len(args.cosine_penalty) < 2 else args.cosine_penalty[1]
+                        # --- Apply Cosine Similarity Penalty (if enabled) ---
+                        if args.cosine_penalty is not None:
+                            N = 5 if len(args.cosine_penalty) < 1 else int(args.cosine_penalty[0])
+                            alpha = 1.0 if len(args.cosine_penalty) < 2 else args.cosine_penalty[1]
 
-                        # Calculate original probabilities for comparison
-                        probs_before = F.softmax(raw_logits_row / temperature, dim=-1)
+                            # Calculate original probabilities for comparison
+                            probs_before = F.softmax(raw_logits_row / temperature, dim=-1)
 
+                            # Apply penalty as long as there are tokens in the context and N > 0
+                            if x.size(1) > 0 and N > 0:
+                                # Python's negative slicing gracefully handles cases where x.size(1) < N
+                                last_n_tokens = x[0, -N:]
 
-                        # Apply penalty as long as there are tokens in the context and N > 0
-                        if x.size(1) > 0 and N > 0:
-                            # Python's negative slicing gracefully handles cases where x.size(1) < N
-                            last_n_tokens = x[0, -N:]
+                                embedding_matrix = model.transformer.wte.weight
 
-                            embedding_matrix = model.transformer.wte.weight
+                                # Normalize embeddings
+                                last_n_embeds = F.normalize(embedding_matrix[last_n_tokens], p=2, dim=1)
+                                all_embeds = F.normalize(embedding_matrix, p=2, dim=1)
 
-                            # Normalize embeddings
-                            last_n_embeds = F.normalize(embedding_matrix[last_n_tokens], p=2, dim=1)
-                            all_embeds = F.normalize(embedding_matrix, p=2, dim=1)
+                                # Calculate max cosine similarity for each candidate against the last N tokens
+                                sim_matrix = torch.matmul(all_embeds, last_n_embeds.T)
+                                max_sim_per_candidate, _ = torch.max(sim_matrix, dim=1)
+                                penalty = alpha * max_sim_per_candidate
+                                raw_logits_row = raw_logits_row - penalty
 
-                            # Calculate max cosine similarity for each candidate against the last N tokens
-                            sim_matrix = torch.matmul(all_embeds, last_n_embeds.T)
-                            max_sim_per_candidate, _ = torch.max(sim_matrix, dim=1)
-                            penalty = alpha * max_sim_per_candidate
-                            raw_logits_row = raw_logits_row - penalty
+                                # Calculate KL divergence to measure the change
+                                probs_after = F.softmax(raw_logits_row / temperature, dim=-1)
+                                # Add a small epsilon to avoid log(0)
+                                kl_div = F.kl_div(torch.log(probs_after + 1e-9), probs_before, reduction='sum')
+                                kl_divergences.append(kl_div.item())
 
-                            # Calculate KL divergence to measure the change
-                            probs_after = F.softmax(raw_logits_row / temperature, dim=-1)
-                            # Add a small epsilon to avoid log(0)
-                            kl_div = F.kl_div(torch.log(probs_after + 1e-9), probs_before, reduction='sum')
-                            kl_divergences.append(kl_div.item())
+                        logits = raw_logits_row / temperature        # Scaled logits for sampling
+                        full_row = logits[0].clone()               # pre-mask
 
+                        # Apply the selected truncation logic
+                        if args.softmax_threshold is not None:
+                            # Calculate probabilities and find the threshold
+                            probs = F.softmax(logits, dim=-1)
+                            max_prob = torch.max(probs)
+                            prob_threshold = max_prob * args.softmax_threshold
+                            # Set probabilities of tokens below the threshold to 0
+                            probs[probs < prob_threshold] = 0
 
-                    logits = raw_logits_row / temperature        # Scaled logits for sampling
-                    full_row = logits[0].clone()               # pre-mask
-
-
-                    # Apply the selected truncation logic
-                    if args.softmax_threshold is not None:
-                        # Calculate probabilities and find the threshold
-                        probs = F.softmax(logits, dim=-1)
-                        max_prob = torch.max(probs)
-                        prob_threshold = max_prob * args.softmax_threshold
-                        # Set probabilities of tokens below the threshold to 0
-                        probs[probs < prob_threshold] = 0
-
-
-                    topk_row = logits[0].clone()               # post-mask
-
-                    if args.softmax_threshold is not None:
-                        # Calculate probabilities and find the threshold
-                        probs = F.softmax(logits, dim=-1)
-                        max_prob = torch.max(probs)
-                        prob_threshold = max_prob * args.softmax_threshold
-                        # Set probabilities of tokens below the threshold to 0
-                        probs[probs < prob_threshold] = 0
-                        # Sample from the modified, unnormalized distribution of probabilities
-                        idx_next = torch.multinomial(probs, num_samples=1)
-                        # For colorization, we can still use the unmasked logits
-                        topk_row = logits[0].clone()
-                    elif current_k is not None:
-                        v, _ = torch.topk(logits, min(current_k, logits.size(-1)))
-                        logits[logits < v[:, [-1]]] = -float("inf")
                         topk_row = logits[0].clone()               # post-mask
-                        probs = F.softmax(logits, dim=-1) # Re-softmax after masking
-                        idx_next = torch.multinomial(probs, num_samples=1)
-                    else: # No truncation / default case
-                        topk_row = logits[0].clone()
-                        probs = F.softmax(logits, dim=-1)
-                        idx_next = torch.multinomial(probs, num_samples=1)
 
-                    x = torch.cat((x, idx_next), dim=1)
+                        if args.softmax_threshold is not None:
+                            # Calculate probabilities and find the threshold
+                            probs = F.softmax(logits, dim=-1)
+                            max_prob = torch.max(probs)
+                            prob_threshold = max_prob * args.softmax_threshold
+                            # Set probabilities of tokens below the threshold to 0
+                            probs[probs < prob_threshold] = 0
+                            # Sample from the modified, unnormalized distribution of probabilities
+                            idx_next = torch.multinomial(probs, num_samples=1)
+                            # For colorization, we can still use the unmasked logits
+                            topk_row = logits[0].clone()
+                        elif current_k is not None:
+                            v, _ = torch.topk(logits, min(current_k, logits.size(-1)))
+                            logits[logits < v[:, [-1]]] = -float("inf")
+                            topk_row = logits[0].clone()               # post-mask
+                            probs = F.softmax(logits, dim=-1) # Re-softmax after masking
+                            idx_next = torch.multinomial(probs, num_samples=1)
+                        else: # No truncation / default case
+                            topk_row = logits[0].clone()
+                            probs = F.softmax(logits, dim=-1)
+                            idx_next = torch.multinomial(probs, num_samples=1)
 
-                    if colorize_output:
-                        chosen = idx_next.item()
-                        # rank: 1 = best
-                        rank = (full_row > full_row[chosen]).sum().item() + 1
+                        x = torch.cat((x, idx_next), dim=1)
 
-                        tokens_for_color.append(chosen)
-                        full_rows.append(full_row)
-                        topk_rows.append(topk_row)
-                        scalar_rows.append(full_row[chosen])
+                        if colorize_output:
+                            chosen = idx_next.item()
+                            # rank: 1 = best
+                            rank = (full_row > full_row[chosen]).sum().item() + 1
+
+                            tokens_for_color.append(chosen)
+                            full_rows.append(full_row)
+                            topk_rows.append(topk_row)
+                            scalar_rows.append(full_row[chosen])
                         if args.show_minmax_chart:
                             pre_temp_scalar_rows.append(raw_logits_row[0, chosen])
                         ranks_list.append(rank)
@@ -666,6 +674,12 @@ def sample_with_existing_model(
 
                         )
 
+            if zeus_profiler:
+                total_energy = getattr(zeus_window, "total_energy_joules", None)
+                if total_energy is not None:
+                    energy_samples.append(total_energy)
+                    console.print(f"[bold cyan]Zeus energy[/bold cyan] {total_energy:.4f} J")
+
             # ---------- Print summary statistics for this sample ------------------
             if kl_divergences:
                 avg_kl = np.mean(kl_divergences)
@@ -676,7 +690,6 @@ def sample_with_existing_model(
                 save_raw_logits_chart(
                     pre_temp_scalar_rows, out_dir, k_tag, sample_idx
                  )
-
 
             # ---------- decode plain text -----------------------------------
             plain_text = decode(x[0].tolist())
@@ -768,6 +781,16 @@ def sample_with_existing_model(
                     best_val_loss,
                     f"{run_name}_{k_tag}" if run_name else k_tag,
                 )
+
+    if energy_samples:
+        avg_energy = sum(energy_samples) / len(energy_samples)
+        console.print(f"[bold cyan]Average Zeus energy[/bold cyan] {avg_energy:.4f} J")
+        return {
+            "avg_joules": avg_energy,
+            "per_sample_joules": energy_samples,
+        }
+
+    return None
 
 
 def interactive_generation(model, start_ids, device, max_new_tokens, temperature, top_k, stop_string, decode, encode):
@@ -1146,6 +1169,7 @@ def main():
     device_type = 'cuda' if 'cuda' in args.device else 'cpu'
     ptdtype = {'bfloat16': torch.bfloat16, 'float16': torch.float16, 'float32': torch.float32}[args.dtype]
     ctx = nullcontext() if device_type == 'cpu' else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
+    zeus_profiler = ZeusProfiler.from_args(args, device=args.device)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = os.path.join(args.out_dir, timestamp)
@@ -1383,6 +1407,7 @@ def main():
             decode_lookup[dataset_name] = decode_i
 
         block_size = args.block_size if args.block_size else model.config.block_size
+        energy_samples: List[float] = []
         with torch.no_grad(), ctx:
             for sample_idx in range(args.num_samples):
                 if args.use_lsv and hasattr(args, 'lsv_size'):
@@ -1397,52 +1422,60 @@ def main():
 
                 token_state = {name: tensor.clone() for name, tensor in initial_tokens.items()}
 
-                for _ in range(args.max_new_tokens):
-                    idx_cond_dict = {}
-                    for name in dataset_names:
-                        tokens = token_state[name]
-                        idx_cond_dict[name] = tokens if tokens.size(1) <= block_size else tokens[:, -block_size:]
+                window_name = f"multicontext_sample_{sample_idx}"
+                with zeus_profiler.window(window_name) if zeus_profiler else nullcontext() as zeus_window:
+                    for _ in range(args.max_new_tokens):
+                        idx_cond_dict = {}
+                        for name in dataset_names:
+                            tokens = token_state[name]
+                            idx_cond_dict[name] = tokens if tokens.size(1) <= block_size else tokens[:, -block_size:]
 
-                    logits_list, _ = model(None, token_dict=idx_cond_dict, target_dict=None)
+                        logits_list, _ = model(None, token_dict=idx_cond_dict, target_dict=None)
 
-                    for i, name in enumerate(dataset_names):
-                        if model.config.numerical_multicontext:
-                            preds = logits_list[i][:, -1]
-                            preds = preds.squeeze(-1)
-                            if preds.ndim == 0:
-                                preds = preds.unsqueeze(0)
-                            rounded = preds.round()
-                            min_val = 0.0
-                            max_val = None
-                            meta_info = dataset_meta.get(name, {})
-                            tokenizer_name = meta_info.get('tokenizer') if isinstance(meta_info, dict) else None
-                            if tokenizer_name == 'sinewave':
-                                max_val = 255.0
-                            elif isinstance(meta_info, dict) and 'vocab_size' in meta_info:
-                                max_val = float(meta_info['vocab_size'] - 1)
+                        for i, name in enumerate(dataset_names):
+                            if model.config.numerical_multicontext:
+                                preds = logits_list[i][:, -1]
+                                preds = preds.squeeze(-1)
+                                if preds.ndim == 0:
+                                    preds = preds.unsqueeze(0)
+                                rounded = preds.round()
+                                min_val = 0.0
+                                max_val = None
+                                meta_info = dataset_meta.get(name, {})
+                                tokenizer_name = meta_info.get('tokenizer') if isinstance(meta_info, dict) else None
+                                if tokenizer_name == 'sinewave':
+                                    max_val = 255.0
+                                elif isinstance(meta_info, dict) and 'vocab_size' in meta_info:
+                                    max_val = float(meta_info['vocab_size'] - 1)
 
-                            if max_val is not None:
-                                rounded = torch.clamp(rounded, min=min_val, max=max_val)
+                                if max_val is not None:
+                                    rounded = torch.clamp(rounded, min=min_val, max=max_val)
+                                else:
+                                    rounded = torch.clamp(rounded, min=min_val)
+
+                                idx_next = rounded.to(torch.long).unsqueeze(-1)
                             else:
-                                rounded = torch.clamp(rounded, min=min_val)
+                                cur_logits = logits_list[i][:, -1, :] / args.temperature
+                                if args.top_k is not None:
+                                    top_k_val = (
+                                        args.top_k[0]
+                                        if isinstance(args.top_k, (list, tuple))
+                                        else args.top_k
+                                    )
+                                    k = min(top_k_val, cur_logits.size(-1))
+                                    v, _ = torch.topk(cur_logits, k)
+                                    cur_logits[cur_logits < v[:, [-1]]] = -float("inf")
 
-                            idx_next = rounded.to(torch.long).unsqueeze(-1)
-                        else:
-                            cur_logits = logits_list[i][:, -1, :] / args.temperature
-                            if args.top_k is not None:
-                                top_k_val = (
-                                    args.top_k[0]
-                                    if isinstance(args.top_k, (list, tuple))
-                                    else args.top_k
-                                )
-                                k = min(top_k_val, cur_logits.size(-1))
-                                v, _ = torch.topk(cur_logits, k)
-                                cur_logits[cur_logits < v[:, [-1]]] = -float("inf")
+                                probs = F.softmax(cur_logits, dim=-1)
+                                idx_next = torch.multinomial(probs, num_samples=1)
 
-                            probs = F.softmax(cur_logits, dim=-1)
-                            idx_next = torch.multinomial(probs, num_samples=1)
+                            token_state[name] = torch.cat((token_state[name], idx_next), dim=1)
 
-                        token_state[name] = torch.cat((token_state[name], idx_next), dim=1)
+                if zeus_profiler:
+                    total_energy = getattr(zeus_window, "total_energy_joules", None)
+                    if total_energy is not None:
+                        energy_samples.append(total_energy)
+                        print(f"Zeus energy: {total_energy:.4f} J")
 
                 output_dict: Dict[str, str] = {}
                 for name in dataset_names:
@@ -1459,6 +1492,10 @@ def main():
                     with open(args.sample_file, "w") as file:
                         for name, text in output_dict.items():
                             file.write(f"\n{name}: \n{text}\n")
+
+        if energy_samples:
+            avg_energy = sum(energy_samples) / len(energy_samples)
+            print(f"Average Zeus energy: {avg_energy:.4f} J")
     else:
         sample_with_existing_model(
                 model,
@@ -1479,8 +1516,9 @@ def main():
                 sample_file=args.sample_file,
                 args=args,
                 dataset_idx=0,
+                zeus_profiler=zeus_profiler,
+                zeus_window_prefix="sample",
                 )
 
 if __name__ == "__main__":
     main()
-

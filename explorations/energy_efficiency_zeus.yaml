@@ -1,0 +1,106 @@
+# energy_efficiency_zeus.yaml
+---
+
+# Atomic Static Groupings
+named_static_groups:
+  - named_group: "qk_norm_scaled"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  - named_group: "peri_ln_on"
+    use_peri_ln: [true]
+  - named_group: "peri_ln_off"
+    use_peri_ln: [false]
+
+  - named_group: "softmax_flash_compiled"
+    softmax_variant_attn: ["softmax"]
+    softmax_variant_output: ["softmax"]
+    disable_flash_attention: [false]
+    compile: [true]
+  - named_group: "softmax_no_flash"
+    softmax_variant_attn: ["softmax"]
+    softmax_variant_output: ["softmax"]
+    disable_flash_attention: [true]
+    compile: [true]
+  - named_group: "relu2max_no_flash"
+    softmax_variant_attn: ["relu2max"]
+    softmax_variant_output: ["relu2max"]
+    disable_flash_attention: [true]
+  - named_group: "relu2max_no_flash_compiled"
+    softmax_variant_attn: ["relu2max"]
+    softmax_variant_output: ["relu2max"]
+    disable_flash_attention: [true]
+    compile: [true]
+  - named_group: "strongermax"
+    softmax_variant_attn: ["strongermax"]
+    softmax_variant_output: ["strongermax"]
+    disable_flash_attention: [true]
+    compile: [true]
+
+  - named_group: "rotary"
+    named_group_settings:
+      use_rotary_embeddings: [true]
+      use_abs_pos_embeddings: [false]
+  - named_group: "abs"
+    named_group_settings:
+      use_rotary_embeddings: [false]
+      use_abs_pos_embeddings: [true]
+  - named_group: "nope"
+    named_group_settings:
+      use_rotary_embeddings: [false]
+      use_abs_pos_embeddings: [false]
+
+# Higher Level Groupings
+named_variation_groups:
+  - named_group: "softmax_modes"
+    named_group_alternates:
+      - "softmax_flash_compiled"
+      - "softmax_no_flash"
+      - "relu2max_no_flash"
+      - "relu2max_no_flash_compiled"
+      - "strongermax"
+  - named_group: "peri_ln_modes"
+    named_group_alternates:
+      - "peri_ln_on"
+      - "peri_ln_off"
+  - named_group: "position"
+    named_group_alternates:
+      - "abs"
+      - "rotary"
+      - "nope"
+  - named_group: "activation_modes"
+    parameter_groups:
+      - activation_variant: ["gelu"]
+      - activation_variant: ["squared_relu"]
+  - named_group: "precision"
+    parameter_groups:
+      - dtype: ["float16"]
+      - dtype: ["bfloat16"]
+
+# Common_group: parameters applied to every run, but omitted from run names
+common_group:
+  dataset: ["minipile"]
+  n_layer: [6]
+  n_embd: [384]
+  n_head: [6]
+  block_size: [256]
+  batch_size: [64]
+  max_iters: [10000]
+  eval_interval: [1000]
+  eval_iters: [100]
+  device: ["cuda"]
+  never_save_checkpoint: [true]
+  sample_each_eval: [true]
+  max_sample_tokens: [256]
+  zeus_profile: [true]
+  zeus_profile_gpu: [true]
+
+# Parameter_groups: define sets of overrides to apply on top of base params
+parameter_groups:
+  - named_group_static: ["qk_norm_scaled"]
+    named_group_variations:
+      - "softmax_modes"
+      - "peri_ln_modes"
+      - "activation_modes"
+      - "position"
+      - "precision"

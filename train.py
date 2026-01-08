@@ -46,6 +46,7 @@ from utils.model_stats import (
     compute_activation_stats,
     print_model_stats_table,
 )
+from utils.energy_profiling import ZeusProfiler
 
 from sample import (
     sample_with_existing_model,
@@ -118,6 +119,7 @@ class Trainer:
         self.latest_left_prob_95 = float('nan')
         self.latest_ln_f_cosine = float('nan')
         self.latest_ln_f_cosine_95 = float('nan')
+        self.latest_avg_joules_inf = float('nan')
 
         # store overall statistics for weights and activations
         self.latest_overall_weight_stats = {
@@ -243,6 +245,7 @@ class Trainer:
 
         self.ptdtype = {"bfloat16" : torch.bfloat16, "float16" : torch.float16, "float32" : torch.float32}[self.args.dtype]
         self.ctx = nullcontext() if self.device_type == 'cpu' else torch.amp.autocast(device_type=self.device_type, dtype=self.ptdtype)
+        self.zeus_profiler = ZeusProfiler.from_args(self.args, device=self.device)
 
         # Model settings
         # TODO only add if they are defined from the argparse
@@ -581,6 +584,7 @@ class Trainer:
         sample_iterations = 1
 
         self.model.eval()
+        energy_samples: list[float] = []
 
         if self.args.dataset_list is not None:
             sample_iterations = len(self.args.dataset_list)
@@ -600,7 +604,7 @@ class Trainer:
             start_ids = torch.tensor(encode_fn(self.args.sample_start_tokens), dtype=torch.long, device=self.device)[None, ...]
 
             with torch.no_grad():
-                sample_with_existing_model(
+                energy_result = sample_with_existing_model(
                     model=self.model,
                     start_ids=start_ids,
                     start_tokens=self.args.sample_start_tokens,
@@ -623,11 +627,25 @@ class Trainer:
                     writer=self.writer if self.args.tensorboard_log else None,
                     dataset_idx=i if hasattr(self, 'encode_dict') else None,
                     console=self.console,
+                    zeus_profiler=self.zeus_profiler,
+                    zeus_window_prefix="training_sample",
                 )
+                if energy_result and energy_result.get("per_sample_joules"):
+                    energy_samples.extend(energy_result["per_sample_joules"])
 
         # After sampling from the model, optionally run simple dataset benchmarks
         if self.args.dataset_benchmarks and self.args.max_sample_tokens:
             self.run_dataset_benchmarks()
+
+        if energy_samples:
+            self.latest_avg_joules_inf = sum(energy_samples) / len(energy_samples)
+            self.console.print(
+                f"[bold cyan]Average inference energy[/bold cyan] {self.latest_avg_joules_inf:.4f} J"
+            )
+            if self.args.tensorboard_log and self.writer is not None:
+                self.writer.add_scalar("avg_joules_inf", self.latest_avg_joules_inf, self.iter_num)
+        else:
+            self.latest_avg_joules_inf = float('nan')
 
         self.model.train()
         self.console.rule("[bold green]End Samples[/bold green]")
@@ -1642,11 +1660,24 @@ class Trainer:
                 print(f"Saved major checkpoint to {self.args.out_dir}/{major_ckpt_name}")
 
         if losses['val'] < self.best_val_loss or self.args.always_save_checkpoint:
-            if losses['val'] < self.best_val_loss:
+            improved = losses['val'] < self.best_val_loss
+            if improved:
                 self.best_val_loss = losses['val']
                 self.best_iter = self.iter_num
                 self.best_tokens = self.tokens_trained
                 peak_mb = self.peak_gpu_usage / (1024 ** 2)
+                num_steps_with_worse_loss = 0
+            if self.iter_num > 0 and not self.args.never_save_checkpoint:
+                print(f"saving checkpoint to {self.args.out_dir}")
+                self.save_checkpoint('ckpt.pt')
+
+            if self.args.max_sample_tokens:
+                if live:
+                    live.stop()
+                self.sample_and_print()
+                if live:
+                    live.start()
+            if improved:
                 with open(os.path.join(self.args.out_dir, 'best_val_loss_and_iter.txt'), "w") as best_loss_file:
                     chance_ratio = self.model_args['vocab_size']/math.exp(self.best_val_loss.item())
                     metrics = [
@@ -1658,6 +1689,7 @@ class Trainer:
                             f"{chance_ratio/self.model.num_param:.3e}",
                             f"{peak_mb:.1f}",
                             f"{self.iter_latency_avg:.1f}",
+                            f"{self.latest_avg_joules_inf:.6f}",
                             f"{self.latest_top1_prob:.6f}",
                             f"{self.latest_top1_correct:.6f}",
                             f"{self.latest_target_rank:.2f}",
@@ -1679,17 +1711,6 @@ class Trainer:
                             f"{self.latest_overall_activation_stats['abs_max']:.6f}",
                     ]
                     best_loss_file.write(", ".join(metrics) + "\n")
-                num_steps_with_worse_loss = 0
-            if self.iter_num > 0 and not self.args.never_save_checkpoint:
-                print(f"saving checkpoint to {self.args.out_dir}")
-                self.save_checkpoint('ckpt.pt')
-
-            if self.args.max_sample_tokens:
-                if live:
-                    live.stop()
-                self.sample_and_print()
-                if live:
-                    live.start()
             if self.args.export_wte_npy:
                 self.raw_model.export_wte(self.args.export_wte_npy)
             if self.args.export_scale_matrices_npz:
@@ -2086,4 +2107,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
