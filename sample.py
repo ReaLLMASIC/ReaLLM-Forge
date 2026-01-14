@@ -1022,6 +1022,7 @@ def get_tokenizer_functions(meta):
         encode = lambda s: tokenizer.encode(s, add_special_tokens=True)
         decode = lambda l: tokenizer.decode(l)
         print(f"Using Qwen2 tokenizer: {meta['qwen2_model']}")
+        return encode, decode
 
     if meta['tokenizer'] == 'byte':
         return byte_encode, byte_decode
