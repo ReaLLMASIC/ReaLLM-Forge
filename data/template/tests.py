@@ -6,7 +6,6 @@ import sys
 import pickle
 import json
 from tokenizer_options import (
-    NumericRangeTokenizer,
     SentencePieceTokenizer,
     TiktokenTokenizer,
     CustomTokenizer,

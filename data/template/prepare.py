@@ -5,7 +5,6 @@ import pickle
 import argparse
 import numpy as np
 from tokenizer_options import (
-    NumericRangeTokenizer,
     SentencePieceTokenizer,
     TiktokenTokenizer,
     CustomTokenizer,
