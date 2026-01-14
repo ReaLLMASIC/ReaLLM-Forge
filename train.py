@@ -81,7 +81,6 @@ from model import GPT, GPTConfig
 
 # Inference related imports
 import tiktoken
-from transformers import AutoTokenizer
 
 from train_args import parse_args
 
@@ -507,38 +506,6 @@ class Trainer:
             raise ValueError(f"Unknown scheduler: {self.args.lr_scheduler}")
 
     def load_tokenizer(self):
-<<<<<<< HEAD
-        meta_path = os.path.join('data', self.args.dataset, 'meta.pkl')
-        if os.path.exists(meta_path):
-            with open(meta_path, 'rb') as f:
-                meta = pickle.load(f)
-            if 'tokenizer' in meta and meta['tokenizer'] == 'tiktoken':
-                enc = tiktoken.get_encoding(meta['tiktoken_encoding'])
-                print(f"Using tiktoken encoding: {meta['tiktoken_encoding']}")
-                self.encode = lambda s: enc.encode(s, allowed_special={""})
-                self.decode = lambda l: enc.decode(l)
-            elif 'tokenizer' in meta and meta['tokenizer'] == 'sentencepiece':
-                self.separator_token = "▁"
-                self.stoi, self.itos = meta['stoi'], meta['itos']
-                self.encode = lambda s: [self.stoi[c] for c in s]
-                self.decode = lambda l: ''.join([self.itos[i] for i in l])
-            elif 'tokenizer' in meta and meta['tokenizer'] == 'qwen2':
-                tokenizer = AutoTokenizer.from_pretrained(meta["qwen2_model"], trust_remote_code=True)
-                self.encode = lambda s: tokenizer.encode(s, add_special_tokens=True)
-                self.decode = lambda l: tokenizer.decode(l)
-                print(f"Using Qwen2 tokenizer: {meta['qwen2_model']}")
-            elif 'tokenizer' in meta and meta['tokenizer'] == 'custom_char_with_byte_fallback':
-                self.stoi = meta['stoi']
-                self.itos = meta['itos']
-                # One-liners pointing at the shared helpers
-                self.encode = lambda s: ccwb_encode(s, self.stoi)
-                self.decode = lambda l: ccwb_decode(l, self.itos)
-                print("Using CustomCharTokenizerWithByteFallback tokenizer")
-            else:
-                self.stoi, self.itos = meta['stoi'], meta['itos']
-                self.encode = lambda s: [self.stoi[c] for c in s]
-                self.decode = lambda l: ''.join([self.itos[i] for i in l])
-=======
         if self.args.dataset_list is not None and self.args.multidataset_wte:
             self.encode_dict = {}
             self.decode_dict = {}
@@ -553,7 +520,6 @@ class Trainer:
                 self.decode_dict[dataset] = decode
             self.encode = self.encode_dict[self.args.dataset_list[0]]
             self.decode = self.decode_dict[self.args.dataset_list[0]]
->>>>>>> master
         else:
             meta_path = os.path.join('data', self.args.dataset, 'meta.pkl')
             if os.path.exists(meta_path):
@@ -743,23 +709,9 @@ class Trainer:
                         self.vocab_sizes.append(vocab_size)
 
                 # Load train and val data for each dataset
-<<<<<<< HEAD
-                if self.model_args['vocab_size'] is None:
-                    sys.exit("Error: no vocab size specified")
-                elif self.model_args['vocab_size'] > 65536:
-                    # cl100k_base, vocab size 100277, requires np.uint32
-                    # Qwen2, vocab size 152064 or 151936, requires np.uint32
-                    train_data = np.memmap(os.path.join('data', dataset, 'train.bin'), dtype=np.uint32, mode='r')
-                    val_data = np.memmap(os.path.join('data', dataset, 'val.bin'), dtype=np.uint32, mode='r')
-                else:
-                    # all other tokenations so far require only np.uint16
-                    train_data = np.memmap(os.path.join('data', dataset, 'train.bin'), dtype=np.uint16, mode='r')
-                    val_data = np.memmap(os.path.join('data', dataset, 'val.bin'), dtype=np.uint16, mode='r')
-=======
-                dtype = np.uint16 if vocab_size != 100277 else np.uint32
+                dtype = np.uint16 if vocab_size > 65536 else np.uint32
                 train_data = np.memmap(os.path.join('data', dataset, 'train.bin'), dtype=dtype, mode='r')
                 val_data = np.memmap(os.path.join('data', dataset, 'val.bin'), dtype=dtype, mode='r')
->>>>>>> master
 
                 # Store in dictionaries
                 self.train_data_dict[dataset] = train_data

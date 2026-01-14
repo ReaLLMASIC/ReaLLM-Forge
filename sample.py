@@ -32,6 +32,7 @@ from variations.model_variations import model_variation_dictionary
 import lm_eval
 from benchmarks.gpt_lm_eval_wrapper import NanoGPTLM
 from benchmarks import run_all
+from transformers import AutoTokenizer
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Inference from trained models")
@@ -1015,6 +1016,12 @@ def get_tokenizer_functions(meta):
         encode = lambda s: enc.encode(s, allowed_special={""})
         decode = lambda l: enc.decode(l)
         return encode, decode
+
+    if meta['tokenizer'] == 'qwen2':
+        tokenizer = AutoTokenizer.from_pretrained(meta["qwen2_model"], trust_remote_code=True)
+        encode = lambda s: tokenizer.encode(s, add_special_tokens=True)
+        decode = lambda l: tokenizer.decode(l)
+        print(f"Using Qwen2 tokenizer: {meta['qwen2_model']}")
 
     if meta['tokenizer'] == 'byte':
         return byte_encode, byte_decode
