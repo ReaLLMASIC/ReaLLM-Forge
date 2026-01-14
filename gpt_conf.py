@@ -195,7 +195,7 @@ class GPTConfig:
     # MLP Options
     use_parallel_mlp: bool = False
     mlp_variant: str = "mlp"
-    mlp_expansion_factor: float = 4.0
+    mlp_expansion_factor: int = 4
     mlp_size: int = None
     mlp_cproj_scale: float = 1.0
     mlp_post_act_l2_norm: bool = False
