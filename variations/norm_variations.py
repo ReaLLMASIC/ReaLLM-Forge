@@ -68,6 +68,7 @@ class HyperSphereNorm(nn.Module):
     def __init__(self, config):
         super().__init__()
 
+
         ndim = config.n_embd
         if config.hsnorm_gain:
             self.gain = nn.Parameter(torch.ones(ndim))
@@ -81,15 +82,22 @@ class HyperSphereNorm(nn.Module):
         else:
             radius_init = math.sqrt(ndim)
 
+        # constant for loss scaling (default set to 1.0)
+        self.const_radius_factor = config.hsnorm_scale
+
         # Set as constant or learned param
+        self.hsnorm_radius_learning = config.hsnorm_radius_learning
         if config.hsnorm_radius_learning:
-            self.radius = nn.Parameter(torch.tensor([radius_init]))
+            # div by const_radius_factor (no effect if is 1.0)
+            radius_init = radius_init / self.const_radius_factor
+            self.radius_init_factor = nn.Parameter(torch.tensor([radius_init]))
         else:
-            self.radius = radius_init
+            self.radius_init_factor = radius_init
 
     def forward(self, x):
+        radius = self.const_radius_factor * self.radius_init_factor
         hypersphere_norm = x.norm(2, dim=-1, keepdim=True)
-        return  x / hypersphere_norm * self.radius
+        return  x / hypersphere_norm * radius * self.gain
 
 class pRMSNorm(nn.Module):
     """Partial RMS Normalization"""
@@ -194,6 +202,15 @@ class kRMSNorm(nn.Module):
 
         return x
 
+class IdentityNorm(nn.Module):
+    def __init__(self, config=None):  # Accept config for API consistency
+        super().__init__()
+        self.identity = nn.Identity()
+
+    def forward(self, x):
+        return self.identity(x)
+
+
 norm_dictionary = {
     "layernorm": LayerNorm,
     "rmsnorm": RMSNorm,
@@ -201,4 +218,5 @@ norm_dictionary = {
     "krmsnorm": kRMSNorm,
     "hyperspherenorm": HyperSphereNorm,
     "dact": DynamicActivation,
+    "identity": IdentityNorm,
 }

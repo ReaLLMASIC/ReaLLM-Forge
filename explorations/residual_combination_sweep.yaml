@@ -1,0 +1,74 @@
+# explorations/residual_combination_sweep.yaml
+---
+parameter_groups:
+  # Add
+  - mlp_residual_combination: ["add"]
+    attn_residual_combination: ["add"]
+
+  # Slerp
+  - mlp_residual_combination: ["slerp"]
+    attn_residual_combination: ["slerp"]
+    mlp_residual_alpha_type: ["fixed"]
+    attn_residual_alpha_type: ["fixed"]
+
+  - mlp_residual_combination: ["slerp"]
+    attn_residual_combination: ["slerp"]
+    mlp_residual_alpha_type: ["learned"]
+    attn_residual_alpha_type: ["learned"]
+
+  - mlp_residual_combination: ["slerp"]
+    attn_residual_combination: ["slerp"]
+    mlp_residual_alpha_type: ["dot"]
+    attn_residual_alpha_type: ["dot"]
+
+  # Lerp
+  - mlp_residual_combination: ["lerp"]
+    attn_residual_combination: ["lerp"]
+    mlp_residual_alpha_type: ["fixed"]
+    attn_residual_alpha_type: ["fixed"]
+
+  - mlp_residual_combination: ["lerp"]
+    attn_residual_combination: ["lerp"]
+    mlp_residual_alpha_type: ["learned"]
+    attn_residual_alpha_type: ["learned"]
+
+  - mlp_residual_combination: ["lerp"]
+    attn_residual_combination: ["lerp"]
+    mlp_residual_alpha_type: ["dot"]
+    attn_residual_alpha_type: ["dot"]
+
+attn_residual_alpha: [0.05]
+mlp_residual_alpha: [0.05]
+
+# QK Norm
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+
+# Peri Norm
+use_peri_ln: [true, false]
+
+# Embeddings
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# Attn Variations
+softmax_variant_attn: ["softmax", "relu2max"]
+
+max_iters: [5000]
+eval_interval: [5000]
+eta_variant: ["iteration"]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+block_size: [256]
+device: ["cuda"]
+dtype: ["bfloat16"]
+dataset: ["minipile"]
+use_parallel_mlp: [false, true]
+
+# Activation Statistics
+compute_model_stats: [true]
+print_model_stats: ["./print_stats/${RUN_NAME}"]
+
+# Memory
+compile: [true]

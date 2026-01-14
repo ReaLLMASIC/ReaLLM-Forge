@@ -86,7 +86,7 @@ for jsonfile in "$ja_dataset"/*.json; do
         echo "Processing $jsonfile..."
         # Get the filename without the extension for output filename
         filename=$(basename "${jsonfile%.json}")
-        python3 "$script_dir"/utils/extract_json_values.py "$jsonfile" "ipa" "$output_ipa_txt"
+        python3 "$script_dir"/utils/extract_json_values.py "$jsonfile" "spaced_ipa" "$output_ipa_txt"
     fi
 done
 echo "IPA extraction finished."

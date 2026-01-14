@@ -1,0 +1,41 @@
+alias create_compile_commands_json='intercept-build make all'
+
+alias sac='sudo apt-cache search'
+alias sai='sudo apt-get install'
+alias sau='sudo apt update'
+alias sag='sudo apt-get upgrade'
+
+alias vim='nvim'
+alias vi='nvim'
+
+alias l='ls -ltr'
+alias sl='ls'
+alias lt='ls -ltr'
+alias ltr='ls -ltr'
+alias lth='ls -lth'
+alias ll='ls -l'
+
+alias p='python3'
+alias pe='python3 -m venv venv'
+alias pa='source venv/bin/activate'
+alias pea='pe; pa; pi --upgrade pip; pi wheel; pi pynvim; pi black'
+alias pi='python3 -m pip install --upgrade pip; python3 -m pip install'
+alias pm='python3 -m textual_markdown'
+alias pq='python3 -m pip install -r requirements.txt'
+alias pf='python3 -m pip freeze > requirements.txt'
+alias pu='python3 -m pip install --upgrade pip'
+alias pd='deactivate'
+alias t='tmux'
+
+alias ba="vim ~/.bash_aliases"
+alias sa="source ~/.bash_aliases"
+alias dh="df -h ."
+
+alias wg="watch --color 'gpustat  --color'"
+alias wd="watch --color 'df -h .'"
+
+alias gf="git fetch --all"
+alias gs="git status"
+alias gl="git log --stat -p"
+
+alias c="clear"

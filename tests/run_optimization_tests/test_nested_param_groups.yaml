@@ -1,0 +1,23 @@
+---
+# Demonstrates nested parameter groups and run-name substitution
+parameter_groups:
+  - optimizer: ["adamw"]
+    parameter_groups:
+      - learning_rate: [0.01]
+      - learning_rate: [0.001]
+  - optimizer: ["sgd"]
+    learning_rate: [0.1]
+
+# Base settings
+max_iters: [1]
+n_layer: [1]
+n_head: [1]
+n_embd: [32]
+block_size: [32]
+device: ["cpu"]
+dtype: ["bfloat16"]
+dataset: ["shakespeare_char"]
+
+# Automatically name outputs using the run name
+print_model_stats_table: ["out/${RUN_NAME}/stats.csv"]
+sample_file: "out/${RUN_NAME}/sample.txt"

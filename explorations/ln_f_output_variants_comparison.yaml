@@ -1,0 +1,33 @@
+# ln_f_output_variants_comparison.yaml
+---
+# parameter_groups: compare mixer variants for ln_f input
+parameter_groups:
+  - use_ln_f_input_mixer: [false]
+  - use_ln_f_input_mixer: [true]
+    ln_f_input_mixer_variant: ["linear"]
+  - use_ln_f_input_mixer: [true]
+    ln_f_input_mixer_variant: ["router_top1"]
+  - use_ln_f_input_mixer: [true]
+    ln_f_input_mixer_variant: ["router_topk"]
+    ln_f_mixer_top_k: [2]
+
+# base hyperparameters
+block_size: [256]
+n_layer: [12]
+n_head: [6]
+n_embd: [384]
+
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+use_peri_ln: [true, false]
+
+# training configuration
+dataset: ["minipile"]
+max_iters: 10000
+warmup_iters: 1000
+eval_interval: 10000
+eta_variant: ["iteration"]
+
+# boolean flags
+compile: [true]
+never_save_checkpoint: [true]

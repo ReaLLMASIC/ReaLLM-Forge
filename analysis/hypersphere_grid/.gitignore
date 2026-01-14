@@ -1,0 +1,6 @@
+
+./plots*
+*.npy
+__pycache__/
+out/
+data/

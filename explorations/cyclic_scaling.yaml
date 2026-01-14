@@ -1,0 +1,64 @@
+# explorations/sharing.yaml
+# Sweep: size-sharing × seq-sharing × symmetry for both MLP & Attn
+#
+# Each key with a *list* value is expanded cartesian-product style
+# by the run_experiments.py launcher.
+
+# ── dataset & compute ──────────────────────────────────────────────
+dataset: ["minipile"]
+device:  ["cuda"]                    # or ["cpu"] if you like
+compile: [true]                      # tiny net ⇒ compile just works
+never_save_checkpoint: [true]
+dtype: ["bfloat16"]       # try both cheap dtypes
+
+# ── base model hyper-params (SMALL net) ────────────────────────────
+max_iters: [10000]
+eval_interval: [10000]
+eta_variant: ["iteration"]
+
+# ── SHARING GRID  (cartesian product) ──────────────────────────────
+n_embd: [512]
+n_head: [8]
+block_size: [1024]
+batch_size: [64]
+
+shared_attn_sym: [true]
+shared_mlp_sym:  [true]
+
+
+parameter_groups:
+  - n_layer:
+      range:
+        start: 2
+        end: 36
+        step: 2
+    shared_attn_seq:  [2]
+    shared_mlp_seq:   [2]
+  - n_layer:
+      range:
+        start: 3
+        end: 36
+        step: 3
+    shared_attn_seq:  [3]
+    shared_mlp_seq:   [3]
+  - n_layer:
+      range:
+        start: 4
+        end: 36
+        step: 4
+    shared_attn_seq:  [4]
+    shared_mlp_seq:   [4]
+  - n_layer:
+      range:
+        start: 5
+        end: 35
+        step: 5
+    shared_attn_seq:  [5]
+    shared_mlp_seq:   [5]
+  - n_layer:
+      range:
+        start: 6
+        end: 36
+        step: 6
+    shared_attn_seq:  [6]
+    shared_mlp_seq:   [6]

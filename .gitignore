@@ -17,4 +17,20 @@ exploration_logs/
 out*/
 .aider*
 
+# experiment directories
+experiments/
+nsga_exps/
+
+# nsga search directories
+optimization_and_search/host_configs/
+optimization_and_search/nsga_search/ckpts/
+optimization_and_search/nsga_search/train/
+optimization_and_search/nsga_search/logs/
+optimization_and_search/nsga_search/plots/
+optimization_and_search/nsga_search/htmls/
+optimization_and_search/nsga_search/visualization/
+optimization_and_search/nsga_search/tests/
+optimization_and_search/nsga_search/utils/
+optimization_and_search/nsga_search/*.bash
+
 venv/*

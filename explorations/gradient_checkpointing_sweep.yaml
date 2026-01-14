@@ -1,0 +1,39 @@
+# explorations/gradient_checkpointing_sweep.yaml
+---
+# Study VRAM and iteration speed trade-offs when using gradient checkpointing.
+# Activation memory per layer ≈ batch_size * block_size * n_embd * bytes_per_elem.
+# Without checkpointing: activations scale with n_layer -> VRAM ≈ L * S.
+# With checkpointing: only boundary activations stored -> ≈0.5 × VRAM but requires recomputation (~25% slower).
+# PyTorch compile fuses ops, giving ~30% faster iterations but potentially more VRAM;
+# Combining with checkpointing recovers speed while retaining memory savings.
+
+parameter_groups:
+  - compile: [false]
+    use_gradient_checkpointing: [false]  # CF_GF: baseline
+  - compile: [false]
+    use_gradient_checkpointing: [true]   # CF_GT: -50% VRAM, +25% iter_ms
+  - compile: [true]
+    use_gradient_checkpointing: [false]  # CT_GF: -20% VRAM, -25% iter_ms
+  - compile: [true]
+    use_gradient_checkpointing: [true]   # CT_GT: -50% VRAM, -12% iter_ms
+
+# base hyperparameters
+max_iters: [250]
+batch_size: [1, 2, 3]
+n_head: [12]
+dataset: ["minipile"]
+device: ["cuda"]
+dtype: ["bfloat16"]
+
+# Position Encoding
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# sweep variables
+n_layer: [32]           # memory scales linearly with layers; checkpointing should save proportionally
+n_embd: [768]           # wider models increase activation memory; checkpointing saves proportionally
+block_size: [2048]      # attention memory scales ~block_size^2
+
+# checkpoint settings
+never_save_checkpoint: [true]
+

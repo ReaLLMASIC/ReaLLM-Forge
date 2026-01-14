@@ -1,0 +1,9 @@
+# directories
+plots/
+plots_hd/
+
+# files
+*.npy
+*.npz
+*.png
+*.csv

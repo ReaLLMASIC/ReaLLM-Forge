@@ -257,11 +257,29 @@ def _build_block(layer_type: str, layer_config, fire_pos_enc):
 #  Debug printer
 # ─────────────────────────────────────────────────────────────
 
-def _label_sequence(blocks) -> str:
-    """Map block identities to letters: A A B C …"""
+def _idx_to_label(idx: int) -> str:
+    """Return a base-26 column-style label for ``idx``.
+
+    0 -> 'A', 1 -> 'B', ... 25 -> 'Z', 26 -> 'AA', etc.
+    This mirrors the behaviour of spreadsheet column naming and allows
+    arbitrarily many unique identifiers without running out of letters.
+    """
+    label = ""
+    idx += 1  # make it 1-indexed
+    while idx > 0:
+        idx, rem = divmod(idx - 1, 26)
+        label = ascii_uppercase[rem] + label
+    return label
+
+
+def _label_sequence(blocks) -> list[str]:
+    """Map block identities to letters: A, A, B, C, …
+
+    Uses the helper above to extend beyond 26 unique blocks.
+    """
     mapping, letters = {}, []
     for blk in blocks:
         if blk not in mapping:
-            mapping[blk] = ascii_uppercase[len(mapping)]   # A, B, C…
+            mapping[blk] = _idx_to_label(len(mapping))
         letters.append(mapping[blk])
     return letters               # list of letters, not joined

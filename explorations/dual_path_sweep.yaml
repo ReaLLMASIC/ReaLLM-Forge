@@ -2,31 +2,76 @@
 ---
 # parameter_groups: define sets of overrides to apply on top of base params
 parameter_groups:
+  # MLP
+  ## mlp w/o offset
   - mlp_variant: ["mlp"]
-    mlp_size: ["2304"]
+    mlp_size: ["4608"]
+    activation_variant: ["squared_relu", "silu", "gelu", "squared_gelu"]
+  ## mlp w/ offset
+  - mlp_variant: ["mlp"]
+    mlp_size: ["4608"]
+    activation_variant: ["squared_relu", "gelu", "squared_gelu"]
+    mlp_x_offset: [0.0]
+    learn_mlp_x_offset: [true]
+  # SWIGLU
+  # swiglu w/o offset
   - mlp_variant: ["swiglu"]
-  - mlp_variant: ["dual_path"]
-    mlp_x_offset: [0.01, 0.1, 1.0]
-    mlp_y_offset: [-0.01, 0.0, 0.01]
+    mlp_size: ["3072"]
+    activation_variant: ["squared_relu", "silu", "gelu", "squared_gelu"]
+  # swiglu w/ offset
+  - mlp_variant: ["swiglu"]
+    mlp_size: ["3072"]
+    activation_variant: ["squared_relu", "silu", "gelu", "squared_gelu"]
+    mlp_x_offset: [0.0]
     learn_mlp_x_offset: [true]
-    learn_mlp_y_offset: [true]
-    activation_variant: ["relu", "gelu", "softplus", "identity"]
-  - mlp_variant: ["dual_path"]
-    mlp_x_offset: [0.01, 0.1, 1.0]
-    mlp_y_offset: [-0.01, 0.0, 0.01]
+  # swiglu w/o offset
+  - mlp_variant: ["swiglu"]
+    mlp_size: ["3072"]
+    activation_variant: ["squared_relu", "squared_gelu"]
+    dtype: ["bfloat16"]
+  # swiglu w/ offset
+  - mlp_variant: ["swiglu"]
+    mlp_size: ["3072"]
+    activation_variant: ["squared_relu", "squared_gelu"]
+    mlp_x_offset: [0.0, 0.1]
     learn_mlp_x_offset: [true]
-    learn_mlp_y_offset: [true]
-    activation_variant: ["pfla"]
-    pfla_num_points: ["100"]
-    pfla_left_bound: ["-10.0"]
-    pfla_right_bound: ["10.0"]
+    dtype: ["bfloat16"]
+  # DUAL PATH SWIGLU
+  - mlp_variant: ["dual_path_swiglu"]
+    mlp_x_offset: [0.0, 0.1, 0.2, 0.3]
+    mlp_size: ["2304"]
+    learn_mlp_x_offset: [true]
+    activation_variant: ["silu", "gelu"]
+  # DUAL PATH
+  - mlp_variant: ["dual_path"]
+    mlp_size: ["3072"]
+    mlp_x_offset: [0.0, 0.1, 0.2, 0.3]
+    learn_mlp_x_offset: [true]
+    activation_variant: ["silu", "gelu"]
+  # DUAL PATH SWIGLU
+  - mlp_variant: ["dual_path_swiglu"]
+    mlp_x_offset: [0.0, 0.1]
+    mlp_size: ["2304"]
+    learn_mlp_x_offset: [true]
+    activation_variant: ["squared_relu", "squared_gelu"]
+    dtype: ["bfloat16"]
+  # DUAL PATH -- doesn't seem to need bfloat16 for overflow prevention
+  - mlp_variant: ["dual_path"]
+    mlp_size: ["3072"]
+    mlp_x_offset: [0.0, 0.1, 0.2, 0.3]
+    learn_mlp_x_offset: [true]
+    activation_variant: ["squared_relu", "squared_gelu"]
 
 # MLP specific parameters
-
 
 # Position embeddings
 use_rotary_embeddings: [true]
 use_abs_pos_embeddings: [false]
+
+# Norm Settings
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+use_peri_ln: [true]
 
 # training configuration
 dataset: "minipile"
@@ -34,8 +79,16 @@ max_iters: 10000
 lr_decay_iters: 10000
 warmup_iters: 1000
 decay_lr: [true]
-eval_interval: 10000
-eta_variant: ["iteration"]
+eval_interval: 1000
+eta_variant: ["eval_cycle"]
+
+# model settings
+n_layer: [12]
+n_head: [12]
+n_embd: [768]
+block_size: [512]
 
 # compilation
 compile: [true]
+never_save_checkpoint: [true]
+use_gradient_checkpointing: [true]

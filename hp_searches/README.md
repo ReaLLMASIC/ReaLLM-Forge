@@ -61,6 +61,7 @@ python3 hyperparam_search.py \
   --random_iterations 1 \
   --iterations 1 \
   --num_iterations 20000 \
+  --efficiency_target params \
   --override max_iters=20000 batch_size=64 \
   --results_file results.yaml
 ```
@@ -75,7 +76,10 @@ noise.
     settings for any hp_search already started (just stop and resume with these
     overrides to for example increase the max_iters, and to unblock the model
     when delta score gets too close to noise levels)
-- `results_file` where to store results for viewing with `view_hp_log.py`
+ - `results_file` where to store results for viewing with `view_hp_log.py`
+  - `efficiency_target` chooses the cost metric for efficiency: `params`
+  (default), `vram` for peak GPU memory, or `iter` for average iteration
+  latency.
 
 
 1. Run bash script from main directory
@@ -83,6 +87,10 @@ noise.
 ```bash
 bash ./hp_searches/lobo_attnhead_search.sh
 ```
+
+To quickly exercise the three efficiency metrics, see
+`hp_searches/test_efficiency_targets.sh` which runs a tiny search using
+the accompanying `efficiency_targets_demo.yaml` baseline.
 
 1. View with `view_hp_log.py`
 

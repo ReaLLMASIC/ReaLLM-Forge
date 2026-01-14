@@ -46,12 +46,42 @@ wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "final.json" "${url}/re
 echo "snac conversion files downloaded and saved to ${out_dir}."
 popd
 
-output_snac_txt="ja_snac_text.txt"
-python3 "$script_dir"/utils/extract_json_snactext.py "$out_dir" "text" "$output_snac_txt" --directory
+output_snac_txt="snac_text.txt"
+python3 "$script_dir"/utils/extract_json_snactext.py "$out_dir" "sentence" "$output_snac_txt" --directory
 echo "snac-text extraction finished."
 
-output_snac_ipa="ja_snac_ipa.txt"
-python3 "$script_dir"/utils/extract_json_snactext.py "$out_dir" "ipa" "$output_snac_ipa" --directory
+output_snac_ipa="snac_ipa.txt"
+python3 "$script_dir"/utils/extract_json_snactext.py "$out_dir" "spaced_ipa" "$output_snac_ipa" --directory
+echo "snac-ipa extraction finished."
+
+url="https://huggingface.co/datasets/xinyixuu/ko_snac"
+out_dir_ko="json_outs_ko"
+
+if [[ ! -d "${out_dir_ko}" ]]; then
+  mkdir -p "${out_dir_ko}"
+fi
+
+# Download transcription files under "transcription" directory.
+pushd "$script_dir/${out_dir_ko}"
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "dev.json" "${url}/resolve/main/json_dir/dev.json?download=true" || true
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "other.json" "${url}/resolve/main/json_dir/other.json?download=true" || true
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "test.json" "${url}/resolve/main/json_dir/test.json?download=true" || true
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "invalidated.json" "${url}/resolve/main/json_dir/invalidated.json?download=true" || true
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "train.json" "${url}/resolve/main/json_dir/train.json?download=true" || true
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "validated.json" "${url}/resolve/main/json_dir/validated.json?download=true" || true
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "ko_snac.json" "${url}/resolve/main/json_dir/ko_snac.json?download=true" || true
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "ko_snac_1.json" "${url}/resolve/main/json_dir/ko_snac_1.json?download=true" || true
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "ko_snac_3.json" "${url}/resolve/main/json_dir/ko_snac_3.json?download=true" || true
+
+echo "snac conversion files downloaded and saved to ${out_dir_ko}."
+popd
+
+output_snac_txt="snac_text.txt"
+python3 "$script_dir"/utils/extract_json_snactext.py "$out_dir_ko" "text" "$output_snac_txt" --directory
+echo "snac-text extraction finished."
+
+output_snac_ipa="snac_ipa.txt"
+python3 "$script_dir"/utils/extract_json_snactext.py "$out_dir_ko" "ipa" "$output_snac_ipa" --directory
 echo "snac-ipa extraction finished."
 
 # Tokenization step to create train.bin and val.bin files.

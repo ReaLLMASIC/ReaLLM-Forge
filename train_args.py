@@ -3,6 +3,8 @@ import argparse
 import math
 import re
 
+from train_variations.loss_variants import LOSS_VARIANTS
+
 def clean_dataset_path(dataset_name):
     """Removes leading './data/' or 'data/' from dataset paths."""
     return re.sub(r'^(?:\./)?data/', '', dataset_name)
@@ -25,6 +27,16 @@ def parse_args():
     model_group.add_argument('--mlp_y_offset', type=float, default=0.0, help='Y-axis offset for mlp activation functions')
     model_group.add_argument('--learn_mlp_x_offset', default=False, action=argparse.BooleanOptionalAction, help='Whether to learn the x-axis offset for mlp')
     model_group.add_argument('--learn_mlp_y_offset', default=False, action=argparse.BooleanOptionalAction, help='Whether to learn the y-axis offset for mlp')
+
+    # L2 Normalization options
+    model_group.add_argument('--l2_norm_mlp_up', default=False, action=argparse.BooleanOptionalAction,
+                             help='L2 normalize MLP up projection weights along embedding dimension')
+    model_group.add_argument('--l2_norm_mlp_down', default=False, action=argparse.BooleanOptionalAction,
+                              help='L2 normalize MLP down projection weights along embedding dimension')
+    model_group.add_argument('--l2_norm_mlp_up_dim', type=str, default='embed', choices=['embed', 'hidden'],
+                             help="Dimension for L2-normalizing MLP up projections: 'embed' or 'hidden'")
+    model_group.add_argument('--l2_norm_mlp_down_dim', type=str, default='hidden', choices=['embed', 'hidden'],
+                             help="Dimension for L2-normalizing MLP down projections: 'embed' or 'hidden'")
 
     # Export Args
     ## Factored WTE
@@ -52,18 +64,101 @@ def parse_args():
     training_group.add_argument('--eval_cycle_window', default=5, type=int)
 
     # Loss variations
-    training_group.add_argument('--focus_on_top1_loss', default=False, action=argparse.BooleanOptionalAction)
+    training_group.add_argument(
+        '--loss_fn',
+        type=str,
+        default='cross_entropy',
+        choices=sorted(LOSS_VARIANTS.keys()),
+        help='Loss function to use during training.',
+    )
+    training_group.add_argument(
+        '--loss_schedule',
+        type=str,
+        default=None,
+        help='Comma-separated schedule of step:loss_fn pairs to switch loss during training.',
+    )
+    training_group.add_argument(
+        '--rank_scale',
+        type=float,
+        default=1.0,
+        help='Base scaling factor for rank_distance loss.',
+    )
+    training_group.add_argument(
+        '--rank_scale_schedule',
+        type=str,
+        default=None,
+        help="Schedule for rank_distance's scaling factor, e.g. 0:1.0,1000:2.0",
+    )
+
+    # Loss hyperparameters
+    training_group.add_argument(
+        '--label_smoothing',
+        type=float,
+        default=0.1,
+        help='Smoothing factor for label_smoothing loss.',
+    )
+    training_group.add_argument(
+        '--focal_gamma',
+        type=float,
+        default=2.0,
+        help='Gamma parameter for focal-style losses.',
+    )
+    training_group.add_argument(
+        '--top1_focus_alpha',
+        type=float,
+        default=0.5,
+        help='Penalty weight for incorrect top-1 predictions in top1_focus loss.',
+    )
+    training_group.add_argument(
+        '--top1_margin',
+        type=float,
+        default=0.1,
+        help='Desired logit margin for top1_margin loss.',
+    )
+    training_group.add_argument(
+        '--entropy_beta',
+        type=float,
+        default=0.01,
+        help='Weight of entropy penalty in entropy-based losses.',
+    )
+    training_group.add_argument(
+        '--top1_ratio_beta',
+        type=float,
+        default=0.5,
+        help='Weight for ratio penalty in top1_ratio loss.',
+    )
+    training_group.add_argument(
+        '--flatness_beta',
+        type=float,
+        default=1.0,
+        help='Scaling for flatness_boost loss when predictions are flat.',
+    )
+    training_group.add_argument(
+        '--correct_top1_attenuation',
+        type=float,
+        default=1.0,
+        help='Constant multiplier for correctly predicted tokens in attenuated_correct_top1 loss.',
+    )
+    training_group.add_argument(
+        '--distance_top1_strength',
+        type=float,
+        default=0.0,
+        help='Strength of distance-based attenuation in distance_attenuated_top1 loss.',
+    )
 
     # Sample args
     training_group.add_argument('--max_sample_tokens', default=None, type=int, help="If set, maximum number of tokens to sample and print after each validation loss")
     training_group.add_argument('--sample_each_eval', default=False, action=argparse.BooleanOptionalAction, help="Produce sample even if the validation loss did not improve. Allows for testing what overtraining looks like.")
     training_group.add_argument('--sample_start_tokens', default='\n', type=str)
     training_group.add_argument('--sample_only', default=False, action=argparse.BooleanOptionalAction, help="Run only the sampling process and exit")
+    training_group.add_argument('--dataset_benchmarks', default=False, action=argparse.BooleanOptionalAction, help="Run dataset benchmark metrics on a random slice after each validation")
+    training_group.add_argument('--sample_metrics', default=False, action=argparse.BooleanOptionalAction, help="Display sample metrics like spelling correctness during sampling")
 
     # Checkpoint args
     training_group.add_argument('--save_major_ckpt_interval', default=None, type=int, help="Interval for saving major checkpoints.")
     training_group.add_argument('--only_save_checkpoint_at_end', default=False, action=argparse.BooleanOptionalAction)
     training_group.add_argument('--always_save_checkpoint', default=False, action=argparse.BooleanOptionalAction)
+    training_group.add_argument('--never_save_checkpoint', default=False, action=argparse.BooleanOptionalAction, help="If set, disables saving of all checkpoints.")
     training_group.add_argument('--patience', default=None, type=int, help="if set, will stop training if the number of evaluations since val loss was seen to decrease exceeds 'patience' setting.")
     training_group.add_argument('--init_from', default='scratch', choices=['scratch', 'prev_run', 'resume', 'gpt2'], type=str)
     training_group.add_argument('--gpt2_type', default='gpt2', type=str)
@@ -86,8 +181,14 @@ def parse_args():
     training_group.add_argument("--seed", default=1337, type=int)
 
     # Multicontext Training Dataset args
+    model_group.add_argument('--numerical_multicontext', default=False, action=argparse.BooleanOptionalAction,
+                                    help="Interpret multicontext inputs as numerical values and use regression heads")
+    model_group.add_argument('--numerical_mlp_hidden_dim', default=64, type=int,
+                                    help="Hidden dimension for numerical multi-context embedding/output MLPs")
     model_group.add_argument('--multicontext', default=False, action=argparse.BooleanOptionalAction,
                                     help="Enable multi-context training on multiple simultaneous datasets")
+    model_group.add_argument('--multidataset_wte', default=False, action=argparse.BooleanOptionalAction,
+                                    help='Use separate token embeddings and lm heads per dataset when training_mode is multidataset')
     training_group.add_argument('--multicontext_datasets', default=None, nargs='+', type=str,
                                     help="List of datasets to train on in multi-context mode (e.g., --multicontext_datasets shakespeare wikitext103 openwebtext)")
     model_group.add_argument('--vocab_sizes', default=None, nargs='+', type=int,
@@ -120,6 +221,7 @@ def parse_args():
             "sgd",
             "adam",
             "adamw",
+            "adamw_act_reg",
             "adamax",
             "radam",
             "nadam",
@@ -159,6 +261,8 @@ def parse_args():
             "soap",
             "var_adaptive_lr",
             "lookahead",
+            "entropy_aware_adamw",
+            "muon",
             ]
 
     training_group.add_argument("--optimizer", type=str, default="adamw",
@@ -168,10 +272,33 @@ def parse_args():
     # --------  SGD --------------------------------------------------
     training_group.add_argument("--sgd_momentum", type=float, default=0.9, help="Momentum for SGD optimizer.")
     training_group.add_argument("--sgd_nesterov", type=bool, default=False, action=argparse.BooleanOptionalAction)
+    # --------  MUON --------------------------------------------------
+    training_group.add_argument("--muon_momentum", type=float, default=0.95,
+                                help="Momentum for the Muon optimizer.")
     # --------  ADAMW --------------------------------------------------
     training_group.add_argument("--adamw_betas", type=float, nargs=2, default=[0.9, 0.999], help="Betas for AdamW optimizer.")
     training_group.add_argument("--adamw_eps", type=float, default=1e-8, help="Epsilon for AdamW optimizer.")
     training_group.add_argument("--adamw_weight_decay", type=float, default=0.01, help="Weight decay for AdamW optimizer.")
+    training_group.add_argument(
+        "--entropy_lr_boost",
+        type=float,
+        default=1.0,
+        help="Coefficient for entropy_aware_adamw to scale learning rate when logits are flat.",
+    )
+    # --------  ADAMW_ACT_REG --------------------------------------------------
+    training_group.add_argument(
+        "--activation_decay",
+        type=float,
+        default=0.0,
+        help="L2 regularization coefficient for activations used by adamw_act_reg optimiser.",
+    )
+    training_group.add_argument(
+        "--activation_stat",
+        type=str,
+        default="stdev",
+        choices=["stdev", "kurtosis", "max", "min", "abs_max"],
+        help="Statistic to modulate activation regularization for adamw_act_reg optimizer.",
+    )
     # --------  ADAGRAD --------------------------------------------------
     training_group.add_argument("--adagrad_lr_decay", type=float, default=0, help="Learning rate decay for Adagrad optimizer.")
     # --------  RMSProp --------------------------------------------------
@@ -307,7 +434,11 @@ def parse_args():
     training_group.add_argument('--interactive', default=False, action=argparse.BooleanOptionalAction, help="Enable interactive generation at the end of training (similar to sample.py --interactive).")
     training_group.add_argument('--stop_string', type=str, default='~W', help="String to stop generation and allow user input (used when --interactive).")
     training_group.add_argument('--colorize_output', default=True, action=argparse.BooleanOptionalAction, help="Colorize tokens based on predicted probabilities.")
-    training_group.add_argument('--colorize_mode', type=str, default='minmax', choices=['minmax', 'softmax', 'softmax_top_k', 'rank', 'all'], help="Colorization mode for tokens (see sample.py).")
+    training_group.add_argument('--colorize_mode', type=str, default='minmax',
+                                choices=['minmax', 'softmax', 'softmax_top_k', 'rank', 'dot_product', 'topk', 'all'],
+                                help="Colorization mode for tokens (see sample.py).")
+    training_group.add_argument('--colorize_topk', type=int, default=10,
+                                help="Number of top predictions to display when colorize_mode='topk'.")
     training_group.add_argument('--show_heatmaps', type=bool, default=False, action=argparse.BooleanOptionalAction, help="Show heatmaps (or bar charts) of top-k token probabilities.")
     training_group.add_argument('--show_minmax_chart', type=bool, default=False, action=argparse.BooleanOptionalAction, help="show timeseries of raw logit values")
     training_group.add_argument('--chart_type', type=str, default='heatmap', choices=['heatmap', 'barchart'], help="Type of chart to display if --show_heatmaps is set.")
@@ -341,7 +472,15 @@ def parse_args():
     model_group.add_argument('--n_embd_wte_scale_tying', default=True, action=argparse.BooleanOptionalAction, help="Enable weight tying for scale up and scale down matrices, only has effects if n_embd_wte is not 'None'.")
     model_group.add_argument('--wte_weight_tying', default=True, action=argparse.BooleanOptionalAction, help="Enable weight tying for non-factorized wte")
     model_group.add_argument('--dropout', default=0.0, type=float)
-    model_group.add_argument('--use_post_ln', default=False, action=argparse.BooleanOptionalAction)
+    model_group.add_argument('--use_pre_ln', default=True,   action=argparse.BooleanOptionalAction, help="apply before any attn or mlp")
+    model_group.add_argument('--use_peri_ln', default=False, action=argparse.BooleanOptionalAction, help="apply directly after each attn and mlp")
+    model_group.add_argument('--use_post_ln', default=False, action=argparse.BooleanOptionalAction, help="apply after recombining the residual")
+    model_group.add_argument('--use_pre_ln_attn', default=None, action=argparse.BooleanOptionalAction, help="override pre-LN for attention block")
+    model_group.add_argument('--use_pre_ln_mlp', default=None, action=argparse.BooleanOptionalAction, help="override pre-LN for MLP block")
+    model_group.add_argument('--use_peri_ln_attn', default=None, action=argparse.BooleanOptionalAction, help="override peri-LN for attention block")
+    model_group.add_argument('--use_peri_ln_mlp', default=None, action=argparse.BooleanOptionalAction, help="override peri-LN for MLP block")
+    model_group.add_argument('--use_post_ln_attn', default=None, action=argparse.BooleanOptionalAction, help="override post-LN for attention block")
+    model_group.add_argument('--use_post_ln_mlp', default=None, action=argparse.BooleanOptionalAction, help="override post-LN for MLP block")
     model_group.add_argument('--window_size', default=None, type=int, help="Sliding window size, note this cannot be greater than block size")
     model_group.add_argument('--gate', default=False, action=argparse.BooleanOptionalAction, help="option for gated attention see https://arxiv.org/abs/2306.12929")
     model_group.add_argument('--use_moe', default=False,  action=argparse.BooleanOptionalAction, help="option for Mixture of Experts (MoE) architecture")
@@ -352,6 +491,12 @@ def parse_args():
     model_group.add_argument('--use_flex_attn', default=None,  action=argparse.BooleanOptionalAction, help="option for using flex attention for sliding windows")
     model_group.add_argument('--attn_logit_softcapping', default=None, action=argparse.BooleanOptionalAction, help="option for softcapping attention (before masking)")
     model_group.add_argument('--final_logit_softcapping', default=None, action=argparse.BooleanOptionalAction, help="option for softcapping final logits")
+    model_group.add_argument('--use_ln_f_input_mixer', default=False, action=argparse.BooleanOptionalAction, help='blend outputs of all blocks before final layer norm')
+    model_group.add_argument('--ln_f_input_mixer_variant', default='linear', type=str,
+                             choices=['linear', 'router_top1', 'router_topk', 'decoder'],
+                             help='strategy for combining block outputs before ln_f')
+    model_group.add_argument('--ln_f_mixer_top_k', default=2, type=int,
+                             help='number of routes to mix when using router_topk')
 
     ## Manual Steering Vector Options
 
@@ -389,9 +534,11 @@ def parse_args():
     # MLP Variations
     mlp_variants = [
             "mlp",
+            "edgellm_asic_mlp",
             "kan",
             "swiglu",
             "dual_path",
+            "dual_path_swiglu",
             "identity",
             ]
 
@@ -399,7 +546,8 @@ def parse_args():
     model_group.add_argument("--mlp_variant", type=str, default="mlp", choices=mlp_variants, help="MLP variation type")
     model_group.add_argument("--mlp_expansion_factor", type=int, default=4, help="If MLP like variant is used, set the expansion factor for the linear transformations, default is 4.")
     model_group.add_argument("--mlp_size", type=int, default=None, help="If not None, is used instead of mlp_expansion_factor")
-    model_group.add_argument('--mlp_res', default=False, action=argparse.BooleanOptionalAction)
+    model_group.add_argument('--mlp_cproj_scale', default=1.0, type=float, help="Divide MLP down projection outputs by this value")
+    model_group.add_argument('--mlp_post_act_l2_norm', default=False, action=argparse.BooleanOptionalAction, help="L2 normalize MLP activation vectors before down projection")
 
     ## KAN Options
     model_group.add_argument("--kan_poly_order", type=int, default=3, help="Order of KAN non-linearity")
@@ -414,6 +562,78 @@ def parse_args():
     model_group.add_argument('--shared_attn_sym', default=False, action=argparse.BooleanOptionalAction, help="symmetrical attention sharing")
     model_group.add_argument('--shared_attn_seq', default=1, type=int, help="Sequence length for cyclic sharing of attention layers")
 
+    ## Learned Confidence Residual Scaling
+    confidence_variants = ["zeros", "ones", "gaussian"]
+
+    ### Attn scaling
+    model_group.add_argument('--use_attn_resid_scaling', default=False, action=argparse.BooleanOptionalAction, help='Apply learned confidence scaling to attention outputs')
+    model_group.add_argument('--attn_confidence_variant', type=str, default='zeros', choices=confidence_variants, help='Initialization for attention residual scaling vector')
+
+    model_group.add_argument('--use_attn_resid_const', default=False, action=argparse.BooleanOptionalAction, help='Add constant term to attention residual scaling dot product')
+    model_group.add_argument('--attn_resid_const', type=float, default=0.0, help='Constant added to attention residual scaling dot product')
+    model_group.add_argument('--learn_attn_resid_const', default=False, action=argparse.BooleanOptionalAction, help='Learn the attention residual scaling constant')
+
+    ### MLP scaling
+    model_group.add_argument('--use_mlp_resid_scaling', default=False, action=argparse.BooleanOptionalAction, help='Apply learned confidence scaling to MLP outputs')
+    model_group.add_argument('--mlp_confidence_variant', type=str, default='zeros', choices=confidence_variants, help='Initialization for MLP residual scaling vector')
+
+    model_group.add_argument('--use_mlp_resid_const', default=False, action=argparse.BooleanOptionalAction, help='Add constant term to MLP residual scaling dot product')
+    model_group.add_argument('--mlp_resid_const', type=float, default=0.0, help='Constant added to MLP residual scaling dot product')
+    model_group.add_argument('--learn_mlp_resid_const', default=False, action=argparse.BooleanOptionalAction, help='Learn the MLP residual scaling constant')
+
+    ### Guassian style settings
+    model_group.add_argument('--resid_gaussian_mean_init', type=float, default=0.0, help='Gaussian residual init setting, mean value.')
+    model_group.add_argument('--resid_gaussian_std_init', type=float, default=0.02, help='Gaussian residual init setting, standard deviation.')
+
+    # Residual combination options
+    model_group.add_argument(
+        '--attn_residual_combination',
+        type=str,
+        default='add',
+        choices=['add', 'lerp', 'slerp'],
+        help='Residual combination method for attention block'
+    )
+    model_group.add_argument(
+        '--mlp_residual_combination',
+        type=str,
+        default='add',
+        choices=['add', 'lerp', 'slerp'],
+        help='Residual combination method for MLP block'
+    )
+    model_group.add_argument(
+        '--residual_slerp_eps',
+        type=float,
+        default=0.0,
+        help='Threshold below which LERP is used instead of SLERP; 0 means no fallback to LERP (SLERP is always used)'
+    )
+    model_group.add_argument(
+        '--attn_residual_alpha',
+        type=float,
+        default=0.05,
+        help='Alpha parameter for attention residual LERP/SLERP'
+    )
+    model_group.add_argument(
+        '--mlp_residual_alpha',
+        type=float,
+        default=0.05,
+        help='Alpha parameter for MLP residual LERP/SLERP'
+    )
+    model_group.add_argument(
+        '--attn_residual_alpha_type',
+        type=str,
+        default='fixed',
+        choices=['fixed', 'learned', 'dot'],
+        help='Alpha mode for attention residual combination'
+    )
+    model_group.add_argument(
+        '--mlp_residual_alpha_type',
+        type=str,
+        default='fixed',
+        choices=['fixed', 'learned', 'dot'],
+        help='Alpha mode for MLP residual combination'
+    )
+
+
     # NORM VARIATIONS
     norm_variations = [
             "krmsnorm",
@@ -422,10 +642,24 @@ def parse_args():
             "layernorm",
             "hyperspherenorm",
             "dact",
+            "identity",
             ]
 
     model_group.add_argument("--norm_variant_attn", type=str, default="rmsnorm", choices=norm_variations)
     model_group.add_argument("--norm_variant_output", type=str, default="rmsnorm", choices=norm_variations)
+    model_group.add_argument("--use_flash_norm", type=bool, default=None, action=argparse.BooleanOptionalAction)
+
+    ### WTE and Abs Pos Embedding Post Norms (optional, and default None)
+    model_group.add_argument("--norm_variant_wte", type=str, default=None, choices=norm_variations)
+    model_group.add_argument("--norm_variant_abs", type=str, default=None, choices=norm_variations)
+
+    model_group.add_argument("--norm_wte_radius", type=float, default=None)
+    model_group.add_argument("--norm_wte_scale", type=float, default=None)
+    model_group.add_argument("--norm_wte_gain", type=bool, default=None, action=argparse.BooleanOptionalAction)
+
+    model_group.add_argument("--norm_abs_radius", type=float, default=None)
+    model_group.add_argument("--norm_abs_scale", type=float, default=None)
+    model_group.add_argument("--norm_abs_gain", type=bool, default=None, action=argparse.BooleanOptionalAction)
 
     ## Layernorm
     model_group.add_argument('--bias', default=False, action=argparse.BooleanOptionalAction, help="only used for layernorm variation option")
@@ -442,6 +676,7 @@ def parse_args():
 
     ## HyperSphereNorm
     model_group.add_argument("--hsnorm_gain", default=False, action=argparse.BooleanOptionalAction)
+    model_group.add_argument("--hsnorm_scale", type=float, default=1.0)
     model_group.add_argument("--hsnorm_radius", type=float, default=None)
     model_group.add_argument("--hsnorm_radius_learning", default=False, action=argparse.BooleanOptionalAction)
 
@@ -466,7 +701,9 @@ def parse_args():
             "silu",
             "softplus",
             "softsign",
+            "softshrink",
             "squared_relu",
+            "squared_gelu",
             "tanh",
             "identity",
         ]
@@ -480,6 +717,7 @@ def parse_args():
     model_group.add_argument("--dact_use_alpha",  type=bool, default=True, action=argparse.BooleanOptionalAction)
 
     model_group.add_argument("--use_embedding_scale", type=bool, default=False, action=argparse.BooleanOptionalAction)
+    model_group.add_argument("--embedding_scale_init", type=float, default=None)
 
     # ACTIVATION VARIATIONS
     model_group.add_argument( "--activation_variant", type=str, default="gelu", choices=activation_variations)
@@ -487,6 +725,9 @@ def parse_args():
     ## Shifted Gelu
     model_group.add_argument("--shifted_gelu_learnable_shift",  type=bool, default=True, action=argparse.BooleanOptionalAction)
     model_group.add_argument("--shifted_gelu_initial_shift", type=float, default=0.0)
+
+    ## Softshrink
+    model_group.add_argument("--softshrink_lambda", type=float, default=0.5)
 
     ## PiecewiseLearnableActivation - pla
     model_group.add_argument("--pla_num_points", type=int, default=7)
@@ -506,6 +747,7 @@ def parse_args():
     # Attention Variations
     attention_variants = [
                           "causal",
+                          "edgellm_asic_attn",
                           "linear",
                           "ssm",
                           "identity",
@@ -562,6 +804,9 @@ def parse_args():
     model_group.add_argument("--n_head_layerlist", nargs='+', action=LayerListAction, default=None, help="Override n_head per layer, cycling through the list.")
     model_group.add_argument("--mlp_size_layerlist", nargs='+', action=LayerListAction, default=None, help="Override mlp_size per layer, cycling through the list. " "Example: --mlp_size_layerlist 100 200 300")
     model_group.add_argument("--n_v_head_dim_layerlist", nargs='+', action=LayerListAction, default=None)
+    model_group.add_argument("--n_cproj_layerlist", nargs='+', action=LayerListAction, default=None)
+    model_group.add_argument("--n_kv_group_layerlist", nargs='+', action=LayerListAction, default=None)
+    model_group.add_argument("--attention_variant_layerlist", nargs='+', action=LayerListAction, default=None)
 
     ## Infinite Attention variation
     model_group.add_argument('--n_qk_head_dim', default=None, type=int)
@@ -572,6 +817,7 @@ def parse_args():
     ## qk_norm variations
     model_group.add_argument("--use_qk_norm",   type=bool, default=False, action=argparse.BooleanOptionalAction, help="applies the norm to q and k before attn")
     model_group.add_argument("--use_qk_norm_scale",   type=bool, default=False, action=argparse.BooleanOptionalAction, help="applies norm scale, preloads scale for flash attn, post qk multiplication in manual attn")
+    model_group.add_argument("--use_v_norm",   type=bool, default=False, action=argparse.BooleanOptionalAction, help="applies the norm to v before attn output")
 
     ## Flash Lobo
     model_group.add_argument("--use_flash_lobo",   type=bool, default=False, action=argparse.BooleanOptionalAction)
@@ -606,11 +852,27 @@ def parse_args():
             "onehot",
             "hypercube",
             "numpy_import",
+            "rand_hypercube",
+            "angle_hypersphere",
+            "unique_hypercube",
+            "gaussian_norm_range",
             ]
 
     model_group.add_argument( "--init_variant", choices=embedding_init_variations, default="gaussian", help="options for embedding initializations")
     model_group.add_argument( "--init_scale", type=float, default=0.01, help="initialization scaling factor with non-gaussian variations")
     model_group.add_argument( "--init_wte_npy", type=str, default="wte.npy", help="npy file for initialization of wte files")
+    model_group.add_argument( "--init_radius", type=float, default=1.0, help="radius for angle_hypersphere initialization")
+    model_group.add_argument( "--gaussian_min_norm", type=float, default=0.0, help="minimum norm for gaussian_norm_range initialization")
+    model_group.add_argument( "--gaussian_max_norm", type=float, default=float('inf'), help="maximum norm for gaussian_norm_range initialization")
+
+    # EdgeLLM ASIC Args
+    model_group.add_argument('--use_edgellm_asic', default=False, action=argparse.BooleanOptionalAction)
+    # Gradual activation transition
+    model_group.add_argument("--use_gradual_activation", type=bool, default=False, action=argparse.BooleanOptionalAction)
+    model_group.add_argument("--activation_start", type=str, default="gelu", choices=activation_variations)
+    model_group.add_argument("--activation_end", type=str, default="relu", choices=activation_variations)
+    model_group.add_argument("--activation_transition_start_iter", type=int, default=0)
+    model_group.add_argument("--activation_transition_end_iter", type=int, default=None, help="If None, defaults to max_iters from training config.")
 
     # Quantization
     model_group.add_argument("--full_quant_iteration", type=int, default=None,
@@ -677,6 +939,17 @@ def parse_args():
     model_group.add_argument("--quantize_mlp_act_activation_input_bits", type=int, default=None, help="number of bits for activation function input quantization")
     model_group.add_argument("--quantize_mlp_act_activation_output_bits", type=int, default=None, help="number of bits for activation function output quantization")
     model_group.add_argument("--quantize_mlp_act_output_bits", type=int, default=None, help="number of bits for mlp output quantization")
+
+    ### ASIC Activations
+    model_group.add_argument("--quantize_asic_prenorm", action=argparse.BooleanOptionalAction, default=False, help="quantize the ASIC input to norm")
+    model_group.add_argument("--quantize_asic_offchip_residual", action=argparse.BooleanOptionalAction, default=False, help="quantize the ASIC off-chip residual")
+    model_group.add_argument("--quantize_asic_attn_softmax_denom", action=argparse.BooleanOptionalAction, default=False, help="quantize the ASIC attention softmax denominator")
+    model_group.add_argument("--quantize_asic_attn_softmax_denom_bits", type=int, default=16, help="number of bits for ASIC attention softmax denominator quantization")
+    model_group.add_argument("--quantize_asic_attn_softmax_numerator", action=argparse.BooleanOptionalAction, default=False, help="quantize the ASIC attention softmax numerator")
+    model_group.add_argument("--quantize_asic_attn_softmax_numerator_bits", type=int, default=8, help="number of bits for ASIC attention softmax numerator quantization")
+
+    ### Default Precisions for ASIC Activations
+    model_group.add_argument("--quantize_asic_bits", type=int, default=8, help="number of bits for asic quantization")
 
     ### Whether activations should be saved
     model_group.add_argument("--store_activations", action=argparse.BooleanOptionalAction, default=False, help="whether the activations should be saved as a buffer and updated through training")
@@ -748,7 +1021,10 @@ def parse_args():
         "softmax",
         "softplus",
         "squareplus",
+        "softshrink",
+        "gelumax",
         "exppolymax",
+        "pfla_softmax",
         ]
 
     ## Selection of softmax variation for attention and output layers
@@ -828,9 +1104,57 @@ def parse_args():
     model_group.add_argument('--softplus_divisor', type=float,default=100.0)
     ### SquarePlus Options
     model_group.add_argument('--squareplus_divisor', type=float,default=100.0)
+    ### SoftShrink Options
+    model_group.add_argument('--softshrink_attn_lambda', type=float, default=0.5)
+    model_group.add_argument('--softshrink_attn_divisor', type=float, default=64.0)
 
     ### Sequence Length Division https://arxiv.org/abs/2309.
     model_group.add_argument('--div_by_seq_len', default=False, action=argparse.BooleanOptionalAction)
+
+    # ─────────── PFLA‑Softmax options ─────────────────────────────────────
+    model_group.add_argument("--pfla_softmax_num_points",   type=int,  default=30)
+    model_group.add_argument("--pfla_softmax_left_bound",   type=float, default=-10.0)
+    model_group.add_argument("--pfla_softmax_right_bound",  type=float, default=10.0)
+    model_group.add_argument("--pfla_softmax_learn_x",      action=argparse.BooleanOptionalAction, default=False)
+    model_group.add_argument("--pfla_softmax_learn_y",      action=argparse.BooleanOptionalAction, default=True)
+    model_group.add_argument("--pfla_softmax_init_activation",
+                             type=str,
+                             default="gelu",
+                             choices=activation_variations,
+                             help="Reference activation used to initialise √y knots.")
+    model_group.add_argument("--pfla_softmax_density",
+                             type=str,
+                             default="linear",
+                             choices=["linear", "quad", "exp"],
+                             help="Distribution of x‑knots over the interval.")
+
+    # normalisation knobs
+    model_group.add_argument("--pfla_softmax_use_learned_divisor",
+                             action=argparse.BooleanOptionalAction,
+                             default=False,
+                             help="Replace Σy with a learned positive scalar γ.")
+    model_group.add_argument("--pfla_softmax_gamma_init",   type=float, default=1.0)
+
+    model_group.add_argument("--pfla_softmax_use_obo",
+                             action=argparse.BooleanOptionalAction,
+                             default=False,
+                             help="Adds an off‑by‑one (+obo) addend. Do this first before adding the 'learned_obo' feature.")
+    
+    model_group.add_argument("--pfla_softmax_use_learned_obo",
+                             action=argparse.BooleanOptionalAction,
+                             default=False,
+                             help="First must activate pfla_softmax_use_obo. This makes it a learned off‑by‑one (+obo) addend.")
+    model_group.add_argument("--pfla_softmax_obo",          type=float, default=0.0)
+
+    # interpolation variant
+    model_group.add_argument("--pfla_softmax_mode",
+                             type=str,
+                             default="linear",
+                             choices=["linear", "quadratic"],
+                             help="Interpolation scheme: "
+                                  "'linear' or 'quadratic'.")
+    # ───────────────────────────────────────────────────────────────────────
+
 
     # Gradient Checkpointing
     model_group.add_argument('--use_gradient_checkpointing', default=False, action=argparse.BooleanOptionalAction, help="Memory efficient training, but takes longer time to train due to trading compute time for memory efficiency. For best memory tradeoff omit the --compile flag. For medium memory tradeoff add --compile.")
@@ -909,6 +1233,39 @@ def parse_args():
     logging_group.add_argument('--tensorboard_run_name', type=str, default=None)
     logging_group.add_argument('--tensorboard_graph', default=True, action=argparse.BooleanOptionalAction)
 
+    # Metric logging toggles
+    logging_group.add_argument('--log_btc_train', default=False, action=argparse.BooleanOptionalAction, help='Log better-than-chance training metrics')
+    logging_group.add_argument('--log_btc_per_param', default=False, action=argparse.BooleanOptionalAction, help='Log better-than-chance-per-parameter metrics')
+    logging_group.add_argument('--log_grad_norm', default=False, action=argparse.BooleanOptionalAction, help='Log gradient norm metrics')
+    logging_group.add_argument('--log_grad_std', default=False, action=argparse.BooleanOptionalAction, help='Log gradient std metrics')
+    logging_group.add_argument('--log_all_metrics', default=False, action=argparse.BooleanOptionalAction, help='Enable logging of all metrics including gns')
+
+    # Turn activation/weight statistics off to save CPU RAM and wall time.
+    training_group.add_argument(
+        '--compute_model_stats',
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help='If true (default) run compute_weight_stats / compute_activation_stats '
+             'every eval cycle.  Disable to eliminate the large host‑RAM spike that '
+             'occurs when those tensors are copied to CPU.'
+    )
+
+    training_group.add_argument(
+            '--model_stats_device',
+            default='gpu',
+            choices=['cpu', 'gpu'],
+            help="Where to aggregate weight / activation statistics. "
+            "'gpu' avoids host‑RAM spikes; 'cpu' saves VRAM."
+            )
+
+    training_group.add_argument(
+            '--print_model_stats_table',
+            type=str,
+            default=None,
+            metavar='CSV_PATH',
+            help='If set, also save the printed model statistics table to this CSV file.'
+            )
+
     ## Export Model graph
     logging_group.add_argument('--export_model_graph', default=False, action=argparse.BooleanOptionalAction, help="exports tensorboard model of graph")
 
@@ -934,6 +1291,14 @@ def parse_args():
     logging_group.add_argument('--print_model_info', default=True, action=argparse.BooleanOptionalAction)
 
     args = parser.parse_args()
+
+    if args.log_all_metrics:
+        args.log_btc_train = True
+        args.log_btc_per_param = True
+        args.log_grad_norm = True
+        args.log_grad_std = True
+        if args.gns_type is None:
+            args.gns_type = 'sogns'
 
     if args.load_config_json is not None:
         with open(args.load_config_json, 'r') as config_file:

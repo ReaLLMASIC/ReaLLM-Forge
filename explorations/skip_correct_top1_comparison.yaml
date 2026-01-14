@@ -1,0 +1,77 @@
+# explorations/skip_correct_top1_comparison.yaml
+---
+# Sweep comparing the skip-correct-top1 loss against other top-1 centric losses.
+
+# Base hyperparameters shared across the sweep.
+common_group:
+  max_iters: [10000]
+  n_layer: [6]
+  n_head: [6]
+  n_embd: [384]
+  block_size: [256]
+  eval_interval: [500]
+  device: ["cuda"]
+  dtype: ["bfloat16"]
+  # Position encoding configuration
+  use_rotary_embeddings: [true]
+  use_abs_pos_embeddings: [false]
+  # Position encoding configuration
+  use_qk_norm: [true]
+  use_qk_norm_scale: [true]
+  # Misc settings
+  compile: [true]
+  never_save_checkpoint: [true]
+  compute_model_stats: [true]
+  max_sample_tokens: ["256"]
+  # arch
+  use_peri_ln: [true]
+  # norms
+  norm_variant_wte: ["hyperspherenorm"]
+  norm_variant_attn: ["hyperspherenorm"]
+  norm_variant_output: ["hyperspherenorm"]
+  # hsnorm settings
+  hsnorm_gain: [false]
+
+print_model_stats: ["./print_stats/${RUN_NAME}"]
+sample_file: ["./inference_samples/${RUN_NAME}"]
+
+named_static_groups:
+  - named_group: "res_slerp"
+    attn_residual_combination: ["slerp"]
+    mlp_residual_combination: ["slerp"]
+  - named_group: "res_add"
+    attn_residual_combination: ["add"]
+    mlp_residual_combination: ["add"]
+
+named_variation_groups:
+  - named_group: "res_comb_type"
+    named_group_alternates: ["res_slerp", "res_add"]
+
+
+# dataset
+dataset: ["opus-100", "minipile"]
+
+# scale experiments -- testing wte vs attn/output
+hsnorm_scale: ["1.0", "5.0"]
+norm_wte_scale: ["1.0", "5.0"]
+
+# global variations
+named_group_variations: ["res_comb_type"]
+
+# Loss variants under test.
+parameter_groups:
+  - loss_fn: ["cross_entropy"]
+  - loss_fn: ["skip_correct_top1"]
+  - loss_fn: ["attenuated_correct_top1"]
+    correct_top1_attenuation: [0.25, 0.5, 0.75, 1.0]
+  - loss_fn: ["distance_attenuated_top1"]
+    distance_top1_strength: [0.0, 0.25, 0.5, 0.75]
+  - loss_fn: ["top1_focus"]
+    top1_focus_alpha: [0.25, 0.5, 0.75]
+  - loss_fn: ["top1_margin"]
+    top1_margin: [0.05, 0.1, 0.2]
+  - loss_fn: ["focal"]
+    focal_gamma: [1.0, 2.0, 4.0]
+  - loss_schedule: ["0:cross_entropy,10000:skip_correct_top1"]
+  - loss_schedule: ["0:cross_entropy,10000:focal"]
+

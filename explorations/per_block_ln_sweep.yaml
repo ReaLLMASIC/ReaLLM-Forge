@@ -1,0 +1,37 @@
+# per_block_ln_sweep.yaml
+---
+# base hyperparameters
+max_iters: [10000]
+eval_interval: [10000]
+eta_variant: ["iteration"]
+n_layer: [5]
+n_head: [5]
+n_embd: [320]
+block_size: [256]
+device: ["cuda"]
+dtype: ["float16"]
+dataset: ["minipile"]
+
+softmax_variant_attn:
+  - relu2max
+  - softmax
+
+# LN Variations
+use_pre_ln_attn: [true, false]
+use_pre_ln_mlp: [true, false]
+use_peri_ln_attn: [true, false]
+use_peri_ln_mlp: [true, false]
+use_post_ln_attn: [true, false]
+use_post_ln_mlp: [true, false]
+
+# Modern network settings
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+
+# VRAM Features
+compile: [true]
+never_save_checkpoint: [true]
+

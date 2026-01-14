@@ -8,6 +8,7 @@ seaborn==0.13.2
 tiktoken==0.7.0
 torchinfo==1.8.0
 transformers==4.44.2
+pyspellchecker==0.8.3
 wandb==0.18.3
 onnx==1.17.0
 beautifulsoup4==4.13.4

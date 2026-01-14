@@ -1,0 +1,49 @@
+# explorations/l2_norm_mlp_projections.yaml
+---
+
+parameter_groups:
+  - l2_norm_mlp_up: [false, true]
+    l2_norm_mlp_up_dim:
+      conditions:
+        - ["l2_norm_mlp_up", true]
+      options: ["embed", "hidden"]
+    l2_norm_mlp_down: [false, true]
+    l2_norm_mlp_down_dim:
+      conditions:
+        - ["l2_norm_mlp_down", true]
+      options: ["embed", "hidden"]
+    parameter_groups:
+      - mlp_variant: ["mlp"]
+        activation_variant: ["gelu", "squared_relu"]
+      - mlp_variant: ["swiglu"]
+        activation_variant: ["silu", "squared_relu"]
+
+# base hyperparameters
+max_iters: [10000]
+eval_interval: [10000]
+eta_variant: ["iteration"]
+n_layer: [12]
+n_head: [12]
+n_embd: [768]
+batch_size: [16]
+block_size: [1024]
+device: ["cuda"]
+dtype: ["float16"]
+dataset: ["minipile"]
+
+# training options
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+use_peri_ln: [true, false]
+
+# logging
+compute_model_stats: [true]
+tensorboard_log: [false]
+print_model_stats_table: ["./print_stats/${RUN_NAME}.csv"]
+
+# VRAM and Memory Saving
+never_save_checkpoint: [true]
+compile: [true]
+

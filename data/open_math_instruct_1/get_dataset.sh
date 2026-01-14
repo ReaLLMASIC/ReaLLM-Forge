@@ -1,6 +1,6 @@
 #!/bin/bash
 
-wget -O trian.jsonl https://huggingface.co/datasets/nvidia/OpenMathInstruct-1/resolve/main/correct_solutions/train.jsonl?download=true
+wget -O train.jsonl https://huggingface.co/datasets/nvidia/OpenMathInstruct-1/resolve/main/correct_solutions/train.jsonl?download=true
 wget -O validation.jsonl https://huggingface.co/datasets/nvidia/OpenMathInstruct-1/resolve/main/correct_solutions/validation.jsonl?download=true
 
 python3 jsonl_to_txt.py validation.jsonl validation.txt

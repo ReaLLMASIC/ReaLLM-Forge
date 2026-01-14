@@ -60,3 +60,24 @@ python checkpoint_analysis/checkpoint_explorer.py out/ckpt.pt --device cuda
 - Ensure the script is run from the **main repository directory**.
 - Verify that the checkpoint file exists at the specified path.
 - Check for dependencies like PyTorch before running the script.
+
+## JL Transforming a Checkpoint
+
+The script `jl_transform_ckpt.py` applies a Johnson–Lindenstrauss transform to
+every weight tensor in a checkpoint. It can also change the model’s embedding
+dimension while keeping attention head dimensions and MLP sizes intact. The transformed checkpoint and the
+original `meta.pkl` are written to a new directory. Optimizer and scheduler
+states are removed so training restarts cleanly. Use `--jl_type` to select the
+kind of JL transform (e.g. `sign`, `gaussian`, `sparse`, or `srht`).
+When using the `gaussian` type you may set `--gaussian_mean` and
+`--gaussian_std` to control the distribution of the projection matrix.  The
+optional `--cproj_vertical` flag projects any `c_proj.weight` tensors along their
+first dimension instead of the default behaviour.
+The script also resets `best_val_loss` and `best_iter` in the new checkpoint so
+training restarts from scratch after transformation.
+
+```bash
+python checkpoint_analysis/jl_transform_ckpt.py out \
+    --out_dir out_jl --out_embd <new_dim> --jl_type sign
+```
+

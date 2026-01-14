@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 import math
+from variations.activation_variations import activation_dictionary
 
 # Softmax base 2, with option to remove max subtraction
 class Softermax(nn.Module):
@@ -575,6 +576,44 @@ class ReLU2Max(nn.Module):
 
         return result
 
+
+class Gelumax(nn.Module):
+    def __init__(self, config, dim=-1):
+        super().__init__()
+        self.dim = dim
+        self.softshrink = nn.GELU()
+        self.softshrink_attn_divisor = config.softshrink_attn_divisor
+        self.div_by_seq_len = config.div_by_seq_len
+
+    def forward(self, x):
+        result = self.softshrink(x) / self.softshrink_attn_divisor
+
+        # divide by sequence length
+        if self.div_by_seq_len:
+            seq_len = x.shape[self.dim]
+            result = result / seq_len
+
+        return result
+
+
+class Softshrink(nn.Module):
+    def __init__(self, config, dim=-1):
+        super().__init__()
+        self.dim = dim
+        self.softshrink = nn.Softshrink(lambd=config.softshrink_attn_lambda)
+        self.softshrink_attn_divisor = config.softshrink_attn_divisor
+        self.div_by_seq_len = config.div_by_seq_len
+
+    def forward(self, x):
+        result = self.softshrink(x) / self.softshrink_attn_divisor
+
+        # divide by sequence length
+        if self.div_by_seq_len:
+            seq_len = x.shape[self.dim]
+            result = result / seq_len
+
+        return result
+
 class Softplus(nn.Module):
     """ Softmax variant based on arxiv 1805.10829 with added handles for base """
     def __init__(self, config, dim=-1):
@@ -618,6 +657,148 @@ class Squareplus(nn.Module):
 
         return result
 
+# ------------------------------------------------------------------------- #
+#  PFLA‑Softmax  –  two interpolation modes (linear vs. quadratic)          #
+# ------------------------------------------------------------------------- #
+class PFLASoftmax(nn.Module):
+    """
+    A spline‑based activation whose control points are stored in √y‑space.
+
+    • **linear**   (default)  –  square the knot values **once**, then do
+      piece‑wise *linear* interpolation on the squared knots.
+
+    • **quadratic**          –  first linearly interpolate in √y‑space,
+      square the interpolated value, **then multiply the original x input**
+      by that squared scale.  The extra √•² and × x makes the mapping
+      effectively quadratic between knots.
+
+    After either variant we apply the normalisation described earlier
+    (classic Σy + OBO  *or*  learned γ).
+    """
+    def __init__(self, config, dim: int = -1):
+        super().__init__()
+        self.dim = dim
+
+        # ---------------- user‑selectable interpolation mode ---------------
+        self.mode = config.pfla_softmax_mode         # 'linear' | 'quadratic'
+
+        # ---------------- knot generation (unchanged) ----------------------
+        n            = config.pfla_softmax_num_points
+        self.x_left  = config.pfla_softmax_left_bound
+        self.x_right = config.pfla_softmax_right_bound
+        learn_x      = config.pfla_softmax_learn_x
+        learn_y      = config.pfla_softmax_learn_y
+        density      = config.pfla_softmax_density
+        act_name     = config.pfla_softmax_init_activation.lower()
+
+        if density == "linear":
+            x_init = torch.linspace(self.x_left, self.x_right, n + 2)[1:-1]
+        elif density == "quad":
+            lin = torch.linspace(-1, 1, n + 2)[1:-1]
+            x_init = torch.sign(lin) * (lin.abs() ** 2)
+            x_init *= max(abs(self.x_left), self.x_right)
+        elif density == "exp":
+            lin = torch.linspace(-1, 1, n + 2)[1:-1]
+            x_init = torch.sign(lin) * (torch.exp(lin.abs()) - 1) / (math.e - 1)
+            x_init *= max(abs(self.x_left), self.x_right)
+        else:
+            raise ValueError(f"Unknown density '{density}'")
+
+        if learn_x:
+            self.x_vals = nn.Parameter(x_init)
+        else:
+            self.register_buffer("x_vals", x_init)
+
+        # √y initialisation from a reference activation
+        if act_name not in activation_dictionary:
+            raise ValueError(f"Unknown init activation '{act_name}'")
+        ref_act = activation_dictionary[act_name](config)          # GELU etc.
+        y_ref   = ref_act(x_init).detach().clamp(min=1e-6)         # ≥0
+        y_param_init = torch.sqrt(y_ref)
+
+        if learn_y:
+            self.y_vals = nn.Parameter(y_param_init)
+        else:
+            self.register_buffer("y_vals", y_param_init)
+
+        # -------------- normalisation controls (as before) -----------------
+        self.use_learned_divisor = config.pfla_softmax_use_learned_divisor
+        self.use_obo             = config.pfla_softmax_use_obo
+        self.use_learned_obo     = config.pfla_softmax_use_learned_obo
+        self.obo_init_val        = config.pfla_softmax_obo
+
+        if self.use_learned_divisor:
+            self._gamma_raw = nn.Parameter(torch.tensor(config.pfla_softmax_gamma_init))
+            self._sp_gamma = nn.ReLU()
+
+        if self.use_learned_obo:
+            self._obo_raw = nn.Parameter(torch.tensor(self.obo_init_val))
+            self._sp_obo = torch.exp()
+
+    # ---------------------------------------------------------------------
+    def _linear_interp(self, y_knots: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        """
+        Safe piece‑wise linear interpolation that never indexes beyond the
+        last knot.  Works on any *y_knots* (squared or √y) tensor.
+        """
+        N   = self.x_vals.numel()                  # number of knots
+        idx = torch.searchsorted(self.x_vals, x).clamp(0, N - 1)
+
+        # capped next index – never exceeds N‑1
+        idx_next = torch.clamp(idx + 1, max=N - 1)
+
+        x_k   = self.x_vals[idx]
+        x_k1  = self.x_vals[idx_next]
+        y_k   = y_knots[idx]
+        y_k1  = y_knots[idx_next]
+
+        # avoid 0‑division when idx_next == idx  (happens at the last knot)
+        denom = torch.clamp(x_k1 - x_k, min=1e-6)
+        slope = (y_k1 - y_k) / denom
+        return y_k + slope * (x - x_k)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        eps = 1e-6                      # small constant for numerical safety
+
+        # ───────── MASK 1: replace ±inf inputs by zero for safe math ─────────
+        finite_mask = torch.isfinite(x)
+        x_safe      = torch.where(finite_mask, x, torch.zeros_like(x))
+
+        # -------- obtain y_pos depending on interpolation mode ---------------
+        if self.mode == "linear":
+            y_knots_sq = self.y_vals ** 2
+            y_pos = self._linear_interp(y_knots_sq, x_safe)
+
+        elif self.mode == "quadratic":
+            y_sqrt  = self._linear_interp(self.y_vals, x_safe)
+            y_scale = y_sqrt ** 2
+            y_pos   = x_safe * y_scale
+        else:
+            raise ValueError(f"Unknown pfla_softmax_mode '{self.mode}'")
+
+        # ───────── MASK 2: hard‑zero the originally masked positions ─────────
+        y_pos = torch.where(finite_mask, y_pos, torch.zeros_like(y_pos))
+
+        # ------------------------ normalisation ------------------------------
+        if self.use_learned_divisor:
+            gamma  = self._sp_gamma(self._gamma_raw) + eps        # ← EPS
+            out = y_pos / gamma
+        else:
+            denom = y_pos.sum(dim=self.dim, keepdim=True) + eps   # ← EPS
+            if self.use_obo:
+                if self.use_learned_obo:
+                    obo = self._sp_obo(self._obo_raw)
+                else:
+                    obo = self._sp_obo(self.obo_init_val)
+                out = y_pos / (denom + obo)
+            else:
+                out = y_pos / (denom)
+
+        return out
+
+
+
+
 # Note: we use the built in library for regular softmax
 softmax_dictionary = {
     "consmax": ConSmax,
@@ -633,6 +814,9 @@ softmax_dictionary = {
     "relumax": ReLUMax,
     "relu2max": ReLU2Max,
     "sigmoidmax": SigmoidMax,
+    "softshrink": Softshrink,
+    "gelumax": Gelumax,
     "softplus": Softplus,
     "squareplus": Squareplus,
+    "pfla_softmax": PFLASoftmax,
 }

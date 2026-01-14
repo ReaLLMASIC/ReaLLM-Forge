@@ -1,0 +1,60 @@
+# top1_accuracy_exploration.yaml
+---
+# Sweep to evaluate new top-1 oriented losses and optimizer on minipile
+
+# base hyperparameters
+max_iters: [20000]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+block_size: [256]
+eval_interval: [500]
+dataset: ["minipile"]
+device: ["cuda"]
+dtype: ["bfloat16"]
+
+# position encodings
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# optimizer choices
+optimizer:
+  - adamw
+  - entropy_aware_adamw
+
+# loss function and scheduling variations
+parameter_groups:
+  - loss_fn:
+      - cross_entropy
+      - label_smoothing
+      - focal
+      - top1_focus
+      - top1_margin
+      - entropy_penalty
+      - top1_ratio
+      - rank_distance
+      - flatness_boost
+  - loss_schedule:
+      - "0:cross_entropy,10000:top1_focus"
+      - "0:cross_entropy,10000:rank_distance"
+      - "0:cross_entropy,10000:top1_ratio"
+
+# conditional knobs
+rank_scale:
+  conditions:
+    - ["loss_fn", "rank_distance"]
+  options: ["1.0", "2.0"]
+
+rank_scale_schedule:
+  conditions:
+    - ["loss_fn", "rank_distance"]
+  options: ["0:1.0,10000:2.0"]
+
+entropy_lr_boost:
+  conditions:
+    - ["optimizer", "entropy_aware_adamw"]
+  options: ["2.0", "4.0"]
+
+# misc
+compile: [true]
+tensorboard_run_name: ["top1_exploration"]

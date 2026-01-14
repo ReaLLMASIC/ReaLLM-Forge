@@ -12,8 +12,18 @@ import time
 from collections import deque
 from datetime import datetime, timedelta
 
-from train_variations.optimizer_variants import optimizer_dictionary
+from rich.console import Group
+from rich.console import Console
+from rich.text import Text
+from rich.live import Live
+
+
+from train_variations.optimizer_variants import (
+    optimizer_dictionary,
+    ActRegularizedAdamW,
+)
 from train_variations.eta_variants import build_eta_estimator, ETAUpdate
+from train_variations.loss_variants import build_loss_function
 
 from utils.gpu_monitoring import get_gpu_memory_info
 from torch.cuda import reset_peak_memory_stats, max_memory_allocated
@@ -30,10 +40,15 @@ from utils.statistic_plots import (
     create_statistics,
 )
 
+from utils.model_stats import (
+    compute_weight_stats,
+    compute_activation_stats,
+    print_model_stats_table,
+)
+
 from sample import (
     sample_with_existing_model,
-    custom_char_with_byte_fallback_encode as ccwb_encode,
-    custom_char_with_byte_fallback_decode as ccwb_decode,
+    get_tokenizer_functions,
 )
 
 from rich.progress import (
@@ -55,6 +70,7 @@ import numpy as np
 # Torch
 import torch
 import torch.onnx
+import torch.nn.functional as F
 from torch.distributed import destroy_process_group, init_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
@@ -82,6 +98,7 @@ class Trainer:
         self.grad_norm = None
         self.grad_std = None
         self.tokens_trained = 0
+        self.best_tokens = 0
         self.peak_gpu_usage = 0.0
         self.total_training_time_ms: float = 0.0   # total run-time from start of training
         self.time_remaining_ms: float= 0.0
@@ -90,6 +107,55 @@ class Trainer:
         self.evaluations_remaining: int = 0 # will be updated after the current iter is loaded
         self.formatted_completion_eta: str = "waiting for calculation"
         self.iter_latency_avg: float = 0.0  # running mean ms / iteration
+
+        # track latest evaluation metrics for progress bar
+        self.latest_top1_prob = float('nan')
+        self.latest_top1_correct = float('nan')
+        self.latest_target_rank = float('nan')
+        self.latest_target_prob = float('nan')
+        self.latest_target_left_prob = float('nan')
+        self.latest_rank_95 = float('nan')
+        self.latest_left_prob_95 = float('nan')
+        self.latest_ln_f_cosine = float('nan')
+        self.latest_ln_f_cosine_95 = float('nan')
+
+        # store overall statistics for weights and activations
+        self.latest_overall_weight_stats = {
+            'stdev': 0.0,
+            'kurtosis': 0.0,
+            'max': 0.0,
+            'min': 0.0,
+            'abs_max': 0.0,
+        }
+        self.latest_overall_activation_stats = {
+            'stdev': 0.0,
+            'kurtosis': 0.0,
+            'max': 0.0,
+            'min': 0.0,
+            'abs_max': 0.0,
+        }
+
+        # whether to show all model stats
+        self.compute_model_stats = self.args.compute_model_stats
+
+        # Where to aggregate statistics:  'cpu' (default) or 'gpu'.
+        # The CLI flag is optional; fall back to CPU if it isn’t present.
+        stats_dev_flag  = getattr(self.args, "model_stats_device", "cpu")
+        self.stats_device = torch.device("cuda") if stats_dev_flag == "gpu" else torch.device("cpu")
+
+        self.stats_csv_path = getattr(self.args, "print_model_stats_table", None)
+        if self.stats_csv_path:
+            self.stats_csv_path = os.path.expanduser(self.stats_csv_path)
+            stats_dir = os.path.dirname(self.stats_csv_path)
+            if stats_dir and not os.path.exists(stats_dir):
+                os.makedirs(stats_dir, exist_ok=True)
+
+        # Ensure the sample file directory exists if a path is provided
+        if getattr(self.args, "sample_file", None):
+            self.args.sample_file = os.path.expanduser(self.args.sample_file)
+            sample_dir = os.path.dirname(self.args.sample_file)
+            if sample_dir and not os.path.exists(sample_dir):
+                os.makedirs(sample_dir, exist_ok=True)
 
         # calculation on end time via eval cycle
         self.eval_cycle_window = deque(maxlen=self.args.eval_cycle_window)
@@ -116,6 +182,9 @@ class Trainer:
         # init optimizer and scheduler
         self.optimizer = None
         self.scheduler = None
+
+        # Loss function (potentially scheduled)
+        self.loss_fn = build_loss_function(self.args)
 
         # Learning Rate Settings
         self.lr = self.args.learning_rate
@@ -221,6 +290,8 @@ class Trainer:
 
             self.iter_num = 0 # for starting from scratch
             self.best_val_loss = 1e9 # really big number
+            self.best_iter = 0 # for starting from scratch
+            self.best_tokens = 0
 
             self.optimizer = self.create_optimizer()
             self.scaler = torch.amp.GradScaler(self.device_type, enabled=(self.args.dtype == 'float16'))
@@ -258,6 +329,8 @@ class Trainer:
                     state_dict[k[len('_orig_mod.'):]] = state_dict.pop(k)
             self.model.load_state_dict(state_dict)
             self.best_val_loss = checkpoint['best_val_loss']
+            self.best_iter = checkpoint['best_iter']
+            self.best_tokens = checkpoint.get('best_tokens', 0)
             if self.args.lsv_focused_training:
                 self.model.freeze_non_lsv_parameters()
 
@@ -285,6 +358,8 @@ class Trainer:
 
             self.iter_num = 0 # for starting from scratch
             self.best_val_loss = 1e9 # really big number
+            self.best_iter = 0 # really big number
+            self.best_tokens = 0
 
             variation_dict = model_variation_dictionary[self.args.gpt2_type]
             # NOTE: the hierarchy of parameters goes: 1)variation_dict >> 2)cmd-line args >> 3)GPTConfig defaults
@@ -391,20 +466,28 @@ class Trainer:
 
 
     def create_optimizer(self):
-        param_groups = [
-            {"params": self.model.parameters(), "lr": self.args.learning_rate}
-        ]
-
         optimizer_key = self.args.optimizer
 
-        # obtain builder, and ensure optimizer is in list
+        if optimizer_key == "muon":
+            named = list(self.model.named_parameters())
+            exclude = ("embed", "wte", "wpe", "lm_head")
+            hidden = [p for n, p in named if p.ndim >= 2 and all(e not in n for e in exclude)]
+            other = [p for n, p in named if not (p.ndim >= 2 and all(e not in n for e in exclude))]
+            param_groups = [
+                {"params": other, "use_muon": False},
+                {"params": hidden, "use_muon": True},
+            ]
+        else:
+            param_groups = [
+                {"params": self.model.parameters(), "lr": self.args.learning_rate}
+            ]
+
         try:
             optimizer_builder = optimizer_dictionary[optimizer_key]
         except KeyError:
             raise ValueError(f"Unknown optimizer '{optimizer_key}'. "
                              f"Available: {list(optimizer_dictionary)}")
 
-        # return torch.optim.Optimizer instance
         optimizer = optimizer_builder(param_groups, self.args)
 
         return optimizer
@@ -424,6 +507,7 @@ class Trainer:
             raise ValueError(f"Unknown scheduler: {self.args.lr_scheduler}")
 
     def load_tokenizer(self):
+<<<<<<< HEAD
         meta_path = os.path.join('data', self.args.dataset, 'meta.pkl')
         if os.path.exists(meta_path):
             with open(meta_path, 'rb') as f:
@@ -454,25 +538,47 @@ class Trainer:
                 self.stoi, self.itos = meta['stoi'], meta['itos']
                 self.encode = lambda s: [self.stoi[c] for c in s]
                 self.decode = lambda l: ''.join([self.itos[i] for i in l])
+=======
+        if self.args.dataset_list is not None and self.args.multidataset_wte:
+            self.encode_dict = {}
+            self.decode_dict = {}
+            for dataset in self.args.dataset_list:
+                meta_path = os.path.join('data', dataset, 'meta.pkl')
+                if not os.path.exists(meta_path):
+                    sys.exit(f"Error: meta.pkl not found for {dataset}")
+                with open(meta_path, 'rb') as f:
+                    meta = pickle.load(f)
+                encode, decode = get_tokenizer_functions(meta)
+                self.encode_dict[dataset] = encode
+                self.decode_dict[dataset] = decode
+            self.encode = self.encode_dict[self.args.dataset_list[0]]
+            self.decode = self.decode_dict[self.args.dataset_list[0]]
+>>>>>>> master
         else:
-            raise FileNotFoundError(f"Meta file not found at {meta_path}")
+            meta_path = os.path.join('data', self.args.dataset, 'meta.pkl')
+            if os.path.exists(meta_path):
+                with open(meta_path, 'rb') as f:
+                    meta = pickle.load(f)
 
+                self.encode, self.decode = get_tokenizer_functions(meta)
 
-    def custom_char_with_byte_fallback_encode(self, text):
-        ids = []
-        for ch in text:
-            if ch in self.stoi:
-                ids.append(self.stoi[ch])
+                if 'tokenizer' in meta:
+                    if meta['tokenizer'] == 'sentencepiece':
+                        self.separator_token = "▁"
+                    print(f"Using {meta['tokenizer']} tokenizer")
+                else:
+                    print("Using default character-level tokenizer")
+
+                if 'stoi' in meta:
+                    self.stoi = meta['stoi']
+                if 'itos' in meta:
+                    self.itos = meta['itos']
             else:
-                # Byte fallback
-                byte_sequence = ch.encode('utf-8')
-                for byte in byte_sequence:
-                    ids.append(self.stoi[byte])
-
-        return ids
+                sys.exit("Error: meta.pkl not found")
 
     @torch.no_grad()
     def sample_and_print(self):
+        self.console.rule("[bold green]Inference Samples[/bold green]")
         # Do one iteration per lsv, default to one with no lsv
         sample_iterations = 1
 
@@ -486,14 +592,21 @@ class Trainer:
                 self.model.set_lsv_index(i)
                 print(f"lsv index {i}")
 
-            start_ids = torch.tensor(self.encode(self.args.sample_start_tokens), dtype=torch.long, device=self.device)[None, ...]
+            if hasattr(self, 'encode_dict'):
+                encode_fn = self.encode_dict[self.args.dataset_list[i]]
+                decode_fn = self.decode_dict[self.args.dataset_list[i]]
+            else:
+                encode_fn = self.encode
+                decode_fn = self.decode
+
+            start_ids = torch.tensor(encode_fn(self.args.sample_start_tokens), dtype=torch.long, device=self.device)[None, ...]
 
             with torch.no_grad():
                 sample_with_existing_model(
                     model=self.model,
                     start_ids=start_ids,
                     start_tokens=self.args.sample_start_tokens,
-                    decode=self.decode,
+                    decode=decode_fn,
                     device=self.device,
                     out_dir=self.args.out_dir,
                     max_new_tokens=self.args.max_sample_tokens,
@@ -509,9 +622,18 @@ class Trainer:
                     best_val_loss=self.best_val_loss,
                     run_name=self.args.tensorboard_run_name,
                     args=self.args,
+                    writer=self.writer if self.args.tensorboard_log else None,
+                    dataset_idx=i if hasattr(self, 'encode_dict') else None,
+                    console=self.console,
                 )
 
+        # After sampling from the model, optionally run simple dataset benchmarks
+        if self.args.dataset_benchmarks and self.args.max_sample_tokens:
+            self.run_dataset_benchmarks()
+
         self.model.train()
+        self.console.rule("[bold green]End Samples[/bold green]")
+        self.console.print("\n"*8)
 
     def get_vocab_size_from_meta(self):
         # Data loader
@@ -540,6 +662,37 @@ class Trainer:
         except Exception as e:
             print(f"Error copying file: {e}")
 
+    def run_dataset_benchmarks(self):
+        """Sample a chunk of dataset text and print simple metrics."""
+        try:
+            if hasattr(self, "train_data"):
+                data = self.train_data
+                decode_fn = self.decode
+            elif hasattr(self, "train_data_dict") and self.args.dataset_list:
+                first_ds = self.args.dataset_list[0]
+                data = self.train_data_dict[first_ds]
+                decode_fn = self.decode_dict[first_ds] if hasattr(self, 'decode_dict') else self.decode
+            else:
+                return
+
+            if len(data) < self.args.max_sample_tokens:
+                return
+
+            start = random.randint(0, len(data) - self.args.max_sample_tokens)
+            ids = data[start : start + self.args.max_sample_tokens].astype(int)
+            text = decode_fn(ids.tolist())
+            from benchmarks import run_all
+
+            metrics = run_all(text)
+            print("Dataset sample metrics:")
+            for k, v in metrics.items():
+                print(f"  {k}: {v:.3f}")
+            if self.args.tensorboard_log and self.writer is not None:
+                for mk, mv in metrics.items():
+                    self.writer.add_scalar(f"dataset_benchmarks/{mk}", mv, self.iter_num)
+        except Exception as e:
+            print(f"Error running dataset benchmarks: {e}")
+
     def load_data(self):
 
         if self.args.training_mode == 'multicontext':
@@ -563,7 +716,7 @@ class Trainer:
 
             # Also store total token counts per dataset.
             self.dataset_size_tokens = {d: len(self.train_data_dict[d]) for d in self.args.multicontext_datasets}
-            # tell the model we are in “multicontext” mode and pass
+            # tell the model we are in "multicontext" mode and pass
             #         the (ordered) list of vocab sizes it needs.
             self.model_args['multicontext'] = True
             self.model_args['vocab_sizes'] = [
@@ -574,6 +727,7 @@ class Trainer:
         if self.args.training_mode == 'multidataset':
             self.train_data_dict = {}
             self.val_data_dict = {}
+            self.vocab_sizes = []
 
             for dataset in self.args.dataset_list:
                 train_data = None
@@ -586,9 +740,10 @@ class Trainer:
                     meta = pickle.load(f)
                     vocab_size = meta.get('vocab_size', None)
                     if vocab_size:
-                        self.model_args['vocab_size'] = vocab_size
+                        self.vocab_sizes.append(vocab_size)
 
                 # Load train and val data for each dataset
+<<<<<<< HEAD
                 if self.model_args['vocab_size'] is None:
                     sys.exit("Error: no vocab size specified")
                 elif self.model_args['vocab_size'] > 65536:
@@ -600,14 +755,24 @@ class Trainer:
                     # all other tokenations so far require only np.uint16
                     train_data = np.memmap(os.path.join('data', dataset, 'train.bin'), dtype=np.uint16, mode='r')
                     val_data = np.memmap(os.path.join('data', dataset, 'val.bin'), dtype=np.uint16, mode='r')
+=======
+                dtype = np.uint16 if vocab_size != 100277 else np.uint32
+                train_data = np.memmap(os.path.join('data', dataset, 'train.bin'), dtype=dtype, mode='r')
+                val_data = np.memmap(os.path.join('data', dataset, 'val.bin'), dtype=dtype, mode='r')
+>>>>>>> master
 
                 # Store in dictionaries
                 self.train_data_dict[dataset] = train_data
                 self.val_data_dict[dataset] = val_data
-            # For multi-dataset case, store the token count for each dataset in a dictionary.
-            # print(self.train_data_dict, self.args.dataset_list)
-            # print({d: len(self.train_data_dict[d]) for d in self.args.dataset_list})
+
             self.dataset_size_tokens = {d: len(self.train_data_dict[d]) for d in self.args.dataset_list}
+
+            if self.args.multidataset_wte:
+                self.model_args['multidataset_wte'] = True
+                self.model_args['vocab_sizes'] = self.vocab_sizes
+                self.model_args['vocab_size'] = self.vocab_sizes[0]
+            else:
+                self.model_args['vocab_size'] = max(self.vocab_sizes)
         else:
 
             if self.model_args['vocab_size'] is None:
@@ -640,10 +805,10 @@ class Trainer:
 
         def get_transitioned_probs():
             initial_probs = np.array(self.args.dataset_sampling_probs)
-            if self.args.final_dataset_sampling_probs:
+            if self.args.dataset_sampling_probs_final:
                 step_ratio = self.iter_num / self.args.max_iters
                 final_probs = np.array(self.args.dataset_sampling_probs_final)
-                return interpolate_probs(initial_probs, final_probs, self.args.transition_method, step_ratio)
+                return interpolate_probs(initial_probs, final_probs, self.args.dataset_sampling_probs_transition_method, step_ratio)
             return initial_probs
 
         if self.args.training_mode == 'multicontext':
@@ -652,19 +817,19 @@ class Trainer:
             ix = None
             # For each context/dataset, grab a batch
             for dataset_name in self.args.multicontext_datasets:
-                data = (self.train_data_dict[dataset_name] 
+                data = (self.train_data_dict[dataset_name]
                         if split == 'train' else self.val_data_dict[dataset_name])
                 if ix is None:
                     ix = torch.randint(len(data) - self.args.block_size, (self.args.batch_size,))
                 # pick random offset
                 x = torch.stack([
-                    torch.from_numpy(data[i : i+self.args.block_size].astype(np.int64)) 
+                    torch.from_numpy(data[i : i+self.args.block_size].astype(np.int64))
                     for i in ix
-                ])
+                    ])
                 y = torch.stack([
-                    torch.from_numpy(data[i+1 : i+1+self.args.block_size].astype(np.int64)) 
+                    torch.from_numpy(data[i+1 : i+1+self.args.block_size].astype(np.int64))
                     for i in ix
-                ])
+                    ])
                 # Move to device
                 if self.device_type == 'cuda':
                     x = x.pin_memory().to(self.device, non_blocking=True)
@@ -810,22 +975,6 @@ class Trainer:
         return x, y, dataset
 
     @torch.no_grad()
-    def custom_loss_with_top1_focus(self, logits, targets):
-        # Compute standard cross-entropy loss
-        ce_loss = torch.nn.functional.cross_entropy(logits, targets)
-
-        # Get the top-1 predictions
-        top1_preds = torch.argmax(logits, dim=-1)
-
-        # Focus more on the top-1 prediction by adding an additional term
-        correct_top1 = (top1_preds == targets).float()  # 1 for correct, 0 for incorrect
-        top1_focus_loss = 1.0 - correct_top1  # Emphasize the wrong top-1 predictions
-
-        # Combine the original cross-entropy loss and the top-1 focus term
-        loss = ce_loss + 0.5 * top1_focus_loss.mean()  # Adjust the weight (0.5) as needed
-        return loss
-
-    @torch.no_grad()
     def estimate_loss(self):
         out = {'datasets':{}}
 
@@ -835,22 +984,77 @@ class Trainer:
             for dataset in self.args.dataset_list:
                 print(f"Calculating loss for dataset: {dataset}")
                 dataset_losses = {'train': torch.zeros(self.args.eval_iters), 'val': torch.zeros(self.args.eval_iters)}
+                top1_probs, top1_corrects, target_ranks, target_probs, target_left_probs, left_inclusive_probs = [], [], [], [], [], []
+                ln_f_cosines = []
                 for split in ['train', 'val']:
                     for k in range(self.args.eval_iters):
                         X, Y, test_dataset = self.get_batch(split, target_dataset=dataset)
+                        ln_f_out: list[torch.Tensor] = []
+                        handle = self.model.transformer.ln_f.register_forward_hook(
+                            lambda _m, _i, o: ln_f_out.append(o.detach())
+                        )
                         with self.ctx:
-                            logits, loss = self.model(X, Y, iter_num=self.iter_num)
+                            idx = self.args.dataset_list.index(dataset)
+                            logits, loss = self.model(
+                                X,
+                                Y,
+                                iter_num=self.iter_num,
+                                dataset_idx=idx if self.args.multidataset_wte else None,
+                                loss_fn=self.loss_fn,
+                            )
+                        handle.remove()
                         dataset_losses[split][k] = loss.item()
+                        if split == 'val':
+                            probs = F.softmax(logits, dim=-1)
+                            top1_prob, top1_idx = probs.max(dim=-1)
+                            top1_probs.append(top1_prob)
+                            top1_corrects.append((top1_idx == Y).float())
+                            target_logits = logits.gather(-1, Y.unsqueeze(-1)).squeeze(-1)
+                            ranks = (logits > target_logits.unsqueeze(-1)).sum(dim=-1) + 1
+                            target_ranks.append(ranks.float())
+                            target_prob = probs.gather(-1, Y.unsqueeze(-1)).squeeze(-1).float()
+                            target_probs.append(target_prob)
+                            left_prob = (probs * (probs > target_prob.unsqueeze(-1))).sum(dim=-1).float()
+                            target_left_probs.append(left_prob)
+                            left_inclusive_probs.append(left_prob + target_prob)
+                            lm_head = (
+                                self.model.transformer[f'lm_head_{idx}']
+                                if self.args.multidataset_wte
+                                else self.model.lm_head
+                            )
+                            target_vecs = lm_head.weight[Y]
+                            cos = F.cosine_similarity(
+                                ln_f_out[0].float(), target_vecs.float(), dim=-1
+                            )
+                            ln_f_cosines.append(cos)
                 out['datasets'][dataset] = {
-                    'train': dataset_losses['train'].mean(),
-                    'train_std': dataset_losses['train'].std(),
-                    'val': dataset_losses['val'].mean(),
-                    'val_std': dataset_losses['val'].std(),
-                }
+                        'train': dataset_losses['train'].mean(),
+                        'train_std': dataset_losses['train'].std(),
+                        'val': dataset_losses['val'].mean(),
+                        'val_std': dataset_losses['val'].std(),
+                        'top1_prob': torch.cat(top1_probs).mean() if top1_probs else torch.tensor(float('nan')),
+                        'top1_correct': torch.cat(top1_corrects).mean() if top1_corrects else torch.tensor(float('nan')),
+                        'target_rank': torch.cat(target_ranks).mean() if target_ranks else torch.tensor(float('nan')),
+                        'target_left_prob': torch.cat(target_left_probs).mean() if target_left_probs else torch.tensor(float('nan')),
+                        'target_prob': torch.cat(target_probs).mean() if target_probs else torch.tensor(float('nan')),
+                        'target_rank_95': torch.quantile(torch.cat(target_ranks), 0.95) if target_ranks else torch.tensor(float('nan')),
+                        'left_prob_95': torch.quantile(torch.cat(left_inclusive_probs).float(), 0.95) if left_inclusive_probs else torch.tensor(float('nan')),
+                        'ln_f_cosine': torch.cat(ln_f_cosines).mean() if ln_f_cosines else torch.tensor(float('nan')),
+                        'ln_f_cosine_95': torch.quantile(torch.cat(ln_f_cosines), 0.05) if ln_f_cosines else torch.tensor(float('nan')),
+                        }
             out['val'] = out['datasets'][self.args.dataset]['val']
             out['val_std'] = out['datasets'][self.args.dataset]['val_std']
             out['train'] = out['datasets'][self.args.dataset]['train']
             out['train_std'] = out['datasets'][self.args.dataset]['train_std']
+            out['top1_prob'] = out['datasets'][self.args.dataset]['top1_prob']
+            out['top1_correct'] = out['datasets'][self.args.dataset]['top1_correct']
+            out['target_rank'] = out['datasets'][self.args.dataset]['target_rank']
+            out['target_left_prob'] = out['datasets'][self.args.dataset]['target_left_prob']
+            out['target_prob'] = out['datasets'][self.args.dataset]['target_prob']
+            out['target_rank_95'] = out['datasets'][self.args.dataset]['target_rank_95']
+            out['left_prob_95'] = out['datasets'][self.args.dataset]['left_prob_95']
+            out['ln_f_cosine'] = out['datasets'][self.args.dataset]['ln_f_cosine']
+            out['ln_f_cosine_95'] = out['datasets'][self.args.dataset]['ln_f_cosine_95']
         elif self.args.training_mode == "multicontext":
             for i, dataset in enumerate(self.args.multicontext_datasets):
                 out['datasets'][dataset] = {}
@@ -870,7 +1074,13 @@ class Trainer:
                     x_dict, y_dict, dataset_list = self.get_batch(split)
 
                     with self.ctx:
-                        logits, loss_list = self.model(None, token_dict=x_dict, target_dict=y_dict, iter_num=self.iter_num)
+                        logits, loss_list = self.model(
+                            None,
+                            token_dict=x_dict,
+                            target_dict=y_dict,
+                            iter_num=self.iter_num,
+                            loss_fn=self.loss_fn,
+                        )
                     for i in range(len(self.args.multicontext_datasets)):
                         losses[f"{i}"][k] = loss_list[i]
 
@@ -892,13 +1102,111 @@ class Trainer:
             # Default behavior for a single dataset
             for split in ['train', 'val']:
                 losses = torch.zeros(self.args.eval_iters)
+                top1_probs, top1_corrects, target_ranks, target_probs, target_left_probs, left_inclusive_probs = [], [], [], [], [], []
+                ln_f_cosines = []
                 for k in range(self.args.eval_iters):
                     X, Y, _ = self.get_batch(split)
+                    ln_f_out: list[torch.Tensor] = []
+                    handle = self.model.transformer.ln_f.register_forward_hook(
+                        lambda _m, _i, o: ln_f_out.append(o.detach())
+                    )
                     with self.ctx:
-                        logits, loss = self.model(X, Y, iter_num=self.iter_num)
+                        logits, loss = self.model(
+                            X,
+                            Y,
+                            iter_num=self.iter_num,
+                            dataset_idx=0 if self.args.multidataset_wte else None,
+                            loss_fn=self.loss_fn,
+                        )
+                    handle.remove()
                     losses[k] = loss.item()
+                    if split == 'val':
+                        probs = F.softmax(logits, dim=-1)
+                        top1_prob, top1_idx = probs.max(dim=-1)
+                        top1_probs.append(top1_prob)
+                        top1_corrects.append((top1_idx == Y).float())
+                        target_logits = logits.gather(-1, Y.unsqueeze(-1)).squeeze(-1)
+                        ranks = (logits > target_logits.unsqueeze(-1)).sum(dim=-1) + 1
+                        target_ranks.append(ranks.float())
+                        target_prob = probs.gather(-1, Y.unsqueeze(-1)).squeeze(-1).float()
+                        target_probs.append(target_prob)
+                        left_prob = (probs * (probs > target_prob.unsqueeze(-1))).sum(dim=-1).float()
+                        target_left_probs.append(left_prob)
+                        left_inclusive_probs.append(left_prob + target_prob)
+                        lm_head = (
+                            self.model.transformer['lm_head_0']
+                            if self.args.multidataset_wte
+                            else self.model.lm_head
+                        )
+                        target_vecs = lm_head.weight[Y]
+                        cos = F.cosine_similarity(
+                            ln_f_out[0].float(), target_vecs.float(), dim=-1
+                        )
+                        ln_f_cosines.append(cos)
                 out[split] = losses.mean()
                 out[split + "_std"] = losses.std()
+                if split == 'val':
+                    out['top1_prob'] = torch.cat(top1_probs).mean() if top1_probs else torch.tensor(float('nan'))
+                    out['top1_correct'] = torch.cat(top1_corrects).mean() if top1_corrects else torch.tensor(float('nan'))
+                    out['target_rank'] = torch.cat(target_ranks).mean() if target_ranks else torch.tensor(float('nan'))
+                    out['target_left_prob'] = torch.cat(target_left_probs).mean() if target_left_probs else torch.tensor(float('nan'))
+                    out['target_prob'] = torch.cat(target_probs).mean() if target_probs else torch.tensor(float('nan'))
+                    out['target_rank_95'] = torch.quantile(torch.cat(target_ranks), 0.95) if target_ranks else torch.tensor(float('nan'))
+                    out['left_prob_95'] = torch.quantile(torch.cat(left_inclusive_probs).float(), 0.95) if left_inclusive_probs else torch.tensor(float('nan'))
+                    out['ln_f_cosine'] = torch.cat(ln_f_cosines).mean() if ln_f_cosines else torch.tensor(float('nan'))
+                    out['ln_f_cosine_95'] = torch.quantile(torch.cat(ln_f_cosines), 0.05) if ln_f_cosines else torch.tensor(float('nan'))
+
+        # compute statistics from a single validation batch
+        if self.compute_model_stats:
+            X_stat, Y_stat, _ = self.get_batch('val')
+            # ── Run heavy ops on the selected device (GPU keeps host‑RAM flat) ──
+            act_stats,  overall_act  = compute_activation_stats(
+                    self.model, X_stat, Y_stat, self.iter_num, device=self.stats_device
+                    )
+            weight_stats, overall_wt = compute_weight_stats(
+                    self.model, device=self.stats_device
+                    )
+
+            self.latest_overall_weight_stats     = overall_wt
+            self.latest_overall_activation_stats = overall_act
+
+            print_model_stats_table(weight_stats, act_stats, csv_path=self.stats_csv_path, console=self.console)
+        else:
+            act_stats  = {}   # keep API intact
+            weight_stats = {}
+
+        if self.args.tensorboard_log and self.compute_model_stats:
+            self.writer.add_scalars(
+                    "model_stats",
+                    {
+                        "weight_stdev": overall_wt['stdev'],
+                        "weight_kurtosis": overall_wt['kurtosis'],
+                        "weight_max": overall_wt['max'],
+                        "weight_min": overall_wt['min'],
+                        "weight_abs_max": overall_wt['abs_max'],
+                        "activation_stdev": overall_act['stdev'],
+                        "activation_kurtosis": overall_act['kurtosis'],
+                        "activation_max": overall_act['max'],
+                        "activation_min": overall_act['min'],
+                        "activation_abs_max": overall_act['abs_max'],
+                        },
+                    self.iter_num,
+                    )
+
+            # Log per-tensor stats grouped by statistic
+            for stat_key in ["stdev", "kurtosis", "max", "min", "abs_max"]:
+                if weight_stats:
+                    self.writer.add_scalars(
+                            f"weights/{stat_key}",
+                            {n: s[stat_key] for n, s in weight_stats.items()},
+                            self.iter_num,
+                            )
+                if act_stats:
+                    self.writer.add_scalars(
+                            f"activations/{stat_key}",
+                            {n: s[stat_key] for n, s in act_stats.items()},
+                            self.iter_num,
+                            )
 
         self.model.train()
         return out
@@ -988,28 +1296,30 @@ class Trainer:
                     )
 
             # vocab agnostic, cross tokenizer comparison
-            self.writer.add_scalars(
-                    f"{target_dataset}/chance_tokens",
-                    {f"val_chance": val_better_than_chance},
-                    tokens_trained
-                    )
-            self.writer.add_scalars(
-                    f"{target_dataset}/chance_iters",
-                    {f"val_chance": val_better_than_chance},
-                    self.iter_num
-                    )
+            if self.args.log_btc_train:
+                self.writer.add_scalars(
+                        f"{target_dataset}/chance_tokens",
+                        {"val_chance": val_better_than_chance},
+                        tokens_trained
+                        )
+                self.writer.add_scalars(
+                        f"{target_dataset}/chance_iters",
+                        {"val_chance": val_better_than_chance},
+                        self.iter_num
+                        )
 
             # vocab agnostic, cross parameter size comparison
-            self.writer.add_scalars(
-                    f"{target_dataset}/btc_per_param_tokens",
-                    {f"val_chance": val_better_than_chance/self.model.num_param},
-                    tokens_trained
-                    )
-            self.writer.add_scalars(
-                    f"{target_dataset}/btc_per_param_iters",
-                    {f"val_chance": val_better_than_chance/self.model.num_param},
-                    self.iter_num
-                    )
+            if self.args.log_btc_per_param:
+                self.writer.add_scalars(
+                        f"{target_dataset}/btc_per_param_tokens",
+                        {"val_chance": val_better_than_chance/self.model.num_param},
+                        tokens_trained
+                        )
+                self.writer.add_scalars(
+                        f"{target_dataset}/btc_per_param_iters",
+                        {"val_chance": val_better_than_chance/self.model.num_param},
+                        self.iter_num
+                        )
 
             self.writer.add_scalar(f"{target_dataset}/epoch", epoch, self.iter_num)
             self.writer.add_scalar(f"{target_dataset}/tokens_trained", tokens_trained, self.iter_num)
@@ -1028,6 +1338,18 @@ class Trainer:
             self.writer.add_scalar(f"{target_dataset}/std_val_iters", losses['val_std'].item(), self.iter_num)
             self.writer.add_scalar(f"{target_dataset}/std_val_tokens", losses['val_std'].item(), tokens_trained)
 
+            if 'top1_prob' in losses:
+                self.writer.add_scalar(f"{target_dataset}/avg_top1_prob", losses['top1_prob'], self.iter_num)
+                self.writer.add_scalar(f"{target_dataset}/avg_top1_correct", losses['top1_correct'], self.iter_num)
+                self.writer.add_scalar(f"{target_dataset}/avg_target_rank", losses['target_rank'], self.iter_num)
+                self.writer.add_scalar(f"{target_dataset}/avg_target_left_prob", losses['target_left_prob'], self.iter_num)
+                self.writer.add_scalar(f"{target_dataset}/avg_target_prob", losses['target_prob'], self.iter_num)
+                self.writer.add_scalar(f"{target_dataset}/target_rank_95", losses['target_rank_95'], self.iter_num)
+                self.writer.add_scalar(f"{target_dataset}/left_prob_95", losses['left_prob_95'], self.iter_num)
+            if 'ln_f_cosine' in losses:
+                self.writer.add_scalar(f"{target_dataset}/avg_ln_f_cosine", losses['ln_f_cosine'], self.iter_num)
+                self.writer.add_scalar(f"{target_dataset}/ln_f_cosine_95", losses['ln_f_cosine_95'], self.iter_num)
+
             if self.args.gns_type is not None:
                 self.writer.add_scalar(f"{target_dataset}/gns_iters", self.gns, self.iter_num)
                 self.writer.add_scalar(f"{target_dataset}/gns_tokens", self.gns, tokens_trained)
@@ -1044,38 +1366,38 @@ class Trainer:
         if self.args.tensorboard_log:
             self.writer.add_scalars(
                     f"{target_dataset}/loss_iters",
-                    {f"train": loss_training},
+                    {"train": loss_training},
                     self.iter_num
                     )
             self.writer.add_scalars(
                     f"{target_dataset}/loss_tokens",
-                    {f"train": loss_training},
+                    {"train": loss_training},
                     tokens_trained
                     )
 
-            # vocab agnostic, cross tokenizer comparison
-            self.writer.add_scalars(
-                    f"{target_dataset}/chance_tokens",
-                    {f"train_chance": train_better_than_chance},
-                    tokens_trained
-                    )
-            self.writer.add_scalars(
-                    f"{target_dataset}/chance_iters",
-                    {f"train_chance": train_better_than_chance},
-                    self.iter_num
-                    )
+            if self.args.log_btc_train:
+                self.writer.add_scalars(
+                        f"{target_dataset}/chance_tokens",
+                        {"train_chance": train_better_than_chance},
+                        tokens_trained
+                        )
+                self.writer.add_scalars(
+                        f"{target_dataset}/chance_iters",
+                        {"train_chance": train_better_than_chance},
+                        self.iter_num
+                        )
 
-            # vocab agnostic, cross parameter size comparison
-            self.writer.add_scalars(
-                    f"{target_dataset}/btc_per_param_tokens",
-                    {f"train_chance": train_better_than_chance/self.model.num_param},
-                    tokens_trained
-                    )
-            self.writer.add_scalars(
-                    f"{target_dataset}/btc_per_param_iters",
-                    {f"train_chance": train_better_than_chance/self.model.num_param},
-                    self.iter_num
-                    )
+            if self.args.log_btc_per_param:
+                self.writer.add_scalars(
+                        f"{target_dataset}/btc_per_param_tokens",
+                        {"train_chance": train_better_than_chance/self.model.num_param},
+                        tokens_trained
+                        )
+                self.writer.add_scalars(
+                        f"{target_dataset}/btc_per_param_iters",
+                        {"train_chance": train_better_than_chance/self.model.num_param},
+                        self.iter_num
+                        )
 
             self.writer.add_scalar(f"{target_dataset}/mfu_pct", running_mfu * 100, self.iter_num)
             self.writer.add_scalar(f"{target_dataset}/vram", self.vram_allocated, self.iter_num)
@@ -1090,11 +1412,13 @@ class Trainer:
             self.writer.add_scalar(f"{target_dataset}/batch_size_iter", self.args.batch_size, self.iter_num)
             self.writer.add_scalar(f"{target_dataset}/batch_size_tokens", self.args.batch_size, tokens_trained)
 
-            self.writer.add_scalar(f"{target_dataset}/grad_norm_iters", self.grad_norm, self.iter_num)
-            self.writer.add_scalar(f"{target_dataset}/grad_norm_tokens", self.grad_norm, tokens_trained)
+            if self.args.log_grad_norm:
+                self.writer.add_scalar(f"{target_dataset}/grad_norm_iters", self.grad_norm, self.iter_num)
+                self.writer.add_scalar(f"{target_dataset}/grad_norm_tokens", self.grad_norm, tokens_trained)
 
-            self.writer.add_scalar(f"{target_dataset}/grad_std_iters", self.grad_std, self.iter_num)
-            self.writer.add_scalar(f"{target_dataset}/grad_std_tokens", self.grad_std, tokens_trained)
+            if self.args.log_grad_std:
+                self.writer.add_scalar(f"{target_dataset}/grad_std_iters", self.grad_std, self.iter_num)
+                self.writer.add_scalar(f"{target_dataset}/grad_std_tokens", self.grad_std, tokens_trained)
 
             if self.args.gns_type is not None:
                 self.writer.add_scalar(f"{target_dataset}/gns_iters", self.gns, self.iter_num)
@@ -1109,9 +1433,9 @@ class Trainer:
             if self.args.tensorboard_log:
                 sanitized_dataset = self.args.dataset.replace("/", "_")
                 csv_full_dir = (
-                    f"{self.args.csv_dir}/"
-                    f"{sanitized_dataset}_{self.args.tensorboard_run_name}"
-                )
+                        f"{self.args.csv_dir}/"
+                        f"{sanitized_dataset}_{self.args.tensorboard_run_name}"
+                        )
         os.makedirs(csv_full_dir, exist_ok=True)
         # Ensure the filename itself never contains path separators
         safe_csv_name = self.args.csv_name.replace("/", "_")
@@ -1168,6 +1492,8 @@ class Trainer:
         return abbr
 
     def save_checkpoint(self, filename):
+        if self.args.never_save_checkpoint:
+            return
         checkpoint = {
                 'model': self.raw_model.state_dict(),
                 'optimizer': self.optimizer.state_dict() if self.optimizer else None,
@@ -1175,6 +1501,8 @@ class Trainer:
                 'model_args': self.model_args,
                 'iter_num': self.iter_num,
                 'best_val_loss': self.best_val_loss,
+                'best_iter': self.best_iter,
+                'best_tokens': self.best_tokens,
                 'config': vars(self.args),
                 }
         torch.save(checkpoint, os.path.join(self.args.out_dir, filename))
@@ -1201,28 +1529,57 @@ class Trainer:
             for head in range(self.args.n_head):
                 graph_y_labels.append(f"Layer {layer} Head {head}")
 
+        cli_settings = " ".join(sys.argv)
+        cli_text = Text(f"CLI: {cli_settings}", style="chartreuse1")
+        self.console = Console()
         # Create progress bar with ETA and remaining time display
         progress = Progress(
-            TextColumn("[bold white]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            TimeRemainingColumn(compact=False),
-            TextColumn("-- [bold dark_cyan]BestValLoss:[/bold dark_cyan]{task.fields[best_val_loss]}"),
-            TextColumn("-- [bold purple3]ETA:[/bold purple3]{task.fields[eta]}"),
-            TextColumn("[bold purple3]Remaining:[/bold purple3]{task.fields[hour]}h{task.fields[min]}m"),
-            TextColumn("[bold purple3]total_est:[/bold purple3]{task.fields[total_hour]}h{task.fields[total_min]}m"),
-        )
-        with progress:
+                TextColumn("[bold white]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeRemainingColumn(compact=False),
+                TextColumn("-- [bold dark_cyan]BestIter:[/bold dark_cyan]{task.fields[best_iter]} [bold dark_cyan]BestValLoss:[/bold dark_cyan]{task.fields[best_val_loss]} [bold dark_cyan]BestTokens:[/bold dark_cyan]{task.fields[best_tokens]}"),
+                TextColumn("-- [bold purple3]ETA:[/bold purple3]{task.fields[eta]}"),
+                TextColumn("[bold purple3]Remaining:[/bold purple3]{task.fields[hour]}h{task.fields[min]}m"),
+                TextColumn("[bold purple3]total_est:[/bold purple3]{task.fields[total_hour]}h{task.fields[total_min]}m"),
+                TextColumn("-- [bold dark_magenta]iter_latency:[/bold dark_magenta]{task.fields[iter_latency]}ms"),
+                TextColumn("[bold dark_magenta]peak_gpu_mb:[/bold dark_magenta]{task.fields[peak_gpu_mb]}MB"),
+                TextColumn("-- [bold dark_cyan]T1P:[/bold dark_cyan]{task.fields[t1p]}"),
+                TextColumn("[bold dark_cyan]T1C:[/bold dark_cyan]{task.fields[t1c]}"),
+                TextColumn("-- [bold dark_magenta]TR:[/bold dark_magenta]{task.fields[tr]}"),
+                TextColumn("[bold dark_magenta]TP:[/bold dark_magenta]{task.fields[tp]}"),
+                TextColumn("[bold dark_magenta]TLP:[/bold dark_magenta]{task.fields[tlp]}"),
+                TextColumn("[bold dark_magenta]R95:[/bold dark_magenta]{task.fields[r95]}"),
+                TextColumn("[bold dark_magenta]P95:[/bold dark_magenta]{task.fields[p95]}"),
+                TextColumn("-- [bold dark_cyan]LnFcos:[/bold dark_cyan]{task.fields[lnf_cos]}"),
+                TextColumn("[bold dark_cyan]LnFcos95:[/bold dark_cyan]{task.fields[lnf_cos95]}") ,
+                console=self.console
+                )
+
+        with Live(Group(progress.get_renderable(), cli_text), console=self.console, refresh_per_second=10) as live:
             task_id = progress.add_task(
-                "[green]Training...",
-                total=((self.args.max_iters - self.iter_num) + self.evaluations_remaining * self.args.eval_iters),
-                eta=self.formatted_completion_eta,
-                total_hour=f"{int(self.total_time_est_ms // 3_600_000)}",
-                total_min=f"{int((self.total_time_est_ms // 60_000) % 60):02d}",
-                hour=f"{int((self.time_remaining_ms // (1000*3600)) % 24):02d}",
-                min=f"{int((self.time_remaining_ms // 60000) % 60):02d}",
-                best_val_loss=f"{self.best_val_loss:.3f}"
-            )
+                    "[green]Training...",
+                    total=((self.args.max_iters - self.iter_num) + self.evaluations_remaining * self.args.eval_iters),
+                    eta=self.formatted_completion_eta,
+                    total_hour=f"{int(self.total_time_est_ms // 3_600_000)}",
+                    total_min=f"{int((self.total_time_est_ms // 60_000) % 60):02d}",
+                    hour=f"{int((self.time_remaining_ms // (1000*3600)) % 24):02d}",
+                    min=f"{int((self.time_remaining_ms // 60000) % 60):02d}",
+                    best_val_loss=f"{self.best_val_loss:.3f}",
+                    best_iter=f"{self.best_iter}",
+                    best_tokens=f"{self.best_tokens}",
+                    iter_latency=f"{self.iter_latency_avg:.1f}",
+                    peak_gpu_mb=f"{self.peak_gpu_usage / (1024 ** 2):.1f}",
+                    t1p=f"{self.latest_top1_prob:.6f}",
+                    t1c=f"{self.latest_top1_correct:.6f}",
+                    tr=f"{self.latest_target_rank:.2f}",
+                    tp=f"{self.latest_target_prob:.6f}",
+                    tlp=f"{self.latest_target_left_prob:.6f}",
+                    r95=f"{self.latest_rank_95:.2f}",
+                    p95=f"{self.latest_left_prob_95:.6f}",
+                    lnf_cos=f"{self.latest_ln_f_cosine:.6f}",
+                    lnf_cos95=f"{self.latest_ln_f_cosine_95:.6f}",
+                    )
 
             while True:
                 if self.scheduler is not None:
@@ -1234,15 +1591,25 @@ class Trainer:
 
                     losses = self.estimate_loss()
 
+                    self.latest_top1_prob = losses.get('top1_prob', float('nan'))
+                    self.latest_top1_correct = losses.get('top1_correct', float('nan'))
+                    self.latest_target_rank = losses.get('target_rank', float('nan'))
+                    self.latest_target_prob = losses.get('target_prob', float('nan'))
+                    self.latest_target_left_prob = losses.get('target_left_prob', float('nan'))
+                    self.latest_rank_95 = losses.get('target_rank_95', float('nan'))
+                    self.latest_left_prob_95 = losses.get('left_prob_95', float('nan'))
+                    self.latest_ln_f_cosine = losses.get('ln_f_cosine', float('nan'))
+                    self.latest_ln_f_cosine_95 = losses.get('ln_f_cosine_95', float('nan'))
+
                     if self.args.gns_type is not None:
                         self.gns = self.gns_ema.get_gns()
 
 
                     if self.device_type == 'cuda':
                         self.peak_gpu_usage = max(
-                            self.peak_gpu_usage,
-                            max_memory_allocated(self.device)
-                        )
+                                self.peak_gpu_usage,
+                                max_memory_allocated(self.device)
+                                )
 
                     self.vram_allocated = get_gpu_memory_info(info_type='used') if self.args.device != "cpu" else 0
                     if self.args.dataset_list is not None:
@@ -1262,13 +1629,13 @@ class Trainer:
                                 log_message+=f", gns {self.gns:.2f}"
                             log_message+=f", lr {self.lr:.4f}"
                             log_message+=f", tokens_trained {self.tokens_trained_dict[dataset]:.2e}"
-                            print(log_message)
+                            self.console.print(log_message)
                             self.log_metrics(dataset_losses, running_mfu, self.epochs_trained_dict[dataset], self.tokens_trained_dict[dataset], dataset, better_than_chance)
                     elif self.args.multicontext_datasets is not None:
                         # Print loss for each dataset if multiple datasets are used
                         # print(losses['datasets'])
                         # for dataset, dataset_losses in losses['datasets'].items():
-                        #     print(dataset, dataset_losses)
+                            #     print(dataset, dataset_losses)
                         for dataset, dataset_losses in losses['datasets'].items():
                             log_message=f"step {self.iter_num}: "
                             log_message+=f"{dataset:<20s}"
@@ -1280,7 +1647,7 @@ class Trainer:
                                 log_message+=f", gns {self.gns:.2f}"
                             log_message+=f", lr {self.lr:.4f}"
                             log_message+=f", tokens_trained {self.tokens_trained:.2e}"
-                            print(log_message)
+                            self.console.print(log_message)
                             better_than_chance = self.vocab_sizes[dataset] / math.exp(dataset_losses['val'].item())
                             self.log_metrics(dataset_losses, running_mfu, current_epoch, self.tokens_trained, dataset, better_than_chance)
                     else:
@@ -1298,7 +1665,7 @@ class Trainer:
                             log_message+=f", gns {self.gns:.2f}"
                         log_message+=f", batch_size {self.args.batch_size}"
                         log_message+=f", lr {self.lr:.4f}"
-                        print(log_message)
+                        self.console.print(log_message)
                         self.log_metrics(losses, running_mfu, current_epoch, self.tokens_trained, current_dataset, better_than_chance)
 
                     if math.isnan(losses["val"]):
@@ -1307,7 +1674,8 @@ class Trainer:
                             print("Exiting with nan")
                             file.write(str(self.iter_num))
 
-                    if self.args.save_major_ckpt_interval is not None:
+                    if (not self.args.never_save_checkpoint and 
+                        self.args.save_major_ckpt_interval is not None):
                         if self.iter_num % self.args.save_major_ckpt_interval == 0:
                             major_ckpt_name = str(self.iter_num) +'.pt'
                             # Save major checkpoint
@@ -1316,31 +1684,55 @@ class Trainer:
 
                     if losses['val'] < self.best_val_loss or self.args.always_save_checkpoint:
                         if losses['val'] < self.best_val_loss:
-                            self.iter_num_best_val_loss = self.iter_num
                             self.best_val_loss = losses['val']
+                            self.best_iter = self.iter_num
+                            self.best_tokens = self.tokens_trained
                             # Save best validation loss
                             peak_mb = self.peak_gpu_usage / (1024 ** 2)
                             with open(os.path.join(self.args.out_dir, 'best_val_loss_and_iter.txt'), "w") as best_loss_file:
                                 chance_ratio = self.model_args['vocab_size']/math.exp(self.best_val_loss.item())
-                                best_loss_file.write(
-                                    f"{self.best_val_loss.item()},"
-                                    f" {self.iter_num},"
-                                    f" {self.model.num_param},"
-                                    f" {chance_ratio:.3e},"
-                                    f" {chance_ratio/self.model.num_param:.3e},"
-                                    f" {peak_mb:.1f},"
-                                    f" {self.iter_latency_avg:.1f}"
-                                )
+                                metrics = [
+                                        f"{self.best_val_loss.item()}",
+                                        f"{self.iter_num}",
+                                        f"{self.best_tokens}",
+                                        f"{self.model.num_param}",
+                                        f"{chance_ratio:.3e}",
+                                        f"{chance_ratio/self.model.num_param:.3e}",
+                                        f"{peak_mb:.1f}",
+                                        f"{self.iter_latency_avg:.1f}",
+                                        f"{losses.get('top1_prob', float('nan')):.6f}",
+                                        f"{losses.get('top1_correct', float('nan')):.6f}",
+                                        f"{losses.get('target_rank', float('nan')):.2f}",
+                                        f"{losses.get('target_left_prob', float('nan')):.6f}",
+                                        f"{losses.get('target_prob', float('nan')):.6f}",
+                                        f"{losses.get('target_rank_95', float('nan')):.2f}",
+                                        f"{losses.get('left_prob_95', float('nan')):.6f}",
+                                        f"{losses.get('ln_f_cosine', float('nan')):.6f}",
+                                        f"{losses.get('ln_f_cosine_95', float('nan')):.6f}",
+                                        f"{self.latest_overall_weight_stats['stdev']:.6f}",
+                                        f"{self.latest_overall_weight_stats['kurtosis']:.6f}",
+                                        f"{self.latest_overall_weight_stats['max']:.6f}",
+                                        f"{self.latest_overall_weight_stats['min']:.6f}",
+                                        f"{self.latest_overall_weight_stats['abs_max']:.6f}",
+                                        f"{self.latest_overall_activation_stats['stdev']:.6f}",
+                                        f"{self.latest_overall_activation_stats['kurtosis']:.6f}",
+                                        f"{self.latest_overall_activation_stats['max']:.6f}",
+                                        f"{self.latest_overall_activation_stats['min']:.6f}",
+                                        f"{self.latest_overall_activation_stats['abs_max']:.6f}",
+                                ]
+                                best_loss_file.write(", ".join(metrics) + "\n")
                             # Reset early exit counter
                             num_steps_with_worse_loss = 0
-                        if self.iter_num > 0:
+                        if self.iter_num > 0 and not self.args.never_save_checkpoint:
                             print(f"saving checkpoint to {self.args.out_dir}")
                             # Save checkpoint
                             self.save_checkpoint('ckpt.pt')
 
                         # Sample
                         if self.args.max_sample_tokens:
+                            live.stop()
                             self.sample_and_print()
+                            live.start()
                         # export embedding table to npy file
                         if self.args.export_wte_npy:
                             self.raw_model.export_wte(self.args.export_wte_npy)
@@ -1351,7 +1743,9 @@ class Trainer:
                         if self.args.sample_each_eval:
                             # Try model inference (e.g. exploring inference from overfitting)
                             if self.args.max_sample_tokens:
+                                live.stop()
                                 self.sample_and_print()
+                                live.start()
                         if self.args.export_wte_each_eval:
                             # export wte table to npy file
                             if self.args.export_wte_npy:
@@ -1378,13 +1772,33 @@ class Trainer:
                     with self.ctx:
                         if self.args.training_mode == 'multicontext':
                             total_loss = 0
-                            logits, training_losses = self.model(None, token_dict=self.X_dict, target_dict=self.Y_dict, iter_num=self.iter_num)
+                            logits, training_losses = self.model(
+                                None,
+                                token_dict=self.X_dict,
+                                target_dict=self.Y_dict,
+                                iter_num=self.iter_num,
+                                loss_fn=self.loss_fn,
+                            )
 
                             # For multicontext training let loss = first dataset loss
                             # loss = training_losses[0]
                             loss = sum(training_losses) / len(training_losses)
                         else:
-                            logits, loss = self.model(self.X, targets=self.Y, iter_num=self.iter_num)
+                            idx_ds = self.args.dataset_list.index(current_dataset) if self.args.dataset_list else None
+                            logits, loss = self.model(
+                                self.X,
+                                targets=self.Y,
+                                iter_num=self.iter_num,
+                                dataset_idx=idx_ds if self.args.multidataset_wte else None,
+                                loss_fn=self.loss_fn,
+                            )
+
+                        if hasattr(self.optimizer, "set_entropy") and not isinstance(logits, (list, tuple)):
+                            with torch.no_grad():
+                                probs = torch.softmax(logits, dim=-1)
+                                ent = -(probs * torch.log(probs + 1e-9)).sum(dim=-1).mean()
+                                ent = ent / math.log(logits.size(-1))
+                            self.optimizer.set_entropy(float(ent))
 
                         loss = loss / self.args.gradient_accumulation_steps
 
@@ -1398,11 +1812,11 @@ class Trainer:
                         self.tokens_trained += tokens_trained_this_batch
 
                     # Compute epoch for logging:
-                    if self.args.dataset_list:
-                        current_epoch = self.tokens_trained_dict[current_dataset] / self.dataset_size_tokens[current_dataset]
-                        self.epochs_trained_dict[current_dataset] = current_epoch
-                    else:
-                        current_epoch = self.tokens_trained / self.dataset_size_tokens
+                        if self.args.dataset_list:
+                            current_epoch = self.tokens_trained_dict[current_dataset] / self.dataset_size_tokens[current_dataset]
+                            self.epochs_trained_dict[current_dataset] = current_epoch
+                        else:
+                            current_epoch = self.tokens_trained / self.dataset_size_tokens
 
                     self.scaler.scale(loss).backward()
 
@@ -1425,6 +1839,12 @@ class Trainer:
                     self.scaler.unscale_(self.optimizer)
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.grad_clip)
 
+                if isinstance(self.optimizer, ActRegularizedAdamW):
+                    stat_key = getattr(self.args, "activation_stat", "stdev")
+                    self.optimizer.set_activation_stat(
+                            self.latest_overall_activation_stats.get(stat_key, 0.0)
+                            )
+
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
                 if self.scheduler:
@@ -1442,11 +1862,11 @@ class Trainer:
 
                 # Estimate ETA
                 eta_update: ETAUpdate = self.eta.update(
-                    iter_num=self.iter_num,
-                    now=t1,
-                    dt=dt,
-                    is_eval_boundary=(self.iter_num % self.args.eval_interval == 0),
-                )
+                        iter_num=self.iter_num,
+                        now=t1,
+                        dt=dt,
+                        is_eval_boundary=(self.iter_num % self.args.eval_interval == 0),
+                        )
 
                 progress_advance = eta_update.progress_advance
                 self.iter_latency_avg = eta_update.iter_latency_avg
@@ -1473,14 +1893,17 @@ class Trainer:
                         for i, mc_dataset in enumerate(self.args.multicontext_datasets):
                             self.mc_btc_train[mc_dataset] = self.vocab_sizes[mc_dataset] / math.exp(training_losses[i].item())
                             log_message+= f", {self.underscore_abbr(mc_dataset)}"
-                            log_message+= f" btc {self.mc_btc_train[mc_dataset]:.4f}"
+                            if self.args.log_btc_train:
+                                log_message+= f" btc {self.mc_btc_train[mc_dataset]:.4f}"
                             log_message+= f", {self.underscore_abbr(mc_dataset)}"
                             log_message+= f" loss {training_losses[i].item():.4f}"
                     else:
                         better_than_chance = self.model_args['vocab_size'] / math.exp(lossf)
                         log_message+= f", loss {lossf:.4f}"
-                        log_message+=f", btc_train {better_than_chance:.2e}"
-                        log_message+=f", btc_train_per_param {(better_than_chance/self.model.num_param):.2e}"
+                        if self.args.log_btc_train:
+                            log_message+=f", btc_train {better_than_chance:.2e}"
+                        if self.args.log_btc_per_param:
+                            log_message+=f", btc_train_per_param {(better_than_chance/self.model.num_param):.2e}"
 
                     if self.args.dataset_list:
                         log_message+= f", epoch {self.epochs_trained_dict[prior_dataset]:2.2f}"
@@ -1495,10 +1918,12 @@ class Trainer:
                         log_message+= f", gns {self.gns:.2f}"
                     log_message+= f", batch_size {self.args.batch_size}"
                     log_message+= f", lr {self.lr:.4f}"
-                    log_message+= f", grad_norm {self.grad_norm:2f}"
-                    log_message+= f", grad_std {self.grad_std:.2f}"
+                    if self.args.log_grad_norm:
+                        log_message+= f", grad_norm {self.grad_norm:2f}"
+                    if self.args.log_grad_std:
+                        log_message+= f", grad_std {self.grad_std:.2f}"
 
-                    print(log_message)
+                    self.console.print(log_message)
 
                     if math.isnan(lossf):
                         # If training loss is nan, then exit.
@@ -1530,19 +1955,35 @@ class Trainer:
                         hour=f"{int((self.time_remaining_ms // 3_600_000) % 24):02d}",
                         min=f"{int((self.time_remaining_ms // 60_000) % 60):02d}",
                         best_val_loss=f"{self.best_val_loss:.3f}",
-                )
+                        best_iter=f"{self.best_iter}",
+                        best_tokens=f"{self.best_tokens}",
+                        iter_latency=f"{self.iter_latency_avg:.1f}",
+                        peak_gpu_mb=f"{self.peak_gpu_usage / (1024 ** 2):.1f}",
+                        t1p=f"{self.latest_top1_prob:.6f}",
+                        t1c=f"{self.latest_top1_correct:.6f}",
+                        tr=f"{self.latest_target_rank:.2f}",
+                        tp=f"{self.latest_target_prob:.6f}",
+                        tlp=f"{self.latest_target_left_prob:.6f}",
+                        r95=f"{self.latest_rank_95:.2f}",
+                        p95=f"{self.latest_left_prob_95:.6f}",
+                        lnf_cos=f"{self.latest_ln_f_cosine:.6f}",
+                        lnf_cos95=f"{self.latest_ln_f_cosine_95:.6f}",
+                        )
+                live.update(Group(progress.get_renderable(), cli_text))
 
                 # End of training actions
                 if self.iter_num > self.args.max_iters:
-                    print(self.best_val_loss)
+                    print(self.best_val_loss, self.best_iter, self.best_tokens)
                     if self.args.only_save_checkpoint_at_end:
-
-                        self.save_checkpoint('ckpt.pt')
-                        print(f"Saved checkpoint to {self.args.out_dir}")
+                        if not self.args.never_save_checkpoint:
+                            self.save_checkpoint('ckpt.pt')
+                            print(f"Saved checkpoint to {self.args.out_dir}")
 
                         # Sample if set
                         if self.args.max_sample_tokens:
+                            live.stop()
                             self.sample_and_print()
+                            live.start()
                     break
 
             if self.args.plot_statistics:

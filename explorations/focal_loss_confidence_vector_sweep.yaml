@@ -1,0 +1,113 @@
+# explorations/focal_loss_confidence_vector_sweep.yaml
+---
+parameter_groups:
+  # Learned Confidence with Focal Loss
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["zeros"]
+    mlp_confidence_variant: ["zeros"]
+    use_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_attn_resid_const: [true]
+    learn_mlp_resid_const: [true]
+    attn_resid_const: [0, 1]
+    mlp_resid_const: [0, 1]
+    loss_fn: ["focal"]
+    focal_gamma: [0.5, 1.0, 2.0, 5.0, 10.0]
+
+  # Learned Confidence with Focal Loss
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["zeros"]
+    mlp_confidence_variant: ["zeros"]
+    use_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_attn_resid_const: [true]
+    learn_mlp_resid_const: [false]
+    attn_resid_const: [0, 1]
+    loss_fn: ["focal"]
+    focal_gamma: [0.5, 1.0, 2.0, 5.0, 10.0]
+
+  # Learned Confidence with Focal Loss
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["zeros"]
+    mlp_confidence_variant: ["zeros"]
+    use_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_attn_resid_const: [false]
+    learn_mlp_resid_const: [true]
+    mlp_resid_const: [0, 1]
+    loss_fn: ["focal"]
+    focal_gamma: [0.5, 1.0, 2.0, 5.0, 10.0]
+
+  # Learned Confidence with Cross Entropy
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["zeros"]
+    mlp_confidence_variant: ["zeros"]
+    use_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_attn_resid_const: [true]
+    learn_mlp_resid_const: [true]
+    attn_resid_const: [0, 1]
+    mlp_resid_const: [0, 1]
+    loss_fn: ["cross_entropy"]
+
+  # Learned Confidence with Cross Entropy
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["zeros"]
+    mlp_confidence_variant: ["zeros"]
+    use_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_attn_resid_const: [true]
+    attn_resid_const: [0, 1]
+    loss_fn: ["cross_entropy"]
+
+  # Learned Confidence with Cross Entropy
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["zeros"]
+    mlp_confidence_variant: ["zeros"]
+    use_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_mlp_resid_const: [true]
+    mlp_resid_const: [0, 1]
+    loss_fn: ["cross_entropy"]
+
+  # Focal Loss
+  - use_attn_resid_scaling: [false]
+    use_mlp_resid_scaling: [false]
+    loss_fn: ["focal"]
+    focal_gamma: [0.5, 1.0, 2.0, 5.0, 10.0]
+
+  # Cross Entropy
+  - use_attn_resid_scaling: [false]
+    use_mlp_resid_scaling: [false]
+    loss_fn: ["cross_entropy"]
+
+
+# base hyperparameters
+max_iters: [10000]
+eval_interval: [500]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+block_size: [256]
+dataset: ["minipile"]
+device: ["cuda"]
+dtype: ["float16"]
+
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+use_peri_ln: [true, false]
+
+# Position Encoding
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# Misc
+never_save_checkpoint: [true]
+compile: [true]
+

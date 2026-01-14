@@ -1,0 +1,38 @@
+# hp_searches/efficiency_targets_demo.yaml
+# Minimal configuration for exercising hyperparameter search efficiency targets
+
+# static
+dataset: "minipile"
+
+# Position Embeddings
+use_rotary_embeddings: true
+use_abs_pos_embeddings: false
+never_save_checkpoint: true
+
+# Context Length
+block_size: 256
+
+# qk norm
+use_qk_norm: true
+use_qk_norm_scale: true
+
+# Inf Attn Settings
+use_concat_heads: True
+attention_variant: "infinite"
+
+# Training Settings
+eta_variant: "eval_cycle"
+max_iters: 1000
+eval_interval: 1000
+compile: True
+batch_size: 32
+
+# changeable things
+n_layer: 2
+n_embd: 32
+
+# Layerlists
+n_head: 1
+mlp_size: 32
+n_qk_head_dim: 32
+n_v_head_dim: 32

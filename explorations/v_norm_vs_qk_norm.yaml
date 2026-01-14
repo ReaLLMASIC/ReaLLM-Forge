@@ -1,0 +1,30 @@
+# v_norm_vs_qk_norm.yaml
+---
+# parameter_groups: define sets of overrides to compare normalization strategies
+parameter_groups:
+  - use_qk_norm: [false]
+    use_qk_norm_scale: [false]
+    use_v_norm: [false, true]
+  - use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+    use_v_norm: [false, true]
+
+# base hyperparameters
+max_iters: [10000]
+eval_interval: [10000]
+eta_variant: ["iteration"]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+block_size: [256]
+device: ["cuda"]
+dtype: ["float16"]
+dataset: ["minipile"]
+use_peri_ln: [true, false]
+
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# VRAM savings
+compile: [true]
+never_save_checkpoint: [true]

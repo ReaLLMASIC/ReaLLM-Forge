@@ -10,6 +10,7 @@ from tokenizer_options import (
     SentencePieceTokenizer,
     TiktokenTokenizer,
     CustomTokenizer,
+    ByteTokenizer,
     CharTokenizer,
     CustomCharTokenizerWithByteFallback,
     Qwen2Tokenizer,
@@ -88,7 +89,6 @@ class TestTokenizers(unittest.TestCase):
     def setUp(self):
         # Sample data for testing
         self.sample_text = "Hello\nworld\nThis is a test."
-        self.numeric_data = "123\n456\n789"
         self.tokens_file = "tokens.txt"
 
         # Create a tokens file for custom tokenizers
@@ -143,19 +143,6 @@ class TestTokenizers(unittest.TestCase):
     # --------------------------------------------------------------------------
     # Tokenizer Tests
     # --------------------------------------------------------------------------
-    def test_numeric_range_tokenizer(self):
-        args = Namespace(min_token=100, max_token=1000)
-        tokenizer = NumericRangeTokenizer(args)
-        ids = tokenizer.tokenize(self.numeric_data)
-        detokenized = tokenizer.detokenize(ids)
-
-        console.print("[input]Input:[/input]")
-        console.print(self.numeric_data.strip(), style="input")
-        console.print("[output]Detokenized Output:[/output]")
-        console.print(detokenized, style="output")
-
-        self.assertEqual(self.numeric_data.strip(), detokenized)
-
     def test_sentencepiece_tokenizer(self):
         args = Namespace(
             vocab_size=30,
@@ -190,6 +177,7 @@ class TestTokenizers(unittest.TestCase):
 
         self.assertEqual(self.sample_text, detokenized)
 
+
     def test_custom_tokenizer(self):
         args = Namespace(tokens_file=self.tokens_file)
         tokenizer = CustomTokenizer(args)
@@ -204,6 +192,19 @@ class TestTokenizers(unittest.TestCase):
         tokens_to_check = ["Hello", "world", "This", "is", "a", "test"]
         for token in tokens_to_check:
             self.assertIn(token, detokenized)
+
+    def test_byte_tokenizer(self):
+        args = Namespace()
+        tokenizer = ByteTokenizer(args)
+        ids = tokenizer.tokenize(self.sample_text)
+        detokenized = tokenizer.detokenize(ids)
+
+        console.print("[input]Input:[/input]")
+        console.print(self.sample_text, style="input")
+        console.print("[output]Detokenized Output:[/output]")
+        console.print(detokenized, style="output")
+
+        self.assertEqual(self.sample_text, detokenized)
 
     def test_char_tokenizer(self):
         args = Namespace(reuse_chars=False)
@@ -308,30 +309,6 @@ class TestTokenizers(unittest.TestCase):
     # --------------------------------------------------------------------------
     # Tests for Token Counts (with histogram printing)
     # --------------------------------------------------------------------------
-    def test_numeric_range_tokenizer_counts(self):
-        args = Namespace(min_token=100, max_token=1000, track_token_counts=True)
-        tokenizer = NumericRangeTokenizer(args)
-        ids = tokenizer.tokenize(self.numeric_data)
-
-        with open("meta.pkl", "rb") as f:
-            meta = pickle.load(f)
-        token_counts = meta.get("token_counts", {})
-
-        # Retrieve the itos mapping so we can display actual tokens in the histogram
-        itos = meta.get("itos", {})
-
-        # Print histogram
-        self._print_token_count_histogram(token_counts, itos)
-
-        self.assertEqual(
-            sum(token_counts.values()), 
-            len(ids),
-            "Total token counts should match number of tokens."
-        )
-        for token_id in ids:
-            self.assertIn(token_id, token_counts, 
-                          "Each token id should appear in token_counts.")
-
     def test_sentencepiece_tokenizer_counts(self):
         with open("spm_input.txt", "w") as f:
             f.write(self.sample_text)
@@ -356,7 +333,7 @@ class TestTokenizers(unittest.TestCase):
         self._print_token_count_histogram(token_counts, itos)
 
         self.assertEqual(
-            sum(token_counts.values()), 
+            sum(token_counts.values()),
             len(ids),
             "Total token counts should match number of tokens for SentencePiece."
         )
@@ -377,7 +354,7 @@ class TestTokenizers(unittest.TestCase):
         self._print_token_count_histogram(token_counts, itos)
 
         self.assertEqual(
-            sum(token_counts.values()), 
+            sum(token_counts.values()),
             len(ids),
             "Total token counts should match for Tiktoken."
         )
@@ -398,9 +375,30 @@ class TestTokenizers(unittest.TestCase):
         self._print_token_count_histogram(token_counts, itos)
 
         self.assertEqual(
-            sum(token_counts.values()), 
+            sum(token_counts.values()),
             len(ids),
             "Total token counts should match for CustomTokenizer."
+        )
+        for token_id in ids:
+            self.assertIn(token_id, token_counts)
+
+    def test_byte_tokenizer_counts(self):
+        args = Namespace(track_token_counts=True)
+        tokenizer = ByteTokenizer(args)
+        ids = tokenizer.tokenize(self.sample_text)
+
+        with open("meta.pkl", "rb") as f:
+            meta = pickle.load(f)
+        token_counts = meta.get("token_counts", {})
+        itos = meta.get("itos", {})
+
+        # Print histogram
+        self._print_token_count_histogram(token_counts, itos)
+
+        self.assertEqual(
+            sum(token_counts.values()),
+            len(ids),
+            "Total token counts should match for ByteTokenizer.",
         )
         for token_id in ids:
             self.assertIn(token_id, token_counts)
@@ -419,7 +417,7 @@ class TestTokenizers(unittest.TestCase):
         self._print_token_count_histogram(token_counts, itos)
 
         self.assertEqual(
-            sum(token_counts.values()), 
+            sum(token_counts.values()),
             len(ids),
             "Total token counts should match for CharTokenizer."
         )
@@ -444,7 +442,7 @@ class TestTokenizers(unittest.TestCase):
         self._print_token_count_histogram(token_counts, itos)
 
         self.assertEqual(
-            sum(token_counts.values()), 
+            sum(token_counts.values()),
             len(ids),
             "Total token counts should match for CustomCharTokenizerWithByteFallback."
         )

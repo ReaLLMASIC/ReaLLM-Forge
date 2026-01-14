@@ -398,6 +398,54 @@ class KAL_Net(nn.Module):
             x = self.base_activation(layer_norm(combined_output))
 
         return x
+    
+def wrap_with_flashnorm(linear_cls, config):
+    """
+    Wraps any linear class with FlashNorm-style deferred RMS normalization.
+    Only applies if config.use_flash_norm is True.
+
+    Based on "FlashNorm: fast normalization for LLMs"
+    Source: https://arxiv.org/pdf/2407.09577
+    Key insight: RMSNorm(x) @ W = (x @ W) / RMS(x) when bias=0
+    """
+    if not getattr(config, "use_flash_norm", False):
+        return linear_cls
+    
+    class FlashNormWrapper(nn.Module):
+        def __init__(self, in_features, out_features, config=None, method=None, bits=None, bias=True, **kwargs):
+            super().__init__()
+            self.in_features = in_features
+            self.out_features = out_features
+            
+            # RMSNorm gain parameter
+            self.gain = nn.Parameter(torch.ones(in_features))
+            
+            # Instantiate the base linear (QuantizedLinear, BitLinear, etc.)
+            self.linear = linear_cls(in_features, out_features, config=config, method=method, bits=bits, bias=bias, **kwargs)
+            
+            # Fuse gain into weights
+            self._fuse_gain_into_weights()
+        
+        def _fuse_gain_into_weights(self):
+            """Merge gain into weight matrix: W* = W @ diag(gain)"""
+            if hasattr(self.linear, 'weight') and self.linear.weight is not None:
+                with torch.no_grad():
+                    # Broadcast multiply: each output row scaled by corresponding gain
+                    self.linear.weight.data = self.linear.weight.data * self.gain.unsqueeze(0)
+        
+        def forward(self, x):
+            rms = x.norm(2, dim=-1, keepdim=True) / math.sqrt(x.size(-1))
+            
+            # Forward through base linear (gain already fused into weights)
+            out = self.linear(x)
+            
+            # Deferred normalization (happens after matmul)
+            out = out / rms
+            
+            return out
+    
+    FlashNormWrapper.__name__ = f"FlashNorm_{linear_cls.__name__}"
+    return FlashNormWrapper
 
 linear_dictionary = {
     "linear": WrappedLinear,
@@ -405,5 +453,5 @@ linear_dictionary = {
     "bitlinear_optimized": BitLinearOptimized,
     "bitlinear_1p58": BitLinear1p58,
     "kan": KAL_Net,
-    "quantized_linear": QuantizedLinear
+    "quantized_linear": QuantizedLinear,
 }

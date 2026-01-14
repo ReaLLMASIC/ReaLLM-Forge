@@ -1,15 +1,16 @@
 bitstring==4.2.3
 datasets==2.21.0
-numpy==1.26.0
+numpy
 pandas==2.2.3
 plotly==5.22.0
 scipy==1.14.1
 seaborn==0.13.2
-tiktoken==0.7.0
+tiktoken
 torchinfo==1.8.0
-transformers==4.44.2
+transformers
+pyspellchecker==0.8.3
 wandb==0.18.3
-onnx==1.17.0
+onnx
 beautifulsoup4==4.13.4
 dragonmapper==0.3.0
 huggingface_hub==0.30.2
@@ -19,8 +20,8 @@ MeCab==0.996.11
 pykakasi==2.0.0
 Requests==2.32.3
 rich==14.0.0
-sentencepiece==0.1.99
-spacy==3.7.2
+sentencepiece
+spacy
 tqdm==4.66.4
 lm_eval==0.4.8
 # optimizer related

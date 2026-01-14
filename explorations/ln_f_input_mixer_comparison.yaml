@@ -1,0 +1,27 @@
+# ln_f_input_mixer_comparison.yaml
+---
+# parameter_groups: compare enabling vs disabling ln_f input mixer
+parameter_groups:
+  - use_ln_f_input_mixer: [false]
+  - use_ln_f_input_mixer: [true]
+
+# Position embeddings
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# base hyperparameters
+block_size: [256]
+n_layer: [12]
+n_head: [6]
+n_embd: [384]
+
+# training configuration
+dataset: ["minipile"]
+max_iters: 10000
+lr_decay_iters: 10000
+warmup_iters: 1000
+eval_interval: 10000
+eta_variant: ["iteration"]
+
+# boolean flags
+compile: [true]

@@ -1,0 +1,88 @@
+# explorations/mlp_l2_norm_qk_norm.yaml
+---
+# Description
+# - this might help reduce spikes, as large activations would not be able to add louder features
+#   only better cosine alignment, and weights will be brought to level
+# - with this we have closer to a cosine similarity in the up projection
+#   which might help us quantify the 
+#
+# parameter_groups: L2 normalization combinations with distinct model stats output
+parameter_groups:
+  - l2_norm_mlp_up: [false]
+    l2_norm_mlp_down: [false]
+    print_model_stats_table: ["no_l2_norm_stats.csv"]
+
+    # Up L2 Norm
+  - l2_norm_mlp_up: [true]
+    l2_norm_mlp_up_dim: ["embed"]
+    l2_norm_mlp_down: [false]
+    print_model_stats_table: ["up_l2_norm_stats_embed.csv"]
+
+  - l2_norm_mlp_up: [true]
+    l2_norm_mlp_up_dim: ["hidden"]
+    l2_norm_mlp_down: [false]
+    print_model_stats_table: ["up_l2_norm_stats_hidden.csv"]
+
+    # Down L2 Norm
+  - l2_norm_mlp_up: [false]
+    l2_norm_mlp_down: [true]
+    l2_norm_mlp_down_dim: ["embed"]
+    print_model_stats_table: ["down_l2_norm_stats_embed.csv"]
+
+  - l2_norm_mlp_up: [false]
+    l2_norm_mlp_down: [true]
+    l2_norm_mlp_down_dim: ["hidden"]
+    print_model_stats_table: ["down_l2_norm_stats_hidden.csv"]
+
+    # Both Up and Down L2 Norm
+  - l2_norm_mlp_up: [true]
+    l2_norm_mlp_up_dim: ["embed"]
+    l2_norm_mlp_down: [true]
+    l2_norm_mlp_down_dim: ["embed"]
+    print_model_stats_table: ["up_down_l2_norm_stats_embed_embed.csv"]
+
+  - l2_norm_mlp_up: [true]
+    l2_norm_mlp_up_dim: ["hidden"]
+    l2_norm_mlp_down: [true]
+    l2_norm_mlp_down_dim: ["hidden"]
+    print_model_stats_table: ["up_down_l2_norm_stats_hidden_hidden.csv"]
+
+  - l2_norm_mlp_up: [true]
+    l2_norm_mlp_up_dim: ["embed"]
+    l2_norm_mlp_down: [true]
+    l2_norm_mlp_down_dim: ["hidden"]
+    print_model_stats_table: ["up_down_l2_norm_stats_embed_hidden.csv"]
+
+  - l2_norm_mlp_up: [true]
+    l2_norm_mlp_up_dim: ["hidden"]
+    l2_norm_mlp_down: [true]
+    l2_norm_mlp_down_dim: ["embed"]
+    print_model_stats_table: ["up_down_l2_norm_stats_hidden_embed.csv"]
+
+# base hyperparameters
+max_iters: [10000]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+block_size: [256]
+device: ["cuda"]
+dtype: ["float16"]
+dataset: ["minipile"]
+
+# Modern Network Settings
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+
+# Effects of PeriLN
+use_peri_ln: [true, false]
+# norm_variant_attn: ["hsnorm"] # later we can set hsnorm radius to 1, and determine the minimum angle from softshrink
+
+# Weight and Activation Stats
+compute_model_stats: [true]
+
+# VRAM Saving
+never_save_checkpoint: [true]
+compile: [true]
+

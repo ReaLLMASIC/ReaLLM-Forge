@@ -15,14 +15,23 @@ class GPTConfig:
     n_embd: int = 768
     mlp_down_projs: int = 1  # Number of down projections in MLP/SwiGLU
 
+    # numerical multicontext
+    numerical_multicontext: bool = False
+    numerical_mlp_hidden_dim: int = 64
+
     # Layerlists
     n_head_layerlist: List[int] = field(default_factory=list)
     n_qk_head_dim_layerlist: List[int] = field(default_factory=list)
     n_v_head_dim_layerlist: List[int] = field(default_factory=list)
     mlp_size_layerlist: List[int] = field(default_factory=list)
+    n_cproj_layerlist: List[int] = field(default_factory=list)
+    n_kv_group_layerlist: List[int] = field(default_factory=list)
+    attention_variant_layerlist: List[str] = field(default_factory=list)
 
     # For multicontext training
     multicontext: bool = False
+    # Use separate embeddings/LM heads per dataset in multidataset mode
+    multidataset_wte: bool = False
     vocab_sizes: List[int] = field(default_factory=lambda: []) # Used in place of vocab
 
     # MLP bias configuration
@@ -34,6 +43,12 @@ class GPTConfig:
     mlp_y_offset: float = 0.0
     learn_mlp_x_offset: bool = False
     learn_mlp_y_offset: bool = False
+
+    # Optional L2 normalization of MLP projections
+    l2_norm_mlp_up: bool = False
+    l2_norm_mlp_down: bool = False
+    l2_norm_mlp_up_dim: str = "embed"   # 'embed' or 'hidden'
+    l2_norm_mlp_down_dim: str = "hidden"  # 'embed' or 'hidden'
 
     ## MLA Variations
     mla_latent_dim: int | None = None   # d_c  (proj dimension of the shared latent)
@@ -56,6 +71,11 @@ class GPTConfig:
     # Softcapping params
     attn_logit_softcapping: float | None = None
     final_logit_softcapping: float | None = None
+
+    # Final ln_f input mixing
+    use_ln_f_input_mixer: bool = False
+    ln_f_input_mixer_variant: str = "linear"
+    ln_f_mixer_top_k: int = 2
 
     # Learned Position Embeddings
     n_lpe: int = 0
@@ -154,6 +174,7 @@ class GPTConfig:
     # QK Norm Options
     use_qk_norm: bool = False
     use_qk_norm_scale: bool = False
+    use_v_norm: bool = False
 
     ## SSM - Attention Varient (same as Hymba)
     ssm_mamba_expand: int = 2
@@ -162,12 +183,22 @@ class GPTConfig:
     ssm_d_state: int = 16
     ssm_io_bias: bool = True
 
+    # EdgeLLM ASIC block architecture
+    use_edgellm_asic: bool = False
+    use_flash_norm: bool = False
+    use_gradual_activation: bool = False
+    activation_start: str = "gelu"
+    activation_end: str = "relu"
+    activation_transition_start_iter: int = 0
+    activation_transition_end_iter: int = None
+
     # MLP Options
     use_parallel_mlp: bool = False
     mlp_variant: str = "mlp"
     mlp_expansion_factor: float = 4.0
     mlp_size: int = None
-    mlp_res: bool = False
+    mlp_cproj_scale: float = 1.0
+    mlp_post_act_l2_norm: bool = False
 
     ## KAN Option
     kan_poly_order: int = 3
@@ -187,6 +218,7 @@ class GPTConfig:
     # Softmax Alternatives and Options
     softmax_variant_attn: str = "softmax" # Choices: "softmax" "softermax" "sigsoftmax" "polymax" "strongermax" "consmax"
     softmax_variant_output: str = "softmax" # Choices: "softmax" "softermax" "sigsoftmax" "polymax" "strongermax" "consmax"
+
 
     ## General Options
     div_by_seq_len: bool = False # for supported functions will divide by seq length
@@ -260,8 +292,34 @@ class GPTConfig:
     ## SigmoidMax options
     sigmoidmax_divisor: float = 256.0
 
+    ## SoftShrink options
+    softshrink_attn_lambda: float = 0.5
+    softshrink_attn_divisor: float = 64.0
+
     ## Squareplus options
     squareplus_divisor: float = 256.0
+
+    # ──────────────────────────────────────────────────────────────────────
+    ## PFLA‑Softmax configuration
+    pfla_softmax_num_points: int  = 30      # # inner control points
+    pfla_softmax_left_bound: float  = -10.0 # x‑range start
+    pfla_softmax_right_bound: float = 10.0  # x‑range end
+    pfla_softmax_learn_x: bool  = False     # learn knot x‑positions?
+    pfla_softmax_learn_y: bool  = True      # learn √y values?
+    pfla_softmax_init_activation: str = "gelu"   # reference curve for init
+    pfla_softmax_density: str = "linear"    # linear | quad | exp
+
+    ### normalisation extras
+    pfla_softmax_use_learned_divisor: bool = False
+    pfla_softmax_gamma_init: float  = 1.0   # γ initial value iff learned
+
+    pfla_softmax_use_obo: bool = False # enables obo feature
+    pfla_softmax_use_learned_obo: bool = False # we require "use_obo" before use_learned_obo
+    pfla_softmax_obo: float = 0.0           # fixed or initial OBO (+1) addend
+
+    ### interpolation mode
+    pfla_softmax_mode: str = "linear"       # "linear" | "quadratic"
+    # ──────────────────────────────────────────────────────────────────────
 
     # Positional Embeddings Variations
     use_abs_pos_embeddings: bool = True # Note: one can use this AND rotary embeddings
@@ -286,10 +344,48 @@ class GPTConfig:
 
     # Structuring Options, remember to compile the model
     use_post_ln: bool = False
+    use_pre_ln: bool = True
+    use_peri_ln: bool = False
+    use_pre_ln_attn: bool | None = None
+    use_pre_ln_mlp: bool | None = None
+    use_peri_ln_attn: bool | None = None
+    use_peri_ln_mlp: bool | None = None
+    use_post_ln_attn: bool | None = None
+    use_post_ln_mlp: bool | None = None
+    use_attn_resid_scaling: bool = False
+    use_mlp_resid_scaling: bool = False
+    attn_confidence_variant: str = "zeros"
+    mlp_confidence_variant: str = "zeros"
+    use_attn_resid_const: bool = False
+    attn_resid_const: float = 0.0
+    learn_attn_resid_const: bool = False
+    use_mlp_resid_const: bool = False
+    mlp_resid_const: float = 0.0
+    learn_mlp_resid_const: bool = False
+    resid_gaussian_mean_init: float = 0.0
+    resid_gaussian_std_init: float = 0.02
+    attn_residual_combination: str = "add"
+    mlp_residual_combination: str = "add"
+    residual_slerp_eps: float = 0.0
+    attn_residual_alpha: float = 0.05
+    mlp_residual_alpha: float = 0.05
+    attn_residual_alpha_type: str = "fixed"
+    mlp_residual_alpha_type: str = "fixed"
 
     # Layernorm Alternatives and Options
     norm_variant_attn: str = "rmsnorm"
     norm_variant_output: str = "rmsnorm"
+
+    norm_variant_wte: str | None = None
+    norm_wte_radius: float | None = None
+    norm_wte_scale: float | None = None
+    norm_wte_gain: bool | None = None
+
+    norm_variant_abs: str | None = None
+    norm_abs_radius: float | None = None
+    norm_abs_scale: float | None = None
+    norm_abs_gain: bool | None = None
+
     bias: bool = False # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
     qkv_bias: bool = None
     prmsnorm_pct: float = 0.0625
@@ -298,8 +394,10 @@ class GPTConfig:
     krmsnorm_enable_gain: bool = True
     krmsnorm_selection_type: str = 'last'
     krmsnorm_recompute_percentage: float = 0.05
+
     hsnorm_gain: bool = False
-    hsnorm_radius: float = 1.0
+    hsnorm_radius: float | None = None
+    hsnorm_scale: float = 1.0
     hsnorm_radius_learning: bool = False
 
     dact_alpha_init: float = 1.0
@@ -308,6 +406,7 @@ class GPTConfig:
     dact_use_beta: bool = True
     dact_use_alpha: bool = True
     use_embedding_scale: bool = False
+    embedding_scale_init: float | None = None
 
     # Activation Alternatives
 
@@ -316,6 +415,9 @@ class GPTConfig:
     ## Shifted Gelu
     shifted_gelu_learnable_shift: bool = True
     shifted_gelu_initial_shift: float = 0.0
+
+    ## Softshrink
+    softshrink_lambda: float = 0.5
 
     ## PiecewiseLearnableActivation - pla
     pla_num_points: int = 7
@@ -349,6 +451,9 @@ class GPTConfig:
     init_variant: str = "gaussian"
     init_scale: float = 0.01
     init_wte_npy: str = "wte.npy"
+    init_radius: float = 1.0
+    gaussian_min_norm: float = 0.0
+    gaussian_max_norm: float = float('inf')
 
     # Quantizations
     start_quant_level: float = 0
@@ -395,6 +500,13 @@ class GPTConfig:
     quantize_mlp_act_activation_output_bits: int = None
     quantize_mlp_act_output: bool = False
     quantize_mlp_act_output_bits: int = None
+    quantize_asic_prenorm: bool = False
+    quantize_asic_offchip_residual: bool = False
+    quantize_asic_bits: int = None
+    quantize_asic_attn_softmax_denom: bool = False
+    quantize_asic_attn_softmax_denom_bits: int = None
+    quantize_asic_attn_softmax_numerator: bool = False
+    quantize_asic_attn_softmax_numerator_bits: int = None
     store_activations: bool = False
 
     ## Linear Quantizations

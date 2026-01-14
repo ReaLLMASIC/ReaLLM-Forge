@@ -1,0 +1,108 @@
+# ------------------------------------------------------------------------------
+# PATH & ENVIRONMENT
+# ------------------------------------------------------------------------------
+
+# Add standard user bin directories to the path.
+export PATH="$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH"
+
+# Set your preferred editor
+export EDITOR='nvim'
+
+# Set terminal type for compatibility and color support
+export TERM=xterm-256color
+
+# ------------------------------------------------------------------------------
+# ZSH THEME (PURE PROMPT)
+# ------------------------------------------------------------------------------
+
+# Path to the Pure prompt theme
+fpath+=("$HOME/.zsh/pure")
+
+# Initialize the prompt system
+autoload -Uz promptinit
+promptinit
+prompt pure
+
+# ------------------------------------------------------------------------------
+# ZSH PLUGINS & COMPLETION
+# ------------------------------------------------------------------------------
+
+# Source plugins
+source "$HOME/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+source "$HOME/.zsh/zsh-autosuggestions/zsh-autosuggestions.zsh"
+source "$HOME/.zsh/zsh-completions/zsh-completions.plugin.zsh"
+
+# FZF (fuzzy finder) setup
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+# ------------------------------------------------------------------------------
+# ZSH SETTINGS & BEHAVIOR
+# ------------------------------------------------------------------------------
+
+# Case-sensitive completion
+CASE_SENSITIVE="true"
+
+# History settings
+HISTFILE=~/.zsh_history
+HISTSIZE=10000
+SAVEHIST=$HISTSIZE
+setopt appendhistory      # Append to history file
+setopt histignorealldups  # Ignore duplicate commands
+setopt sharehistory       # Share history between running shells
+
+# Change directory automatically without `cd`
+setopt auto_cd
+
+# ------------------------------------------------------------------------------
+# KEYBINDINGS
+# ------------------------------------------------------------------------------
+
+# To find a key's code, run `cat` and press the key combination.
+bindkey '^[[3~' delete-char        # [Delete] - delete character under cursor
+bindkey '^[[1;5C' forward-word     # [Ctrl-RightArrow] - move forward one word
+bindkey '^[[1;5D' backward-word    # [Ctrl-LeftArrow] - move backward one word
+bindkey "^[[H" beginning-of-line  # [Home] - move to the beginning of the line
+bindkey "^[[F" end-of-line        # [End] - move to the end of the line
+
+# ------------------------------------------------------------------------------
+# COMPLETION SYSTEM (COMPINIT)
+# ------------------------------------------------------------------------------
+
+# Initialize the completion system
+autoload -Uz compinit && compinit
+
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}' 'l:|=* r:|=*' '*'
+
+# Enable completion caching to speed up shell startup
+zstyle ':completion::complete:*' use-cache 1
+zstyle ':completion::complete:*' cache-path ~/.zsh/cache
+
+# Enable menu selection for completions
+zstyle ':completion:*' menu select
+
+# ------------------------------------------------------------------------------
+# ALIASES
+# ------------------------------------------------------------------------------
+
+source ~/.bash_aliases
+
+# ------------------------------------------------------------------------------
+# CONDA (Miniconda/Anaconda)
+# ------------------------------------------------------------------------------
+# Add your conda initialize block here if you install it.
+# It typically looks like this:
+#
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+# __conda_setup="$('/path/to/your/conda/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+# if [ $? -eq 0 ]; then
+#     eval "$__conda_setup"
+# else
+#     if [ -f "/path/to/your/conda/etc/profile.d/conda.sh" ]; then
+#         . "/path/to/your/conda/etc/profile.d/conda.sh"
+#     else
+#         export PATH="/path/to/your/conda/bin:$PATH"
+#     fi
+# fi
+# unset __conda_setup
+# <<< conda initialize <<<

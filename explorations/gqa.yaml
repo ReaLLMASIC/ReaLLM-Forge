@@ -1,0 +1,33 @@
+# sample.yaml
+---
+
+max_iters: [30000]
+warmup_iters: [3000]
+
+learning_rate: ["6e-4"]
+lr_decay_iters: [6000]
+min_lr: ["6e-5"]
+
+n_layer: [12]
+n_head: [12]
+n_embd: [768]
+
+weight_decay: [0.1]
+beta1: [0.9]
+beta2: [0.95]
+
+batch_size: [64]
+block_size: [1024]
+attention_variant: ["infinite"]
+use_concat_heads: [true]
+n_head: [12]
+n_qk_head_dim: [64]
+n_v_head_dim: [64]
+n_kv_group: [12]
+device: ["cuda"]
+dtype: ["bfloat16"]
+dataset: ["minipile"]
+seed: [9001, 1234]
+
+compile: [true]
+tensorboard_run_name: ["gqa-12"]

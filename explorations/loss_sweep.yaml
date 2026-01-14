@@ -1,0 +1,66 @@
+# loss_sweep.yaml demonstrating named parameter group configurations
+---
+
+# Atomic Static Groupings
+named_static_groups:
+  # QK Norm
+  - named_group: "no_qk_norm"
+    use_qk_norm: [false]
+    use_qk_norm_scale: [false]
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type
+  - named_group: "pre_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [false]
+    use_post_ln: [false]
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+  - named_group: "post_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [false]
+    use_post_ln: [true]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    named_group_settings:
+      use_rotary_embeddings: [true]
+      use_abs_pos_embeddings: [false]
+  - named_group: "abs"
+    named_group_settings:
+      use_rotary_embeddings: [false]
+      use_abs_pos_embeddings: [true]
+
+  # RMSNorm Variations
+  - named_group: "rmsnorm_all"
+    named_group_settings:
+      norm_variant_attn: ["rmsnorm"]
+      norm_variant_output: ["rmsnorm"]
+  - named_group: "rmsnorm_attn_hsnorm_out"
+    named_group_settings:
+      norm_variant_attn: ["rmsnorm"]
+      norm_variant_output: ["hyperspherenorm"]
+
+
+# Common_group: parameters applied to every run, but omitted from run names
+common_group:
+  max_iters: [10000]
+  device: ["cuda"]
+  dtype: ["bfloat16"]
+  max_sample_tokens: ["256"]
+  sample_each_eval: [true]
+  compile: [true]
+
+# Parameter_groups: define sets of overrides to apply on top of base params
+parameter_groups:
+  - dataset: ["opus-100"]
+    named_group_static: ["qk_norm", "rotary"]
+    loss_fn: ["skip_correct_top1", "cross_entropy", "focal"]
+    never_save_checkpoint: [false]
+    sample_file: ["sample_${RUN_NAME}"]
+
+

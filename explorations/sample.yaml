@@ -1,44 +1,84 @@
-# sample.yaml
+# sample.yaml demonstrating named parameter group configurations
 ---
-# parameter_groups: define sets of overrides to apply on top of base params
+
+# Atomic Static Groupings
+named_static_groups:
+  # QK Norm
+  - named_group: "no_qk_norm"
+    use_qk_norm: [false]
+    use_qk_norm_scale: [false]
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type
+  - named_group: "pre_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [false]
+    use_post_ln: [false]
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+  - named_group: "post_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [false]
+    use_post_ln: [true]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    named_group_settings:
+      use_rotary_embeddings: [true]
+      use_abs_pos_embeddings: [false]
+  - named_group: "abs"
+    named_group_settings:
+      use_rotary_embeddings: [false]
+      use_abs_pos_embeddings: [true]
+
+  # RMSNorm Variations
+  - named_group: "rmsnorm_all"
+    named_group_settings:
+      norm_variant_attn: ["rmsnorm"]
+      norm_variant_output: ["rmsnorm"]
+  - named_group: "rmsnorm_attn_hsnorm_out"
+    named_group_settings:
+      norm_variant_attn: ["rmsnorm"]
+      norm_variant_output: ["hyperspherenorm"]
+
+# Higher Level Groupings
+named_variation_groups:
+  - named_group: "embedding_head_variations"
+    parameter_groups:
+      - n_embd: 256
+        n_head: [4, 8]
+      - n_embd: 320
+        n_head: [5, 4]
+  - named_group: "positional_embeddings"
+    named_group_alternates: ["rotary", "abs"]
+
+# Common_group: parameters applied to every run, but omitted from run names
+common_group:
+  dataset: ["shakespeare_char"]
+  n_layer: ["2"]
+  block_size: ["32"]
+  batch_size: ["8"]
+  max_iters: [750]
+  device: ["cuda"]
+  dtype: ["bfloat16"]
+  never_save_checkpoint: [true]
+
+# Parameter_groups: define sets of overrides to apply on top of base params
 parameter_groups:
-  - use_rotary_embeddings: [true]
-    use_abs_pos_embeddings: [true]
-  - use_rotary_embeddings: [false]
-    use_abs_pos_embeddings: [true]
-
-# base hyperparameters
-max_iters: [250]
-n_layer: [6]
-n_head: [6]
-n_embd: [384]
-block_size: [256]
-device: ["cuda"]
-dtype: ["bfloat16"]
-dataset: ["shakespeare_char"]
-
-# ranged sweep
-seed:
-  range:
-    start: 100
-    end: 102
-    step: 1
-
-# conditional options
-consmax_initial_beta:
-  conditions:
-    - ["softmax_variant_attn", "consmax"]
-  options: ["2.5", "5.0", "10.0"]
-
-softmax_variant_attn:
-  - softmax
-  - polymax
-  - consmax
-
-# boolean flags
-compile: [true]
-use_post_ln: [true, false]
-
-# tensorboard run name
-tensorboard_run_name: ["full_feature_demo"]
+  - compile: [true, false]
+    named_group_static: ["qk_norm", "pre_ln"]
+    named_group_variations:
+      - "embedding_head_variations"
+      - "positional_embeddings"
+    named_group_alternates: ["rmsnorm_all", "rmsnorm_attn_hsnorm_out"]
+  - compile: [true, false]
+    named_group_static: ["no_qk_norm", "peri_ln"]
+    named_group_variations:
+      - "embedding_head_variations"
+      - "positional_embeddings"
+    named_group_alternates: ["rmsnorm_all", "rmsnorm_attn_hsnorm_out"]
 

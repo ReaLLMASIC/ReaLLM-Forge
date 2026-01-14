@@ -1,0 +1,40 @@
+# block_settings_sweep.yaml
+---
+
+# base hyperparameters
+max_iters: [20000]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+eval_interval: [500]
+block_size: [256]
+device: ["cuda"]
+dataset: ["minipile"]
+
+# position encoding
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# qk norm
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+
+# track everything
+compute_model_stats: [true]
+
+# VARIATIONS
+
+# floating point
+dtype: ["float16"]
+
+# compilation tests
+compile: [true]
+
+# variation tests
+use_parallel_mlp: [true, false]
+use_pre_ln:  [true, false]
+use_peri_ln: [true, false]
+use_post_ln: [true, false]
+
+# checkpointing tests
+# use_gradient_checkpointing: [true, false]

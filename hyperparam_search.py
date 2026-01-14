@@ -70,8 +70,8 @@ def patched_argv(argv: List[str]):
         sys.argv = old
 
 
-def run_trial_inproc(cfg: Dict[str, Any]) -> Tuple[float, float, int]:
-    """Return (best_val_loss, num_params, best_iter)."""
+def run_trial_inproc(cfg: Dict[str, Any]) -> Tuple[float, float, int, float, float]:
+    """Return (best_val_loss, num_params, best_iter, peak_gpu_mb, iter_latency_ms)."""
     from train import Trainer
     from train_args import parse_args as parse_train_args
 
@@ -83,13 +83,15 @@ def run_trial_inproc(cfg: Dict[str, Any]) -> Tuple[float, float, int]:
     loss = float(tr.best_val_loss)
     nparam = float(tr.raw_model.num_param)
     best_iter = int(getattr(tr, "iter_num_best_val_loss", 0))
+    peak_gpu_mb = float(getattr(tr, "peak_gpu_usage", 0.0) / (1024 ** 2))
+    iter_latency_ms = float(getattr(tr, "iter_latency_avg", 0.0))
     del tr
     torch.cuda.empty_cache()
     gc.collect()
-    return loss, nparam, best_iter
+    return loss, nparam, best_iter, peak_gpu_mb, iter_latency_ms
 
 
-def run_trial_subproc(cfg: Dict[str, Any]) -> Tuple[float, float, int]:
+def run_trial_subproc(cfg: Dict[str, Any]) -> Tuple[float, float, int, float, float]:
     script_dir = Path(__file__).parent
     cmd = [sys.executable, str(script_dir / "train.py")] + dict_to_cli(cfg)
     env = {k: v for k, v in os.environ.items() if k not in {"RANK", "WORLD_SIZE"}}
@@ -100,10 +102,14 @@ def run_trial_subproc(cfg: Dict[str, Any]) -> Tuple[float, float, int]:
 
     out_dir = Path(cfg.get("out_dir", "out"))
     line = (out_dir / "best_val_loss_and_iter.txt").read_text().strip().split(",")
-    loss, best_iter, nparam = float(line[0]), int(line[1]), float(line[2])
+    loss = float(line[0])
+    best_iter = int(line[1])
+    nparam = float(line[2])
+    peak_gpu_mb = float(line[5])
+    iter_latency_ms = float(line[6])
     torch.cuda.empty_cache()
     gc.collect()
-    return loss, nparam, best_iter
+    return loss, nparam, best_iter, peak_gpu_mb, iter_latency_ms
 
 
 def load_log(path: Path) -> Dict[str, Any]:
@@ -158,6 +164,15 @@ def main():
         help="Strategy when testing +1 to n_layer:\n"
              "  dup_middle (default) – duplicate the rounded-up middle layer\n"
              "  dup_each             – create one candidate per layer by duplicating it",
+    )
+    ap.add_argument(
+        "--efficiency_target",
+        choices=["params", "vram", "iter"],
+        default="params",
+        help=(
+            "Metric to normalize score gain: 'params' (default) for parameter count, "
+            "'vram' for peak GPU memory in MB, or 'iter' for average iteration latency in ms."
+        ),
     )
 
 
@@ -232,6 +247,8 @@ def main():
         base_loss = last["baseline_metrics"]["loss"]
         base_score = last["baseline_metrics"]["score"]
         base_params = last["baseline_metrics"]["params"]
+        base_gpu = last["baseline_metrics"].get("peak_gpu_mb", 0.0)
+        base_iter_ms = last["baseline_metrics"].get("iter_latency_avg", 0.0)
         cur_iter = last["iter"] + 1
         # Apply overrides to the resumed configuration for the current session
         _apply_overrides_to_active_config(baseline_cfg, args.override_cfg, "resumed baseline_cfg")
@@ -244,7 +261,7 @@ def main():
         print("[BASELINE] measuring initial config …")
         # run_fn receives a deepcopy of the (potentially overridden) baseline_cfg
 
-        base_loss, base_params, base_best_iter = run_fn(deepcopy(baseline_cfg))
+        base_loss, base_params, base_best_iter, base_gpu, base_iter_ms = run_fn(deepcopy(baseline_cfg))
         base_score = 1 / math.exp(base_loss)
         log["iterations"].append(
             {
@@ -253,6 +270,8 @@ def main():
                     "loss": base_loss,
                     "score": base_score,
                     "params": base_params,
+                    "peak_gpu_mb": base_gpu,
+                    "iter_latency_avg": base_iter_ms,
                     "best_iter": base_best_iter,
                 },
                 "baseline_config_after": deepcopy(baseline_cfg),
@@ -300,24 +319,41 @@ def main():
 
                     print(f"[TEST] {label_for_log}={value_for_log}  seed={cfg_run['seed']}")
                     try:
-                        loss, nparam, best_it = run_fn(cfg_run)
+                        loss, nparam, best_it, peak_mb, iter_ms = run_fn(cfg_run)
                     except Exception as exc:
                         print("   ⚠", exc)
                         return                                      # discard this candidate
 
                     score = 1.0 / math.exp(loss)
-                    seed_runs.append({"seed": cfg_run["seed"],
+                    seed_runs.append({
+                                      "seed": cfg_run["seed"],
                                       "loss": loss,
                                       "score": score,
-                                      "best_iter": best_it})
+                                      "best_iter": best_it,
+                                      "peak_gpu_mb": peak_mb,
+                                      "iter_latency_ms": iter_ms})
                     scores.append(score)
 
                 # ── aggregate across seeds ───────────────────────────────────
                 avg_score  = sum(scores) / len(scores)
+                avg_peak   = sum(s["peak_gpu_mb"] for s in seed_runs) / len(seed_runs)
+                avg_iter   = sum(s["iter_latency_ms"] for s in seed_runs) / len(seed_runs)
                 avg_loss   = -math.log(avg_score)
                 d_score    = avg_score - base_score
                 d_param    = nparam     - base_params
-                eff        = (d_score / d_param) if d_param != 0 else (math.inf if d_score > 0 else 0.0)
+                d_vram     = avg_peak   - base_gpu
+                d_iter     = avg_iter   - base_iter_ms
+
+                if args.efficiency_target == "params":
+                    d_cost = d_param
+                elif args.efficiency_target == "vram":
+                    d_cost = d_vram
+                elif args.efficiency_target == "iter":
+                    d_cost = d_iter
+                else:
+                    raise ValueError("Unknown efficiency target")
+
+                eff = (d_score / d_cost) if d_cost != 0 else (math.inf if d_score > 0 else 0.0)
 
                 cand = {
                     "param":         label_for_log,
@@ -327,8 +363,12 @@ def main():
                     "best_val_loss": avg_loss,
                     "best_iter":     max(s["best_iter"] for s in seed_runs),
                     "num_params":    nparam,
+                    "peak_gpu_mb":   avg_peak,
+                    "iter_latency_avg": avg_iter,
                     "delta_score":   d_score,
                     "delta_params":  d_param,
+                    "delta_vram":    d_vram,
+                    "delta_iter_latency": d_iter,
                     "efficiency":    eff,
                     "seeds":         seed_runs,
                 }
@@ -430,6 +470,8 @@ def main():
                                 "loss": base_loss, # Keep current baseline metrics
                                 "score": base_score,
                                 "params": base_params,
+                                "peak_gpu_mb": base_gpu,
+                                "iter_latency_avg": base_iter_ms,
                                 "best_iter": log["iterations"][-1]["baseline_metrics"]["best_iter"],
                             },
                             "candidates": candidates, # Log candidates for this unproductive iteration
@@ -494,6 +536,8 @@ def main():
         base_loss = chosen["avg_loss"]
         base_score = chosen["avg_score"]
         base_params = chosen["num_params"]
+        base_gpu = chosen.get("peak_gpu_mb", base_gpu)
+        base_iter_ms = chosen.get("iter_latency_avg", base_iter_ms)
 
         # log block
         log["iterations"].append(
@@ -503,6 +547,8 @@ def main():
                     "loss": base_loss,
                     "score": base_score,
                     "params": base_params,
+                    "peak_gpu_mb": base_gpu,
+                    "iter_latency_avg": base_iter_ms,
                     "best_iter": chosen["best_iter"],
                 },
                 "candidates": candidates,

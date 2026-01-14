@@ -1,0 +1,57 @@
+# adamw_act_reg_sweep.yaml
+---
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+parameter_groups:
+  - softmax_variant_attn: ["softmax"]
+    use_flash_lobo: [false]
+    use_flash_lobo_per_head: [false]
+  - softmax_variant_attn: ["softmax"]
+    use_flash_lobo: [true]
+    use_flash_lobo_per_head: [true]
+    flash_lobo_log_const: [0.0, 0.5, 1.0]
+  - softmax_variant_attn: ["relumax"]
+    relumax_divisor: ["50.0", "100.0", "200.0"]
+  - softmax_variant_attn: ["relu2max"]
+    reluwmax_divisor: ["50.0", "100.0", "200.0"]
+
+# init_variant: ["gaussian", "rand_hypercube"]
+# init_scale: ["1.0"]
+# linear_std_init: ["0.02"]
+# embedding_std_init: ["0.02"]
+
+compute_model_stats: [true]
+model_stats_device: ["gpu"]
+compile: [true] # currently compute model stats needs compile false
+
+# base hyperparameters
+max_iters: [5000]
+eval_interval: [250]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+block_size: [256]
+device: ["cuda"]
+dtype: ["bfloat16"]
+dataset: ["minipile"]
+
+use_qk_norm:       [true]
+use_qk_norm_scale: [true]
+
+optimizer: ["adamw_act_reg", "adamw"]
+
+activation_decay:
+  conditions:
+    - ["optimizer", "adamw_act_reg"]
+  options: ["0.0001", "0.00001", "0.000001"]
+
+activation_stat:
+  conditions:
+    - ["optimizer", "adamw_act_reg"]
+  options: ["stdev", "kurtosis", "abs_max"]
+
+
+# tensorboard run name
+tensorboard_run_name: ["act_reg_sweep"]
+

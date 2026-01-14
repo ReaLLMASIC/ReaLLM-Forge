@@ -5,28 +5,31 @@
 # by the run_experiments.py launcher.
 
 # ── dataset & compute ──────────────────────────────────────────────
-dataset: ["shakespeare_char"]
+dataset: ["minipile"]
 device:  ["cuda"]                    # or ["cpu"] if you like
 compile: [true]                      # tiny net ⇒ compile just works
-dtype: ["float16"]       # try both cheap dtypes
+never_save_checkpoint: [true]
+dtype: ["bfloat16"]       # try both cheap dtypes
 
 # ── base model hyper-params (SMALL net) ────────────────────────────
-n_embd:  [384]
-n_head:  [6]
-max_iters: [2000]
-eval_interval: [250]
+max_iters: [10000]
+eval_interval: [10000]
+eta_variant: ["iteration"]
 
 # ── SHARING GRID  (cartesian product) ──────────────────────────────
-# Test odd and even layers
-n_layer: [5, 6]
+n_layer: [8]
+n_embd: [512]
+n_head: [8]
+block_size: [1024]
+batch_size: [64]
 
 # Size-sharing: reuse block every k layers
 shared_attn_size: [1, 2, 3]          # 1 = no size-sharing
 shared_mlp_size:  [1, 2, 3]
 
 # Sequence-sharing: cyclic A-B-C pattern length
-shared_attn_seq:  [1, 2, 3]          # 1 = disabled
-shared_mlp_seq:   [1, 2, 3]
+shared_attn_seq:  [1, 2, 3, 4]          # 1 = disabled
+shared_mlp_seq:   [1, 2, 3, 4]
 
 # Symmetry mirror
 shared_attn_sym: [false, true]

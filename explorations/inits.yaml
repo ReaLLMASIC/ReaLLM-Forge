@@ -1,11 +1,26 @@
 # inits.yaml
 ---
-# parameter_groups: define sets of overrides to apply on top of base params
+# - init_variant: ["numpy_import", "onehot"]
+# dataset: "billsum" # 129 chars in english
 parameter_groups:
-  - init_variant: ["numpy_import", "onehot", "hypercube"]
-    init_scale: [1.0,0.5,0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005]
+  # Variants that use a post-normalization scaling factor
+  - init_variant: ["rand_hypercube", "unique_hypercube"]
+    init_scale: [2.0, 1.5, 1.0, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01,
+                 0.005, 0.002, 0.001, 0.0005]
+
+  # Hypersphere based initialization
+  - init_variant: ["angle_hypersphere"]
+    init_radius: [0.25, 0.5, 1.0, 2.0]
+
+  # Gaussian with vector norm range constraints
+  - init_variant: ["gaussian_norm_range"]
+    embedding_std_init: [0.02]
+    gaussian_min_norm: [0.00, 0.001, 0.01]
+    gaussian_max_norm: [1.0, 2.0, 4.0]
+
+  # Standard gaussian for comparison
   - init_variant: ["gaussian"]
-    embedding_std_init: [0.002, 0.005, 0.01, 0.02, 0.05, 0.1]
+    embedding_std_init: [0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0]
 
 use_rotary_embeddings: [true]
 use_abs_pos_embeddings: [false]
@@ -24,7 +39,7 @@ colorize_output: true
 colorize_mode: all
 device: ["cuda"]
 dtype: ["bfloat16", "float16"]
-dataset: "billsum" # 129 chars in english
+dataset: "minipile"
 
 # boolean flags
 compile: [true]

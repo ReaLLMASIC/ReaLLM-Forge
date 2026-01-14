@@ -16,3 +16,8 @@ Example for calling from repo root directory:
 python3 demos/check_ckpt_for_gelu_shift.py \
         --ckpt_path out/ckpt.pt
 ```
+
+## Optimizer Comparison
+
+`adam_vs_adamw.sh` trains two tiny Shakespeare models, one with Adam and one
+with AdamW, then compares their statistics using `view_model_stats.py`.

@@ -40,6 +40,7 @@ Hardware Related
   * [Start Exploration](#start-exploration)
   * [Inspect and Monitor Best Val Losses](#inspect-and-monitor-best-val-losses)
   * [Start Tensorboard Logging](#start-tensorboard-logging)
+  * [Model Stats Table](#model-stats-table)
   * [Troubleshooting](#troubleshooting)
   * [Creating New Features and Exploration Scripts](#creating-new-features-and-exploration-scripts)
 * [Contributing](#contributing)
@@ -206,9 +207,31 @@ run a second tensorboard, use the script and specify a different port e.g. 6007:
 source ./logging/start_tensorboard.sh 6007
 ```
 
+## Model Stats Table
+
+The training script can output a per‑tensor statistics table to a CSV file with
+``--print_model_stats_table``. A helper script then visualizes the table or
+compares two runs with colour‑coded deltas.
+
+```bash
+python3 train.py --print_model_stats_table run1_stats.csv
+python3 train.py --optimizer adamw --print_model_stats_table run2_stats.csv
+python3 view_model_stats.py run1_stats.csv run2_stats.csv
+```
+
+See [documentation/Model_Stats_Table.md](documentation/Model_Stats_Table.md)
+for more details.
+
 ## TODO Section:
 
 TODO: Add links and descriptions to other Readme's and Demos.
+
+## Normalization Options
+
+The training CLI now supports `--use_peri_ln` for experimenting with
+*Peri-LN*, a normalization strategy that applies layer normalization
+around each sublayer (before and after). This can be combined with the
+existing `--use_post_ln` flag for Post-LN training.
 
 ## Contributing
 
@@ -217,9 +240,21 @@ This repo is under active development and accepting PR's, please see the
 See the [Contributing_Features.md](Contributing_Features.md) for details on how
 to add new features and explorations.
 
-## Acknowledgements
+## Citation
 
-- Original nanoGPT Repo
-- NanoGPT Discord Channel [![](https://dcbadge.vercel.app/api/server/3zy8kqD9Cp?compact=true&style=flat)](https://discord.gg/3zy8kqD9Cp)
-- [Zero To Hero series](https://karpathy.ai/zero-to-hero.html)
-- [GPT video](https://www.youtube.com/watch?v=kCc8FmEb1nY)
+This work extends Andrej Karpathy's foundational
+[nanoGPT](https://github.com/karpathy/nanoGPT), for which prior citation format can be found [here](
+https://github.com/karpathy/nanoGPT/issues/471).
+
+We ask that citations cite both projects.
+
+To cite **ReaLLM-Forge**, please use this BibTeX entry:
+
+```bibtex
+@software{ReaLLM-Forge,
+  author = {{ReaLLMASIC} and {Contributors}},
+  title = {{ReaLLM-Forge: A Framework for Hardware-Aware LLM Exploration}},
+  url = {https://github.com/ReaLLMASIC/ReaLLM-Forge},
+  year = {2025},
+}
+```

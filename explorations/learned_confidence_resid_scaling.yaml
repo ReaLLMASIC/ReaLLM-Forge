@@ -1,0 +1,125 @@
+# learned_confidence_resid_scaling.yaml
+---
+parameter_groups:
+  # Baseline without residual scaling
+  - use_attn_resid_scaling: [false]
+    use_mlp_resid_scaling: [false]
+
+  # Zeros
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["zeros"]
+    mlp_confidence_variant: ["zeros"]
+
+  # Zeros with Constant
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["zeros"]
+    mlp_confidence_variant: ["zeros"]
+    use_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_attn_resid_const: [false]
+    learn_mlp_resid_const: [false]
+    attn_resid_const: [0, 1]
+    mlp_resid_const: [0, 1]
+
+  # Zeros with Learnable Constant
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["zeros"]
+    mlp_confidence_variant: ["zeros"]
+    use_attn_resid_const: [true]
+    learn_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_mlp_resid_const: [true]
+    attn_resid_const: [0, 1]
+    mlp_resid_const: [0, 1]
+
+  # Ones with Constant
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["ones"]
+    mlp_confidence_variant: ["ones"]
+
+  # Ones with Constant
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["ones"]
+    mlp_confidence_variant: ["ones"]
+    use_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_attn_resid_const: [false]
+    learn_mlp_resid_const: [false]
+    attn_resid_const: [0, 1]
+    mlp_resid_const: [0, 1]
+
+  # Ones with Learnable Constant
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["ones"]
+    mlp_confidence_variant: ["ones"]
+    use_attn_resid_const: [true]
+    learn_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_mlp_resid_const: [true]
+    attn_resid_const: [0, 1]
+    mlp_resid_const: [0, 1]
+
+  # Gaussian
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["gaussian"]
+    mlp_confidence_variant: ["gaussian"]
+    resid_gaussian_mean_init: [0.0]
+    resid_gaussian_std_init: [0.02]
+
+  # Gaussian with Constnat
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["gaussian"]
+    mlp_confidence_variant: ["gaussian"]
+    use_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_attn_resid_const: [false]
+    learn_mlp_resid_const: [false]
+    attn_resid_const: [0, 1]
+    mlp_resid_const: [0, 1]
+    resid_gaussian_mean_init: [0.0]
+    resid_gaussian_std_init: [0.02]
+
+  # Gaussian with Learnable Constant
+  - use_attn_resid_scaling: [true]
+    use_mlp_resid_scaling: [true]
+    attn_confidence_variant: ["gaussian"]
+    mlp_confidence_variant: ["gaussian"]
+    use_attn_resid_const: [true]
+    use_mlp_resid_const: [true]
+    learn_attn_resid_const: [true]
+    learn_mlp_resid_const: [true]
+    attn_resid_const: [0, 1]
+    mlp_resid_const: [0, 1]
+    resid_gaussian_mean_init: [0.0]
+    resid_gaussian_std_init: [0.02]
+
+# base hyperparameters
+max_iters: [10000]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+block_size: [256]
+dataset: ["minipile"]
+device: ["cuda"]
+dtype: ["float16"]
+
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+use_peri_ln: [true, false]
+
+# Position Encoding
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# Misc
+never_save_checkpoint: [true]
+compile: [true]
+

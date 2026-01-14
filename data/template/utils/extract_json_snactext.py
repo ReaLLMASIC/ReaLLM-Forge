@@ -22,10 +22,8 @@ def process_text_extraction(input_path, value, output_path):
 
     for entry in data:
         field = ""
-        if value == "text":
-            field = entry["text"]
-        elif value == "ipa":
-            field = entry["ipa"]
+        value = value.lower()
+        field = entry.get(value, "")
         raw_snac = entry["sequential_snac_tokens"]
         snac = ""
 

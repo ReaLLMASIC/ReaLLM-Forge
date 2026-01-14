@@ -1,0 +1,53 @@
+# focal_rank_entropy_comparison.yaml
+---
+# Compare focal-based loss combinations for top-1 accuracy
+
+# base hyperparameters
+max_iters: [10000]
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+block_size: [256]
+batch_size: [32]
+eval_interval: [500]
+dataset: ["minipile"]
+device: ["cuda"]
+dtype: ["bfloat16"]
+
+# modern architecture updates
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+use_peri_ln: [true, false]
+
+# optimizer
+optimizer: ["adamw"]
+
+# MLP Confidence Vectors
+use_mlp_resid_scaling: [true]
+mlp_confidence_variant: ["zeros"]
+use_mlp_resid_const: [true]
+mlp_resid_const: [1.0]
+learn_mlp_resid_const: [true, false]
+
+# TODO Add router and linear output variations
+# TODO Add softmax_attn variations
+# TODO Add slerp/skip_connection variations
+# TODO Add L2 normalization post activation
+
+# loss variants to compare
+parameter_groups:
+  - loss_fn:
+      - cross_entropy
+      - entropy_penalty
+      - rank_distance
+      - focal
+      - entropy_focal
+      - rank_distance_focal
+      - entropy_rank_distance_focal
+
+# Misc
+compile: [true]
+never_save_checkpoint: [true]
+tensorboard_run_name: ["focal_rank_entropy_comp"]

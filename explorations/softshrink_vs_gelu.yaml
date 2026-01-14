@@ -1,0 +1,40 @@
+# softshrink_vs_gelu.yaml
+---
+parameter_groups:
+    # MLP
+  - mlp_variant: ["mlp"]
+    activation_variant: ["identity", "gelu"]
+    # Swiglu
+  - mlp_variant: ["swiglu"]
+    activation_variant: ["identity", "silu"]
+    # Softshrink
+  - mlp_variant: ["mlp", "swiglu"]
+    activation_variant: ["softshrink"]
+    softshrink_lambda: [0.25, 0.5, 0.75, 1.0, 1.25, 1.50, 1.75, 2.00]
+
+# VRAM and Memory
+compile: [true]
+never_save_checkpoint: [true]
+
+# Training Settings
+dataset: ["minipile"]
+max_iters: [18000]
+eval_interval: [3000]
+eta_variant: ["iteration"]
+block_size: [1024]
+batch_size: [16]
+ 
+# Architecture
+n_layer: [12]
+n_embd: [768, 960]
+n_head: [12]
+
+# Position Embeddings
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# QK Norm and Peri-LN
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+use_peri_ln: [true]
+

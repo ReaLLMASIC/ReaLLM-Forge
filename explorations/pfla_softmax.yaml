@@ -1,0 +1,80 @@
+# explorations/pfla_softmax.yaml
+---
+# -------------------------------------------------------------
+#  Sweep demonstrating both interpolation modes and all knobs
+# -------------------------------------------------------------
+parameter_groups:
+  - softmax_variant_attn: ["softmax"]
+    use_flash_lobo: [false, true]
+    use_flash_lobo_per_head: [true]
+    flash_lobo_log_const: [0.1]
+  - softmax_variant_attn: ["pfla_softmax"]
+    pfla_softmax_use_learned_divisor: [false]
+    pfla_softmax_use_obo: [false]
+    pfla_softmax_use_learned_obo: [false]
+    pfla_softmax_obo: [0.0]
+    pfla_softmax_gamma_init: [10.0, 20.0, 50.0, 100.0, 200.0]
+    pfla_softmax_init_activation: ["softplus", "relu", "squared_relu", "sigmoid"]
+    pfla_softmax_left_bound: [-10.0]
+    pfla_softmax_right_bound: [10.0]
+    pfla_softmax_mode: ["linear", "quadratic"]
+    pfla_softmax_density: ["linear", "quad"]
+    pfla_softmax_num_points: [10, 30]
+    pfla_softmax_learn_x: [false]
+    pfla_softmax_learn_y: [true]
+  - softmax_variant_attn: ["pfla_softmax"]
+    pfla_softmax_use_learned_divisor: [false]
+    pfla_softmax_use_obo: [true]
+    pfla_softmax_use_learned_obo: [true]
+    pfla_softmax_obo: [1.0]
+    pfla_softmax_gamma_init: [10.0, 20.0, 50.0, 100.0, 200.0]
+    pfla_softmax_init_activation: ["softplus", "relu", "squared_relu", "sigmoid"]
+    pfla_softmax_left_bound: [-10.0]
+    pfla_softmax_right_bound: [10.0]
+    pfla_softmax_mode: ["linear", "quadratic"]
+    pfla_softmax_density: ["linear", "quad"]
+    pfla_softmax_num_points: [10, 30]
+    pfla_softmax_learn_x: [false]
+    pfla_softmax_learn_y: [true]
+  - softmax_variant_attn: ["pfla_softmax"]
+    pfla_softmax_use_obo: [false]
+    pfla_softmax_use_learned_divisor: [true]
+    pfla_softmax_gamma_init: [10.0, 20.0, 50.0, 100.0, 200.0]
+    pfla_softmax_init_activation: ["softplus", "relu", "squared_relu", "sigmoid"]
+    pfla_softmax_left_bound: [-10.0]
+    pfla_softmax_right_bound: [10.0]
+    pfla_softmax_mode: ["linear", "quadratic"]
+    pfla_softmax_density: ["linear", "quad"]
+    pfla_softmax_num_points: [10, 30]
+    pfla_softmax_learn_x: [false]
+    pfla_softmax_learn_y: [true]
+
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# ‑‑‑ Base training h‑params (kept tiny for demo) ‑‑‑
+max_iters:  [5000]
+eval_interval:  [1000]
+n_layer:    [3]
+n_head:     [3]
+n_embd:     [192]
+block_size: [256]
+dataset:    ["minipile"]
+device:     ["cuda"]
+dtype:      ["bfloat16"]
+
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+
+# -------------------------------------------------------------
+#         PFLA‑Softmax specific sweeps
+# -------------------------------------------------------------
+
+
+# -------------------------------------------------------------
+#  Misc toggles for compiler
+# -------------------------------------------------------------
+compile:     [false]
+
+tensorboard_run_name: ["pfla_softmax_full_demo"]
+

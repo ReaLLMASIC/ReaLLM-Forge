@@ -1,3 +1,7 @@
 downloaded_parquets/
+downloaded_csvs/
+downloaded_csv/
+downloaded_jsons/
+downloaded_json/
 json_output/
 *.txt

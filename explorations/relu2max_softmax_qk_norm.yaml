@@ -1,0 +1,45 @@
+# relu2max_softmax_qk_norm.yaml
+---
+
+# parameter groups: toggle qk norm
+parameter_groups:
+  - use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+    softmax_variant_attn: ["relu2max"]
+    relu2max_divisor: [1, 16, 32, 64.0, 256.0, 1024.0]
+  - use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+    softmax_variant_attn: ["softmax"]
+
+# base hyperparameters (GPT-2 style)
+n_layer: [12]
+n_head: [12]
+n_embd: [768]
+block_size: [1024]
+device: ["cuda"]
+dtype: ["bfloat16"]
+dataset: ["minipile"]
+batch_size: [16]
+max_iters: [30000]
+lr_decay_iters: [30000]
+warmup_iters: [3000]
+beta1: [0.9]
+beta2: [0.95]
+learning_rate: ["6e-4"]
+min_lr: ["6e-5"]
+decay_lr: [true]
+eval_interval: [5000]
+never_save_checkpoint: [true]
+
+# positional embeddings
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+
+# normalization
+norm_variant_attn: ["rmsnorm"]
+norm_variant_output: ["rmsnorm"]
+
+compile: [true]
+
+# tensorboard run name
+tensorboard_run_name: ["relu2max_softmax_qk_norm"]

@@ -1,10 +1,14 @@
-import os
-import sys
 import argparse
+import sys
+from pathlib import Path
+
 import torch
 
-# Add top level dir
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Ensure the repository root is on the import path regardless of CWD
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from model import GPT, GPTConfig
 
@@ -45,6 +49,9 @@ def get_parameter_tree(state_dict):
         current_level[parts[-1]] = state_dict[full_key]
     return tree
 
+IMAGES_DIR = SCRIPT_DIR / "images"
+
+
 def display_heatmap(tensor, full_key):
     import numpy as np
     import seaborn as sns
@@ -57,12 +64,11 @@ def display_heatmap(tensor, full_key):
         return
 
     # Create the images directory if it doesn't exist
-    images_dir = os.path.join('checkpoint_analysis', 'images')
-    os.makedirs(images_dir, exist_ok=True)
+    IMAGES_DIR.mkdir(exist_ok=True)
 
     # Clean the full_key to create a valid filename
     filename = full_key.replace('.', '_').replace('/', '_')
-    image_path = os.path.join(images_dir, f"{filename}_heatmap.png")
+    image_path = IMAGES_DIR / f"{filename}_heatmap.png"
 
     # Generate the heatmap
     plt.figure(figsize=(10, 8))
@@ -125,12 +131,11 @@ def display_histogram(tensor, full_key):
             print("Invalid input. Please enter a positive integer.")
 
     # Create the images directory if it doesn't exist
-    images_dir = os.path.join('checkpoint_analysis', 'images')
-    os.makedirs(images_dir, exist_ok=True)
+    IMAGES_DIR.mkdir(exist_ok=True)
 
     # Clean the full_key to create a valid filename
     filename = full_key.replace('.', '_').replace('/', '_')
-    image_path = os.path.join(images_dir, f"{filename}_histogram.png")
+    image_path = IMAGES_DIR / f"{filename}_histogram.png"
 
     # Generate the histogram using seaborn
     plt.figure(figsize=(10, 8))

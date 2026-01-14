@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import torch
+import torch.distributed as dist
 import itertools
 from torch.optim import (ASGD, LBFGS, SGD, Adagrad, Adam, Adamax, AdamW, NAdam,
                          RAdam, RMSprop, SparseAdam)
@@ -17,6 +18,14 @@ try:
     from apollo_torch import APOLLOAdamW          # pip install apollo-torch
 except ImportError as e:                           # graceful fallback
     APOLLOAdamW = None
+
+# Muon optimiser -----------------------------------------------------------
+# Reference: Jordan et al., 2024 (https://kellerjordan.github.io/posts/muon/)
+try:
+    from train_variations.muon import MuonWithAuxAdam, SingleDeviceMuonWithAuxAdam
+except ImportError:  # optional dependency
+    MuonWithAuxAdam = None
+    SingleDeviceMuonWithAuxAdam = None
 
 # Other PyPI optimisers ---------------------------------------------------
 try:  # AdaBelief
@@ -1003,6 +1012,88 @@ def _adamw(param_groups, args):
     )
 
 
+class ActRegularizedAdamW(AdamW):
+    """AdamW with activation-aware weight decay.
+
+    Instead of relying on gradients of the activations, this variant scales the
+    weight-decay term by a statistic of the forward activations (e.g. overall
+    standard deviation).  The statistic must be provided externally via
+    :func:`set_activation_stat` prior to each :func:`step` call.
+    """
+
+    def __init__(self, params, *, activation_decay=0.0, stat_type="stdev", **kwargs):
+        super().__init__(params, **kwargs)
+        self.activation_decay = activation_decay
+        self.stat_type = stat_type
+        self._activation_stat: float = 0.0
+
+    def set_activation_stat(self, stat: float) -> None:
+        """Supply the activation statistic for regularisation."""
+        self._activation_stat = float(stat)
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        if self.activation_decay != 0.0 and self._activation_stat != 0.0:
+            coeff = self.activation_decay * self._activation_stat
+            for group in self.param_groups:
+                for p in group["params"]:
+                    if p.grad is None:
+                        continue
+                    p.grad = p.grad.add(p, alpha=coeff)
+
+        loss = super().step(closure)
+        self._activation_stat = 0.0
+        return loss
+
+
+def _adamw_act_reg(param_groups, args):
+    return ActRegularizedAdamW(
+        param_groups,
+        lr=args.learning_rate,
+        betas=(args.beta1, args.beta2),
+        eps=args.adamw_eps,
+        weight_decay=args.adamw_weight_decay,
+        activation_decay=getattr(args, "activation_decay", 0.0),
+        stat_type=getattr(args, "activation_stat", "stdev"),
+    )
+
+
+class EntropyAwareAdamW(AdamW):
+    """AdamW variant that increases learning rate for flat output distributions."""
+
+    def __init__(self, params, *, entropy_coeff: float = 1.0, **kwargs):
+        super().__init__(params, **kwargs)
+        self.entropy_coeff = entropy_coeff
+        for group in self.param_groups:
+            group.setdefault("base_lr", group["lr"])
+        self._entropy: float = 0.0
+
+    def set_entropy(self, value: float) -> None:
+        self._entropy = float(value)
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        scale = 1.0 + self.entropy_coeff * self._entropy
+        for group in self.param_groups:
+            base_lr = group.get("base_lr", group["lr"])
+            group["lr"] = base_lr * scale
+        loss = super().step(closure)
+        for group in self.param_groups:
+            group["lr"] = group.get("base_lr", group["lr"])
+        self._entropy = 0.0
+        return loss
+
+
+def _entropy_aware_adamw(param_groups, args):
+    return EntropyAwareAdamW(
+        param_groups,
+        lr=args.learning_rate,
+        betas=(args.beta1, args.beta2),
+        eps=args.adamw_eps,
+        weight_decay=args.adamw_weight_decay,
+        entropy_coeff=getattr(args, "entropy_lr_boost", 1.0),
+    )
+
 def _radam(param_groups, args):
     return RAdam(
         param_groups,
@@ -1542,11 +1633,38 @@ def _adamod_diffgrad(param_groups, args):
     )
 
 
+def _muon(param_groups, args):
+    if MuonWithAuxAdam is None or SingleDeviceMuonWithAuxAdam is None:
+        raise ImportError("Muon optimizer is not available")
+
+    use_dist = dist.is_available() and dist.is_initialized()
+    opt_class = MuonWithAuxAdam if use_dist else SingleDeviceMuonWithAuxAdam
+
+    for group in param_groups:
+        if group.get("use_muon", False):
+            group.update(
+                lr=args.learning_rate,
+                momentum=getattr(args, "muon_momentum", 0.95),
+                weight_decay=args.weight_decay,
+                use_muon=True,
+            )
+        else:
+            group.update(
+                lr=args.learning_rate,
+                betas=(args.beta1, args.beta2),
+                eps=getattr(args, "opt_eps", 1e-8),
+                weight_decay=args.weight_decay,
+                use_muon=False,
+            )
+    return opt_class(param_groups)
+
+
 optimizer_dictionary: dict[str, callable] = {
     # From pytorch
     "sgd": _sgd,
     "adam": _adam,
     "adamw": _adamw,
+    "adamw_act_reg": _adamw_act_reg,
     "adamax": _adamax,
     "radam": _radam,
     "nadam": _nadam,
@@ -1563,6 +1681,7 @@ optimizer_dictionary: dict[str, callable] = {
     # hybrids
     "lambdiff": _lambdiff,
     "adamod_diffgrad": _adamod_diffgrad,
+    "muon": _muon,
     # community contributed
     "lion": _lion,
     # from adabelief_pytorch
@@ -1593,4 +1712,5 @@ optimizer_dictionary: dict[str, callable] = {
     "soap": _soap,
     "var_adaptive_lr": _var_adaptive_lr,
     "lookahead": _lookahead,
+    "entropy_aware_adamw": _entropy_aware_adamw,
 }

@@ -1,0 +1,27 @@
+name: Install Then Test LN and Parallel MLP
+on: [push, pull_request]
+jobs:
+  Install-And-Test-LN-Parallel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - run: echo "${{ github.repository }} repository has been cloned to the runner."
+      - run: echo "Currently on ${{ github.ref }} branch"
+      - name: ls of directory
+        run: |
+          ls ${{ github.workspace }}
+      - name: Install CPU Dependencies
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          python3 -m pip install --upgrade pip
+          python3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          python3 -m pip install numpy transformers datasets tiktoken wandb tqdm tensorboard
+          python3 -m pip install -r requirements_cpu.txt
+      - name: Test LN and parallel MLP combinations
+        run: |
+          source venv/bin/activate
+          bash data/shakespeare_char/get_dataset.sh
+          cd tests
+          source test_ln_parallel_mlp_cpu.sh
