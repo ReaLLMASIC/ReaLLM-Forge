@@ -383,6 +383,8 @@ class Trainer:
 
             self.iter_num = 0 # for starting from scratch
             self.best_val_loss = 1e9 # really big number
+            self.best_iter = 0 # really big number
+            self.best_tokens = 0
 
             variation_dict, huggingface_name = model_variation_dictionary[self.args.qwen2_model]
             # NOTE: the hierarchy of parameters goes: 1)variation_dict >> 2)cmd-line args >> 3)GPTConfig defaults
@@ -392,6 +394,7 @@ class Trainer:
 
             gptconf = GPTConfig(**self.model_args)
             self.model = GPT.from_pretrained_qwen(gptconf, model_type=huggingface_name)
+            self.model.to(self.device)
             self.load_data()
 
             if self.args.lsv_focused_training:
