@@ -188,6 +188,7 @@ class GPTConfig:
     activation_end: str = "relu"
     activation_transition_start_iter: int = 0
     activation_transition_end_iter: int = None
+    use_offchip_peri_ln: bool = False
 
     # MLP Options
     use_parallel_mlp: bool = False
