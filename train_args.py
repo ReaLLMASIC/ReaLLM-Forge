@@ -20,6 +20,20 @@ def parse_args():
     model_group = parser.add_argument_group('model_group')
     training_group = parser.add_argument_group('training_group')
     logging_group = parser.add_argument_group('logging_group')
+    
+    # bit logging
+    parser.add_argument("--bit_log_every", type=int, default=20,
+                        help="Log bit/grad tables every N optimizer steps.")
+    parser.add_argument("--bit_log_dir", type=str, default=None,
+                        help="Where to write bit csv logs. Default: <out_dir>/bit_logs/<run_id>/")
+    parser.add_argument("--bit_log_overwrite", action="store_true",
+                        help="Overwrite existing bit csvs (recommended for debugging).")
+    parser.add_argument("--bit_log_run_id", type=str, default=None,
+                        help="Explicit run id for bit logs. Default: timestamp or tensorboard run name.")
+
+    parser.add_argument("--bit_grad_source_debug", action="store_true",
+                    help="Debug: compare grad from main loss vs bit penalty (slow).")
+
 
     # MLP Bias Configuration
     model_group.add_argument('--mlp_up_bias', default=None, action=argparse.BooleanOptionalAction, help='Whether to use bias in MLP up projections. If None, uses global bias setting.')
@@ -1265,6 +1279,54 @@ def parse_args():
     model_group.add_argument('--use_gradient_checkpointing', default=False, action=argparse.BooleanOptionalAction, help="Memory efficient training, but takes longer time to train due to trading compute time for memory efficiency. For best memory tradeoff omit the --compile flag. For medium memory tradeoff add --compile.")
     model_group.add_argument('--recompute_backward_pass', default=False, action=argparse.BooleanOptionalAction, help="Recomputes for the backward pass, must use with --use_gradient_checkpointing")
 
+    ## Learned Position Embeddings
+    model_group.add_argument( '--n_lpe', type=int, default=0, help='Number of LearnedPositionEmbedding modules to instantiate (one per transformer block)')
+
+    model_group.add_argument('--lpe_block_size', default=256, type=int)
+    model_group.add_argument('--lpe_n_layer', default=3, type=int)
+    model_group.add_argument('--lpe_n_head', default=6, type=int)
+    model_group.add_argument('--lpe_n_kv_group', default=None, type=int)
+    model_group.add_argument('--lpe_use_abs_pos_embeddings', default=True, action=argparse.BooleanOptionalAction, help='Whether LPE modules add absolute position embeddings')
+    model_group.add_argument('--lpe_use_rotary_embeddings', default=True, action=argparse.BooleanOptionalAction, help='Whether LPE modules add absolute position embeddings')
+    model_group.add_argument('--lpe_n_qk_head_dim', default=None, type=int)
+    model_group.add_argument('--lpe_n_v_head_dim', default=None, type=int)
+    model_group.add_argument("--lpe_mlp_size", type=int, default=None, help="If not None, is used instead of mlp_expansion_factor")
+
+    model_group.add_argument('--target_layer_in_lpe', default=0, type=int)
+    model_group.add_argument('--target_layer_out_lpe', default=0, type=int)
+
+    model_group.add_argument(
+        "--lpe_attention_variant",
+        type=str,
+        default="causal",
+        choices=attention_variants,
+        help="Which attention variant to use for the Transformer blocks."
+    )
+    # Learnable Gradient
+    model_group.add_argument('--use_learned_gradient', default=False, action=argparse.BooleanOptionalAction,
+                             help="Mount learned gradient on each round point")
+    model_group.add_argument('--learned_gradient_bits', type=int, default=8,
+                             help="Bit width for learned gradient")
+    model_group.add_argument('--learned_gradient_quantize_activations', default=True, action=argparse.BooleanOptionalAction,
+                             help="Quantizing Activation? Default Yes")
+    model_group.add_argument('--learned_gradient_quantize_weights', default=False, action=argparse.BooleanOptionalAction,
+                             help="Quantizing Weight? Default No")
+
+    training_group.add_argument('--outer_k', type=int, default=10,
+                                help="A outer step ever k steps")
+    training_group.add_argument('--theta_lr', type=float, default=1e-4,
+                                help="Learning Rate of MLP parameters")
+    training_group.add_argument('--gs_hidden', type=int, default=32,
+                                help="Hidden width of MLP")
+    training_group.add_argument('--gs_bound_low', type=float, default=0.5,
+                                help="MLP output lower bound")
+    training_group.add_argument('--gs_bound_high', type=float, default=1.5,
+                                help="MLP output upper bound")
+    training_group.add_argument('--use_linear_fakequant', default=False, action=argparse.BooleanOptionalAction,
+                            help="Start standard quantization (STE)")
+
+
+    model_group.add_argument("--lpe_mlp_variant", type=str, default="mlp", choices=mlp_variants, help="MLP variation type")
     # Optimizer args
     training_group.add_argument('--max_iters', default=3500, type=int)
     training_group.add_argument('--weight_decay', default=1e-1, type=float)

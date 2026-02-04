@@ -71,7 +71,7 @@ class QuantizedLinear(nn.Linear):
             bias = dequantize(self.bias_zero_point[0], self.bias_norm, self.quantized_bias)
 
         # Uses the dequantized weights and bias to compute the output using F.linear
-        if self.bias:
+        if self.bias is not none:
             out = F.linear(input, weight, bias)
         else:
             out = F.linear(input, weight)
@@ -162,19 +162,28 @@ class AdaptiveBitLinear(nn.Linear):
 
     def _fake_quantize_tensor(self, tensor: torch.Tensor, bits: torch.Tensor) -> torch.Tensor:
         orig_dtype = tensor.dtype
-        tensor_fp32 = tensor.to(torch.float32)
-        bits_fp32 = bits.to(tensor_fp32.dtype)
+        x = tensor.to(torch.float32)
+        b = bits.to(x.dtype)
 
-        levels = torch.pow(torch.tensor(2.0, device=tensor_fp32.device), bits_fp32 - 1.0)
+        # qmax = 2^(b-1) - 1  , In this tase the gradient of B could pass back.
+        levels = torch.exp2(b - 1.0)
         qmax = torch.clamp(levels - 1.0, min=1.0)
         qmin = -levels
 
-        max_val = tensor_fp32.abs().max()
+        max_val = x.abs().max()
         scale = max_val / qmax
         scale = torch.where(scale == 0, torch.ones_like(scale), scale)
 
-        quantized = torch.clamp(torch.round(tensor_fp32 / scale), qmin, qmax) * scale
-        return (tensor_fp32 + (quantized - tensor_fp32).detach()).to(orig_dtype)
+        # Quantizatiopn: Scale division -> Clamp -> STE-round
+        x_scaled = x / scale
+        x_clipped = torch.clamp(x_scaled, qmin, qmax)
+
+        # STE for round such that gradient flows from scale → qmax → bits → bit_param
+        x_rounded = self._ste_round(x_clipped)
+
+        q = x_rounded * scale
+        return q.to(orig_dtype)
+
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         bitwidth = self.current_bitwidth()

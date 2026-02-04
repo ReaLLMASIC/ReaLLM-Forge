@@ -16,6 +16,10 @@ from rich.console import Group
 from rich.console import Console
 from rich.text import Text
 from rich.live import Live
+import inspect
+import random
+from utils.bit_allocation_logger import BitAllocationLogger
+from utils.bit_logger import BitLogger
 
 
 from train_variations.optimizer_variants import (
@@ -420,29 +424,76 @@ class Trainer:
 
         self.raw_model = self.model.module if self.ddp else self.model
 
-        if hasattr(self.loss_fn, "set_model"):
-            self.loss_fn.set_model(self.raw_model)
-
+        # -----------------------------
+        # (1) Decide run_name EARLY (even if tensorboard_log is False)
+        # -----------------------------
         timestamp_prefix = time.strftime("%Y%m%d-%H%M%S")
         if self.args.timestamp:
             timestamp_prefix = self.args.timestamp
 
-        # Tensorboard
+        # give tensorboard_run_name a default
+        if getattr(self.args, "tensorboard_run_name", None) is None:
+            self.args.tensorboard_run_name = f"{timestamp_prefix}"
+
+        run_name = self.args.tensorboard_run_name
+
+        # make sure writer always exists as an attribute
+        self.writer = None
+
+        # -----------------------------
+        # (2) Tensorboard writer
+        # -----------------------------
         if self.args.tensorboard_log:
-            # 1) Give the run a safe default name when the user did not supply one
-            if self.args.tensorboard_run_name is None:
-                self.args.tensorboard_run_name = f"{timestamp_prefix}"
-
-            run_name = self.args.tensorboard_run_name
-
-            # 2) Derive a *filename-safe* dataset tag (slashes ⇒ underscores)
             sanitized_dataset = self.args.dataset.replace("/", "_")
 
-            # 3) Store a matching, safe CSV filename for later use
+            # optional: align csv naming with tb naming
             if self.args.csv_log:
                 self.args.csv_name = f"{sanitized_dataset}_{run_name}"
+
             log_subpath = os.path.join(self.args.tensorboard_log_dir, run_name)
             self.writer = SummaryWriter(log_subpath)
+
+        # -----------------------------
+        # (3) BitLogger (CSV tables)
+        # -----------------------------
+        bit_run_id = getattr(self.args, "bit_log_run_id", None) or run_name
+
+        self.bit_logger = BitLogger(
+            model=self.raw_model,
+            out_dir=self.args.out_dir,
+            run_id=bit_run_id,
+            dataset_name=getattr(self.args, "dataset", ""),
+            log_dir=getattr(self.args, "bit_log_dir", None),
+            log_every=getattr(self.args, "bit_log_every", 20),
+            overwrite=getattr(self.args, "bit_log_overwrite", False),
+            is_master=self.master_process,
+            enabled=True,
+        )
+
+        if self.master_process:
+            print(f"[bit_logger] writing csvs to: {self.bit_logger.get_run_dir()}")
+
+        # -----------------------------
+        # (4) LossFn can access model (needed for bit penalty stats)
+        # -----------------------------
+        if hasattr(self.loss_fn, "set_model"):
+            self.loss_fn.set_model(self.raw_model)
+
+        # -----------------------------
+        # (5) BitAllocationLogger (TB optional) — keep it if you want TB histograms
+        # -----------------------------
+        if self.master_process:
+            self.bit_alloc_logger = BitAllocationLogger(
+                model=self.raw_model,
+                out_dir=self.args.out_dir,
+                writer=self.writer if self.args.tensorboard_log else None,
+                log_per_module_tb=True,
+                log_hist_tb=True,
+            )
+        else:
+            self.bit_alloc_logger = None
+
+
 
         # Wandb
         if self.args.wandb_log and self.master_process:
@@ -1305,6 +1356,20 @@ class Trainer:
             self.writer.add_scalar(
                 f"{target_dataset}/bit_loss_penalty_tokens", penalty_term, tokens_trained
             )
+        
+        if total_bits is not None and getattr(self, "tracked_bit_param_count", 0) > 0:
+            avg_bitwidth = total_bits / float(self.tracked_bit_param_count)
+            self.writer.add_scalar(f"{target_dataset}/bit_avg_bitwidth", avg_bitwidth, self.iter_num)
+            self.writer.add_scalar(f"{target_dataset}/bit_avg_bitwidth_tokens", avg_bitwidth, tokens_trained)
+
+            # Porportion of compression (<1 meaning saving more than 8 bit)
+            self.writer.add_scalar(
+                f"{target_dataset}/bit_compression_vs_8bit",
+                avg_bitwidth / 8.0,
+                self.iter_num
+            )
+
+        
 
     def log_metrics(self, losses, running_mfu, epoch, tokens_trained, target_dataset, val_better_than_chance):
 
@@ -1706,6 +1771,16 @@ class Trainer:
             if self.args.export_scale_matrices_each_eval and self.args.export_scale_matrices_npz:
                 self.raw_model.export_scale_matrices(self.args.export_scale_matrices_npz)
 
+            # Snapshot per-layer/per-matrix bit allocations
+            if self.master_process and (self.bit_alloc_logger is not None):
+                # Use self.tokens_trained for single dataset
+                tokens = self.tokens_trained
+                self.bit_alloc_logger.snapshot(
+                    iter_num=self.iter_num,
+                    tokens_trained=tokens,
+                    dataset=current_dataset if current_dataset is not None else "dataset",
+                )
+
         return losses, num_steps_with_worse_loss
 
     def log_training_step(self, lossf, training_losses, running_mfu, current_epoch, prior_dataset, dt):
@@ -1957,10 +2032,39 @@ class Trainer:
                         approx_gns_results = gather_hook_results(self.model)
                         self.gns_ema.update(*gns_utils.gnsify(approx_gns_results, self.args.batch_size, ddp=self.ddp))
 
-
-
-                if self.args.grad_clip != 0.0:
+                # ---- Unscale ONCE (so logged grads are real grads, not scaled grads) ----
+                if self.scaler.is_enabled():
                     self.scaler.unscale_(self.optimizer)
+                    
+                # ---- Log bit tables (CSV) after unscale, before clipping/step ----
+                if self.master_process and getattr(self, "bit_logger", None) is not None:
+                    self.bit_logger.maybe_log(
+                        iter_num=self.iter_num,
+                        tokens_trained=self.tokens_trained,
+                        phase="train",
+                        dataset_name=prior_dataset if prior_dataset is not None else "dataset",
+                    )
+                
+
+                # ---- Log bit_param gradients (after unscale, before clipping/step) ----
+                if self.master_process and getattr(self, "bit_alloc_logger", None) is not None:
+                    if (self.iter_num % self.args.bit_log_every == 0):
+                        top = self.bit_alloc_logger.snapshot_grads(
+                            iter_num=self.iter_num,
+                            tokens_trained=self.tokens_trained,
+                            dataset=prior_dataset if prior_dataset is not None else "dataset",
+                            topk=8,
+                        )
+                        # Optional Printing top k gradient
+                        self.console.print("[bit_grad] top modules by |grad|:")
+                        for abs_g, name, layer_id, fam, role, b_int, b_cont, b_param in top:
+                            self.console.print(
+                                f"  |g|={abs_g:.3e}  b_int={b_int:.0f}  b_cont={b_cont:.3f}  "
+                                f"layer={layer_id}  {fam}/{role}  {name}"
+                            )
+
+                # ---- Optional clipping (already unscaled) ----
+                if self.args.grad_clip != 0.0:
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.grad_clip)
 
                 if isinstance(self.optimizer, ActRegularizedAdamW):
