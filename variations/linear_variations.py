@@ -67,7 +67,7 @@ class QuantizedLinear(nn.Linear):
         weight = dequantize(self.weight_zero_point[0], self.weight_norm, self.quantized_weight)
 
         # Compute the dequantized bias
-        if self.bias is not None:
+        if self.bias:
             bias = dequantize(self.bias_zero_point[0], self.bias_norm, self.quantized_bias)
 
         # Uses the dequantized weights and bias to compute the output using F.linear
@@ -165,7 +165,7 @@ class AdaptiveBitLinear(nn.Linear):
         x = tensor.to(torch.float32)
         b = bits.to(x.dtype)
 
-        # qmax = 2^(b-1) - 1  , In this tase the gradient of B could pass back.
+        # qmax = 2^(b-1) - 1  , In this case the gradient of B could pass back.
         levels = torch.exp2(b - 1.0)
         qmax = torch.clamp(levels - 1.0, min=1.0)
         qmin = -levels
@@ -174,7 +174,7 @@ class AdaptiveBitLinear(nn.Linear):
         scale = max_val / qmax
         scale = torch.where(scale == 0, torch.ones_like(scale), scale)
 
-        # Quantizatiopn: Scale division -> Clamp -> STE-round
+        # Quantization: Scale division -> Clamp -> STE-round
         x_scaled = x / scale
         x_clipped = torch.clamp(x_scaled, qmin, qmax)
 

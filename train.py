@@ -1362,7 +1362,7 @@ class Trainer:
             self.writer.add_scalar(f"{target_dataset}/bit_avg_bitwidth", avg_bitwidth, self.iter_num)
             self.writer.add_scalar(f"{target_dataset}/bit_avg_bitwidth_tokens", avg_bitwidth, tokens_trained)
 
-            # Porportion of compression (<1 meaning saving more than 8 bit)
+            # Aggresiveness of compression (<1 meaning saving more than 8 bit)
             self.writer.add_scalar(
                 f"{target_dataset}/bit_compression_vs_8bit",
                 avg_bitwidth / 8.0,
