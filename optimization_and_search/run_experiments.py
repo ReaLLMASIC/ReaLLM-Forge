@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from itertools import product
 import argparse
 import os
+import re
 from copy import deepcopy
 
 import yaml
@@ -39,10 +40,10 @@ METRIC_KEYS = [
 ]
 
 
+
+
 def parse_args() -> argparse.Namespace:
-    """
-    Parse command-line arguments.
-    """
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Run experiments based on a configuration file (JSON or YAML)."
     )
@@ -82,66 +83,51 @@ def parse_args() -> argparse.Namespace:
             "to keep run identifiers shorter."
         ),
     )
+    parser.add_argument(
+        '--executorch-export',
+        dest='executorch_export',
+        action='store_true',
+        default=True,
+        help='Automatically export ExecuTorch programs after each run.',
+    )
+    parser.add_argument(
+        '--no-executorch-export',
+        dest='executorch_export',
+        action='store_false',
+        help='Disable automatic ExecuTorch exports.',
+    )
+    parser.add_argument(
+        '--executorch-delegate',
+        choices=['none', 'xnnpack'],
+        default='none',
+        help='Delegate to target when exporting to ExecuTorch.',
+    )
+    parser.add_argument(
+        '--executorch-smoke-test-tokens',
+        type=int,
+        default=0,
+        help='If >0, run a random-token smoke test after export.',
+    )
+    parser.add_argument(
+        '--executorch-smoke-test-prompt',
+        help='Optional prompt to evaluate with the exported program.',
+    )
+    parser.add_argument(
+        '--executorch-tokenizer-vocab',
+        help='Path to a vocab.json for ExecuTorch prompt smoke tests.',
+    )
+    parser.add_argument(
+        '--executorch-max-output-tokens',
+        type=int,
+        default=32,
+        help='Maximum decode tokens when running ExecuTorch smoke tests.',
+    )
     return parser.parse_args()
 
 
-def load_configurations(path: str, fmt: str) -> list[dict]:
-    """
-    Load experiment configurations from a JSON or YAML file.
-
-    Args:
-        path: File path.
-        fmt: 'json' or 'yaml'.
-
-    Returns:
-        A list of configuration dictionaries.
-    """
-    text = Path(path).read_text()
-    if fmt == 'yaml':
-        # YAML may contain multiple documents or a single list
-        loaded = list(yaml.safe_load_all(text))
-        # Flatten if outer list-of-lists
-        if len(loaded) == 1 and isinstance(loaded[0], list):
-            return loaded[0]
-        return loaded
-    else:
-        return json.loads(text)
-
-
-RUN_NAME_VAR = "${RUN_NAME}"
-
-
-def expand_range(val):
-    """Expand dicts with 'range' into a list of values."""
-    if isinstance(val, dict) and 'range' in val:
-        r = val['range']
-        start, end = r['start'], r['end']
-        step = r.get('step', 1 if isinstance(start, int) else 0.1)
-        if isinstance(start, int):
-            return list(range(start, end + 1, step))
-        count = int(round((end - start) / step)) + 1
-        return [start + i * step for i in range(count)]
-    return val
-
-
-def _substitute_run_name(obj, run_name: str):
-    """Recursively substitute the run name placeholder inside ``obj``."""
-    if isinstance(obj, str):
-        return obj.replace(RUN_NAME_VAR, run_name)
-    if isinstance(obj, list):
-        return [_substitute_run_name(o, run_name) for o in obj]
-    if isinstance(obj, dict):
-        return {k: _substitute_run_name(v, run_name) for k, v in obj.items()}
-    return obj
-
-
-def _ensure_list(value):
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    return [value]
-
+def _sanitize_run_name(name: str) -> str:
+    sanitized = re.sub(r'[^A-Za-z0-9._-]+', '_', name).strip('_')
+    return sanitized or 'model'
 
 def _merge_parameter_groups(existing, new):
     existing_list = []
@@ -604,6 +590,49 @@ def append_progress(log_file: Path, message: str) -> None:
         f.write(f"[{timestamp}] {message}\n")
 
 
+def maybe_export_executorch(run_name: str, out_dir: str, args: argparse.Namespace) -> None:
+    if not getattr(args, 'executorch_export', False):
+        return
+
+    ckpt_path = Path(out_dir) / 'ckpt.pt'
+    if not ckpt_path.exists():
+        print(f"[yellow]ExecuTorch export skipped (missing {ckpt_path}).")
+        return
+
+    try:
+        from model_exports.executorch.exporter import ExportConfig, export_checkpoint_to_pte
+    except ImportError as exc:
+        print(f"[yellow]ExecuTorch export unavailable: {exc}")
+        return
+
+    export_dir = ckpt_path.parent / 'executorch'
+    export_dir.mkdir(parents=True, exist_ok=True)
+    export_name = _sanitize_run_name(run_name)
+    pte_path = export_dir / f"{export_name}.pte"
+
+    tokenizer_path = getattr(args, 'executorch_tokenizer_vocab', None)
+    if tokenizer_path:
+        tokenizer_path = Path(tokenizer_path)
+
+    config = ExportConfig(
+        delegate=getattr(args, 'executorch_delegate', 'none'),
+        generate_etrecord=False,
+        smoke_test_tokens=max(0, getattr(args, 'executorch_smoke_test_tokens', 0)),
+        smoke_test_prompt=getattr(args, 'executorch_smoke_test_prompt', None),
+        tokenizer_path=tokenizer_path,
+        max_output_tokens=getattr(args, 'executorch_max_output_tokens', 32),
+        metadata=True,
+    )
+
+    try:
+        export_checkpoint_to_pte(ckpt_path, pte_path, config)
+        print(f"[green]ExecuTorch export complete:[/] {pte_path}")
+    except ImportError as exc:
+        print(f"[yellow]ExecuTorch export failed (missing dependency): {exc}")
+    except Exception as exc:
+        print(f"[red]ExecuTorch export failed for {run_name}: {exc}")
+
+
 def build_command(combo: dict) -> list[str]:
     """
     Construct the command-line invocation for train.py.
@@ -678,6 +707,8 @@ def run_experiment(
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError:
         print(f"[red]Process exited with error for run:[/] {run_name}")
+
+    maybe_export_executorch(run_name, combo['out_dir'], args)
 
     # Read metrics (use existing or nan on failure)
     try:

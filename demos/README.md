@@ -21,3 +21,13 @@ python3 demos/check_ckpt_for_gelu_shift.py \
 
 `adam_vs_adamw.sh` trains two tiny Shakespeare models, one with Adam and one
 with AdamW, then compares their statistics using `view_model_stats.py`.
+
+## ExecuTorch export
+
+Use `export_ckpt_to_executorch.sh` to convert a training checkpoint into an ExecuTorch `.pte` program.
+
+```bash
+./demos/export_ckpt_to_executorch.sh out/ckpt.pt
+```
+
+Pass a second argument to control the output path or forward additional options to the Python exporter.
