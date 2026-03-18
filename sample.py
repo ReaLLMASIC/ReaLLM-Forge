@@ -1,6 +1,7 @@
 # sample.py
 import argparse
 import importlib.util
+import inspect
 import json
 import math
 import os
@@ -1178,7 +1179,9 @@ def main():
             checkpoint['model_args']['apply_vector_file']= "temp.npy"
             checkpoint['model_args']['apply_vector_at_layer_idx']= args.apply_to_layer_idx
             checkpoint['model_args']['apply_vector_scaling_factor']= args.steering_vector_scaling_factor
-        gptconf = GPTConfig(**checkpoint['model_args'])
+        allowed = set(inspect.signature(GPTConfig.__init__).parameters.keys()) - {"self"}
+        model_args = {k: v for k, v in checkpoint["model_args"].items() if k in allowed}
+        gptconf = GPTConfig(**model_args)
         model = GPT(gptconf)
         state_dict = checkpoint['model']
         unwanted_prefix = '_orig_mod.'

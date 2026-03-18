@@ -294,7 +294,7 @@ class Trainer:
                             self.dataset_perm[d] = np.arange(available)
                         self.dataset_ptr[d] = 0
 
-            gptconf = GPTConfig(**self.model_args)
+            gptconf = GPTConfig(**self._filter_gptconfig_kwargs(self.model_args))
             self.model = GPT(gptconf)
             self.model.to(self.device)
 
@@ -328,7 +328,7 @@ class Trainer:
                 self.model_args[k] = altered_model_args[k]
 
             self.load_data()
-            gptconf = GPTConfig(**self.model_args)
+            gptconf = GPTConfig(**self._filter_gptconfig_kwargs(self.model_args))
             self.model = GPT(gptconf)
 
             ## TODO: Add ability here to swap WTE factors.
@@ -375,7 +375,7 @@ class Trainer:
             for k in variation_dict:
                 self.model_args[k] = variation_dict[k]
 
-            gptconf = GPTConfig(**self.model_args)
+            gptconf = GPTConfig(**self._filter_gptconfig_kwargs(self.model_args))
             self.model = GPT.from_pretrained(gptconf, model_type=self.args.gpt2_type)
             self.model.to(self.device)
             self.load_data()
@@ -502,6 +502,10 @@ class Trainer:
             wandb.init(project=self.args.wandb_project, name=self.args.wandb_run_name, config=self.args)
         self.load_tokenizer()
 
+    def _filter_gptconfig_kwargs(self, d: dict) -> dict:
+        sig = inspect.signature(GPTConfig.__init__)
+        allowed = set(sig.parameters.keys()) - {"self"}
+        return {k: v for k, v in d.items() if k in allowed}
 
     def _initialize_teacher_if_needed(self):
         teacher_path = getattr(self.args, "distillation_teacher_ckpt", None)
