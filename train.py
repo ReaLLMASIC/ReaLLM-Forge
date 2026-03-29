@@ -11,6 +11,68 @@ import sys
 import time
 from collections import deque
 from datetime import datetime, timedelta
+from pathlib import Path
+
+
+def _safe_float(value, default=float("nan")):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+class ZeusProfiler:
+    """Best-effort Zeus energy profiler wrapper.
+
+    If Zeus is unavailable or errors, training proceeds without profiling.
+    """
+
+    def __init__(self, enabled: bool, window_name: str = "train_total"):
+        self.enabled = bool(enabled)
+        self.window_name = window_name
+        self.monitor = None
+        self.active = False
+        self.total_energy_j = float("nan")
+        self.avg_power_w = float("nan")
+        self.error: str | None = None
+
+        if not self.enabled:
+            return
+
+        try:
+            from zeus.monitor import ZeusMonitor  # type: ignore
+            self.monitor = ZeusMonitor()
+        except Exception as exc:
+            self.error = f"Zeus init failed: {exc}"
+            self.enabled = False
+
+    def start(self):
+        if not self.enabled or self.monitor is None or self.active:
+            return
+        try:
+            self.monitor.begin_window(self.window_name)
+            self.active = True
+        except Exception as exc:
+            self.error = f"Zeus begin_window failed: {exc}"
+            self.enabled = False
+            self.active = False
+
+    def stop(self):
+        if not self.enabled or self.monitor is None or not self.active:
+            return
+        try:
+            measurement = self.monitor.end_window(self.window_name)
+            self.total_energy_j = _safe_float(getattr(measurement, "total_energy", float("nan")))
+            start_ts = _safe_float(getattr(measurement, "start_time", float("nan")))
+            end_ts = _safe_float(getattr(measurement, "end_time", float("nan")))
+            duration_s = end_ts - start_ts
+            if duration_s > 0 and not math.isnan(self.total_energy_j):
+                self.avg_power_w = self.total_energy_j / duration_s
+            self.active = False
+        except Exception as exc:
+            self.error = f"Zeus end_window failed: {exc}"
+            self.enabled = False
+            self.active = False
 
 from rich.console import Group
 from rich.console import Console
@@ -123,6 +185,14 @@ class Trainer:
         self.latest_ln_f_cosine_95 = float('nan')
         self.latest_rankme = float('nan')
         self.latest_areq = float('nan')
+        self.zeus_total_energy_j = float('nan')
+        self.zeus_avg_power_w = float('nan')
+        self.zeus_profiler = ZeusProfiler(
+            enabled=getattr(self.args, 'zeus_profile', False),
+            window_name=getattr(self.args, 'zeus_window_name', 'train_total'),
+        )
+        if self.zeus_profiler.error:
+            print(f"[WARN] {self.zeus_profiler.error}")
 
         # store overall statistics for weights and activations
         self.latest_overall_weight_stats = {
@@ -1818,6 +1888,8 @@ class Trainer:
                             f"{self.latest_ln_f_cosine_95:.6f}",
                             f"{self.latest_rankme:.6f}",
                             f"{self.latest_areq:.6f}",
+                            f"{self.zeus_total_energy_j:.6f}",
+                            f"{self.zeus_avg_power_w:.6f}",
                             f"{self.latest_overall_weight_stats['stdev']:.6f}",
                             f"{self.latest_overall_weight_stats['kurtosis']:.6f}",
                             f"{self.latest_overall_weight_stats['max']:.6f}",
@@ -1914,6 +1986,21 @@ class Trainer:
         else:
             self.log_metrics_non_validation(lossf, running_mfu, current_epoch, self.tokens_trained, prior_dataset, better_than_chance)
 
+    def _persist_zeus_metrics(self):
+        """Patch best_val_loss_and_iter.txt with final Zeus metrics if available."""
+        metrics_path = os.path.join(self.args.out_dir, 'best_val_loss_and_iter.txt')
+        if not os.path.exists(metrics_path):
+            return
+        try:
+            parts = [p.strip() for p in Path(metrics_path).read_text().strip().split(',')]
+            while len(parts) < 23:
+                parts.append('nan')
+            parts[21] = f"{self.zeus_total_energy_j:.6f}"
+            parts[22] = f"{self.zeus_avg_power_w:.6f}"
+            Path(metrics_path).write_text(", ".join(parts) + "\n")
+        except Exception as exc:
+            print(f"[WARN] Failed to persist Zeus metrics: {exc}")
+
     def train(self):
         if self.args.training_mode == 'multicontext':
             self.X_dict, self.Y_dict, dataset_list = self.get_batch('train')
@@ -1923,6 +2010,7 @@ class Trainer:
             self.X, self.Y, current_dataset = self.get_batch('train')
         self.X, self.Y, current_dataset = self.get_batch('train')
         t_start = time.time()
+        self.zeus_profiler.start()
         t0 = t_start
         local_iter_num = 0
         running_mfu = -1.0
@@ -2208,6 +2296,13 @@ class Trainer:
                             self.sample_and_print()
                             live.start()
                     break
+
+            self.zeus_profiler.stop()
+            self.zeus_total_energy_j = self.zeus_profiler.total_energy_j
+            self.zeus_avg_power_w = self.zeus_profiler.avg_power_w
+            self._persist_zeus_metrics()
+            if self.zeus_profiler.error:
+                print(f"[WARN] {self.zeus_profiler.error}")
 
             if self.args.plot_statistics:
                 plot_statistics(self.args, self.stats, graph_y_labels)

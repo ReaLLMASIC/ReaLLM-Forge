@@ -1398,6 +1398,18 @@ def parse_args():
     logging_group.add_argument('--log_all_metrics', default=False, action=argparse.BooleanOptionalAction, help='Enable logging of all metrics including gns')
     logging_group.add_argument('--log_rankme', default=True, action=argparse.BooleanOptionalAction, help='Log RankMe representation metric during validation')
     logging_group.add_argument('--log_areq', default=True, action=argparse.BooleanOptionalAction, help='Log aReQ representation metric during validation')
+    logging_group.add_argument(
+        '--zeus_profile',
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help='Enable optional Zeus energy profiling (gracefully degrades if zeus is not installed).',
+    )
+    logging_group.add_argument(
+        '--zeus_window_name',
+        default='train_total',
+        type=str,
+        help='Zeus profiling window label used for begin/end window tracking.',
+    )
 
     # Turn activation/weight statistics off to save CPU RAM and wall time.
     training_group.add_argument(

@@ -202,6 +202,8 @@ class MonitorApp(App):
             "ln_f_cosine_95",
             "rankme",
             "areq",
+            "zeus_total_energy_j",
+            "zeus_avg_power_w",
         ] + self.param_keys
         self.all_columns = base_cols.copy()
         self.columns = base_cols.copy()

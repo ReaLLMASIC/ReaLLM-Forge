@@ -32,7 +32,7 @@ import torch
 import yaml
 
 
-TrialMetrics = Tuple[float, float, int, float, float, float, float, float, float]
+TrialMetrics = Tuple[float, float, int, float, float, float, float, float, float, float, float]
 
 
 # ───────────────────────── helpers ──────────────────────────
@@ -94,6 +94,8 @@ def run_trial_inproc(cfg: Dict[str, Any]) -> TrialMetrics:
             iter_latency_ms,
             rankme,
             areq,
+            zeus_total_energy_j,
+            zeus_avg_power_w,
         )
     """
     from train import Trainer
@@ -119,6 +121,8 @@ def run_trial_inproc(cfg: Dict[str, Any]) -> TrialMetrics:
     iter_latency_ms = float(getattr(tr, "iter_latency_avg", 0.0))
     rankme = float(getattr(tr, "latest_rankme", float("nan")))
     areq = float(getattr(tr, "latest_areq", float("nan")))
+    zeus_total_energy_j = float(getattr(tr, "zeus_total_energy_j", float("nan")))
+    zeus_avg_power_w = float(getattr(tr, "zeus_avg_power_w", float("nan")))
 
     del tr
     _cleanup_cuda()
@@ -132,6 +136,8 @@ def run_trial_inproc(cfg: Dict[str, Any]) -> TrialMetrics:
         iter_latency_ms,
         rankme,
         areq,
+        zeus_total_energy_j,
+        zeus_avg_power_w,
     )
 
 
@@ -148,6 +154,8 @@ def _parse_best_metrics_file(metrics_path: Path) -> TrialMetrics:
     iter_latency_ms = float(line[9])
     rankme = float(line[19])
     areq = float(line[20])
+    zeus_total_energy_j = float(line[21]) if len(line) > 21 else float("nan")
+    zeus_avg_power_w = float(line[22]) if len(line) > 22 else float("nan")
 
     return (
         loss,
@@ -159,6 +167,8 @@ def _parse_best_metrics_file(metrics_path: Path) -> TrialMetrics:
         iter_latency_ms,
         rankme,
         areq,
+        zeus_total_energy_j,
+        zeus_avg_power_w,
     )
 
 
@@ -244,12 +254,12 @@ def main():
     )
     ap.add_argument(
         "--efficiency_target",
-        choices=["params", "vram", "iter", "torch_allocated", "torch_reserved", "process_gpu"],
+        choices=["params", "vram", "iter", "torch_allocated", "torch_reserved", "process_gpu", "zeus_energy", "zeus_power"],
         default="params",
         help=(
             "Metric to normalize score gain: 'params' (default) for parameter count, "
             "'vram' (legacy alias for torch_allocated), 'torch_allocated', "
-            "'torch_reserved', 'process_gpu', or 'iter' for average iteration latency in ms."
+            "'torch_reserved', 'process_gpu', 'zeus_energy' (total Joules), 'zeus_power' (average Watts), or 'iter' for average iteration latency in ms."
         ),
     )
     ap.add_argument(
@@ -343,6 +353,8 @@ def main():
         base_torch_reserved = last["baseline_metrics"].get("peak_torch_reserved_mb", 0.0)
         base_process_gpu = last["baseline_metrics"].get("peak_process_gpu_mb", 0.0)
         base_iter_ms = last["baseline_metrics"].get("iter_latency_avg", 0.0)
+        base_zeus_energy = last["baseline_metrics"].get("zeus_total_energy_j", float("nan"))
+        base_zeus_power = last["baseline_metrics"].get("zeus_avg_power_w", float("nan"))
         cur_iter = last["iter"] + 1
         _apply_overrides_to_active_config(
             baseline_cfg, args.override_cfg, "resumed baseline_cfg"
@@ -364,6 +376,8 @@ def main():
             base_iter_ms,
             base_rankme,
             base_areq,
+            base_zeus_energy,
+            base_zeus_power,
         ) = run_fn(deepcopy(baseline_cfg))
         base_score = 1 / math.exp(base_loss)
         log["iterations"].append(
@@ -380,6 +394,8 @@ def main():
                     "best_iter": base_best_iter,
                     "rankme": base_rankme,
                     "areq": base_areq,
+                    "zeus_total_energy_j": base_zeus_energy,
+                    "zeus_avg_power_w": base_zeus_power,
                 },
                 "baseline_config_after": deepcopy(baseline_cfg),
             }
@@ -430,6 +446,8 @@ def main():
                             iter_ms,
                             rankme,
                             areq,
+                            zeus_total_energy_j,
+                            zeus_avg_power_w,
                         ) = run_fn(cfg_run)
                     except Exception as exc:
                         print("   ⚠", exc)
@@ -448,6 +466,8 @@ def main():
                             "iter_latency_ms": iter_ms,
                             "rankme": rankme,
                             "areq": areq,
+                            "zeus_total_energy_j": zeus_total_energy_j,
+                            "zeus_avg_power_w": zeus_avg_power_w,
                         }
                     )
                     scores.append(score)
@@ -465,6 +485,8 @@ def main():
                 avg_iter = sum(s["iter_latency_ms"] for s in seed_runs) / len(seed_runs)
                 avg_rankme = _nanmean([s["rankme"] for s in seed_runs])
                 avg_areq = _nanmean([s["areq"] for s in seed_runs])
+                avg_zeus_energy = _nanmean([s["zeus_total_energy_j"] for s in seed_runs])
+                avg_zeus_power = _nanmean([s["zeus_avg_power_w"] for s in seed_runs])
                 avg_loss = -math.log(avg_score)
 
                 d_score = avg_score - base_score
@@ -483,6 +505,8 @@ def main():
                 d_torch_reserved = avg_torch_reserved - base_torch_reserved
                 d_process_gpu = avg_process_gpu - base_process_gpu
                 d_iter = avg_iter - base_iter_ms
+                d_zeus_energy = avg_zeus_energy - base_zeus_energy
+                d_zeus_power = avg_zeus_power - base_zeus_power
 
                 if args.efficiency_target == "params":
                     d_cost = d_param
@@ -494,6 +518,10 @@ def main():
                     d_cost = d_process_gpu
                 elif args.efficiency_target == "iter":
                     d_cost = d_iter
+                elif args.efficiency_target == "zeus_energy":
+                    d_cost = d_zeus_energy
+                elif args.efficiency_target == "zeus_power":
+                    d_cost = d_zeus_power
                 else:
                     raise ValueError("Unknown efficiency target")
 
@@ -536,6 +564,8 @@ def main():
                     "peak_torch_reserved_mb": avg_torch_reserved,
                     "peak_process_gpu_mb": avg_process_gpu,
                     "iter_latency_avg": avg_iter,
+                    "zeus_total_energy_j": avg_zeus_energy,
+                    "zeus_avg_power_w": avg_zeus_power,
                     "delta_score": d_score,
                     "delta_rankme": d_rankme,
                     "delta_areq": d_areq,
@@ -544,6 +574,8 @@ def main():
                     "delta_torch_reserved_mb": d_torch_reserved,
                     "delta_process_gpu_mb": d_process_gpu,
                     "delta_iter_latency": d_iter,
+                    "delta_zeus_total_energy_j": d_zeus_energy,
+                    "delta_zeus_avg_power_w": d_zeus_power,
                     "efficiency": eff,
                     "target_metric": args.optimize_target,
                     "target_mode": args.optimize_mode,
@@ -725,6 +757,8 @@ def main():
                     "best_iter": chosen["best_iter"],
                     "rankme": base_rankme,
                     "areq": base_areq,
+                    "zeus_total_energy_j": base_zeus_energy,
+                    "zeus_avg_power_w": base_zeus_power,
                 },
                 "candidates": candidates,
                 "chosen": chosen,

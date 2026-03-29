@@ -38,6 +38,8 @@ METRIC_KEYS = [
     "ln_f_cosine_95",
     "rankme",
     "areq",
+    "zeus_total_energy_j",
+    "zeus_avg_power_w",
 ]
 
 
@@ -574,9 +576,17 @@ def read_metrics(out_dir: str) -> dict:
         float,
         float,
         float,
+        float,
+        float,
     ]
 
-    return {k: typ(v) for k, typ, v in zip(METRIC_KEYS, casts, parts)}
+    parsed = {}
+    for idx, (key, typ) in enumerate(zip(METRIC_KEYS, casts)):
+        if idx >= len(parts):
+            parsed[key] = float("nan")
+            continue
+        parsed[key] = typ(parts[idx])
+    return parsed
 
 
 def completed_runs(log_file: Path) -> set[str]:
