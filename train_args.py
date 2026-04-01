@@ -1383,6 +1383,9 @@ def parse_args():
     logging_group.add_argument('--csv_log', default=True, action=argparse.BooleanOptionalAction)
     logging_group.add_argument('--csv_dir', default='csv_logs', type=str)
     logging_group.add_argument('--csv_name', default='output', type=str, help="Output csv basename. Note, the .csv will be automatically appended.")
+    logging_group.add_argument('--zeus_log', default=False, action=argparse.BooleanOptionalAction, help='Enable Zeus GPU energy logging during training')
+    logging_group.add_argument('--zeus_log_file', type=str, default=None, help='Optional Zeus monitor log file path')
+    logging_group.add_argument('--zeus_approx_instant_energy', default=True, action=argparse.BooleanOptionalAction, help='Use Zeus instant-power fallback for short measurement windows')
 
     # Tensorboard args
     logging_group.add_argument('--tensorboard_log', default=True, action=argparse.BooleanOptionalAction)

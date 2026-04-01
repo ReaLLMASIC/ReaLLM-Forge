@@ -16,6 +16,7 @@ from rich.table import Table
 LOG_DIR = Path("exploration_logs")
 LOG_DIR.mkdir(exist_ok=True)
 METRICS_FILENAME = "best_val_loss_and_iter.txt"
+ZEUS_SUMMARY_FILENAME = "zeus_summary.json"
 METRIC_KEYS = [
     "best_val_loss",
     "best_val_iter",
@@ -27,6 +28,7 @@ METRIC_KEYS = [
     "peak_torch_reserved_mb",
     "peak_process_gpu_mb",
     "iter_latency_avg",
+    "zeus_best_train_step_energy_j",
     "avg_top1_prob",
     "avg_top1_correct",
     "avg_target_rank",
@@ -38,6 +40,11 @@ METRIC_KEYS = [
     "ln_f_cosine_95",
     "rankme",
     "areq",
+    "zeus_total_energy_j",
+    "zeus_total_time_s",
+    "zeus_avg_power_w",
+    "zeus_train_step_energy_j",
+    "zeus_energy_per_token_j",
 ]
 
 
@@ -552,6 +559,31 @@ def read_metrics(out_dir: str) -> dict:
     line = path.read_text().strip()
     parts = [p.strip() for p in line.split(',')]
 
+    base_metric_keys = [
+        "best_val_loss",
+        "best_val_iter",
+        "best_val_tokens",
+        "num_params",
+        "better_than_chance",
+        "btc_per_param",
+        "peak_torch_allocated_mb",
+        "peak_torch_reserved_mb",
+        "peak_process_gpu_mb",
+        "iter_latency_avg",
+        "zeus_best_train_step_energy_j",
+        "avg_top1_prob",
+        "avg_top1_correct",
+        "avg_target_rank",
+        "avg_target_left_prob",
+        "avg_target_prob",
+        "target_rank_95",
+        "left_prob_95",
+        "avg_ln_f_cosine",
+        "ln_f_cosine_95",
+        "rankme",
+        "areq",
+    ]
+
     casts = [
         float,
         int,
@@ -574,9 +606,30 @@ def read_metrics(out_dir: str) -> dict:
         float,
         float,
         float,
+        float,
+        float,
     ]
 
-    return {k: typ(v) for k, typ, v in zip(METRIC_KEYS, casts, parts)}
+    metrics = {}
+    for key, typ, value in zip(base_metric_keys, casts, parts):
+        metrics[key] = float("nan") if value == "" else typ(value)
+
+    zeus_summary_path = Path(out_dir) / ZEUS_SUMMARY_FILENAME
+    if zeus_summary_path.exists():
+        summary = json.loads(zeus_summary_path.read_text())
+        metrics["zeus_total_energy_j"] = float(summary.get("zeus_total_energy_j", float("nan")))
+        metrics["zeus_total_time_s"] = float(summary.get("zeus_total_time_s", float("nan")))
+        metrics["zeus_avg_power_w"] = float(summary.get("zeus_avg_power_w", float("nan")))
+        metrics["zeus_train_step_energy_j"] = float(summary.get("zeus_train_step_energy_j", float("nan")))
+        metrics["zeus_energy_per_token_j"] = float(summary.get("zeus_energy_per_token_j", float("nan")))
+    else:
+        metrics["zeus_total_energy_j"] = float("nan")
+        metrics["zeus_total_time_s"] = float("nan")
+        metrics["zeus_avg_power_w"] = float("nan")
+        metrics["zeus_train_step_energy_j"] = float("nan")
+        metrics["zeus_energy_per_token_j"] = float("nan")
+
+    return {k: metrics.get(k, float("nan")) for k in METRIC_KEYS}
 
 
 def completed_runs(log_file: Path) -> set[str]:
