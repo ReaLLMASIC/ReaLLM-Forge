@@ -17,7 +17,6 @@ lang_array=(
   "text_jpn_Jpan"
   "text_kor_Hang"
   "text_zho_Hans"
-  "text_shn_Mymr"
 )
 
 # Add url with dataset here:
