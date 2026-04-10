@@ -12,6 +12,7 @@ from tokenizers import (
     CharBPETokenizerWithByteFallback,
     CustomCharTokenizerWithByteFallback,
     JsonByteTokenizerWithByteFallback,
+    JsonBPETokenizerWithByteFallback,
     PythonProgrammingTokenizer,
     SineWaveTokenizer,
     WhisperMelCsvTokenizer,
@@ -31,7 +32,7 @@ def parse_arguments():
 
     # Tokenizer selection and configuration
     parser.add_argument("--method", type=str,
-                       choices=["sentencepiece", "tiktoken", "char", "char_bpe", "custom", "byte", "custom_char_byte_fallback", "json_byte_fallback", "python_programming", "sinewave", "whisper_mel_csv"],
+                       choices=["sentencepiece", "tiktoken", "char", "char_bpe", "custom", "byte", "custom_char_byte_fallback", "json_byte_fallback", "json_bpe_byte_fallback", "python_programming", "sinewave", "whisper_mel_csv"],
                        default="tiktoken", help="Tokenization method")
 
     # Sine wave tokenizer arguments
@@ -89,7 +90,7 @@ def parse_arguments():
     # Custom tokenizer arguments
     parser.add_argument("--tokens_file", type=str, default=None, help="Path to the file containing newline-separated tokens for tokenization")
     parser.add_argument("--custom_chars_file", type=str, default=None, help="Path to the file containing custom characters for the tokenizer")
-    parser.add_argument("--json_tokens_file", type=str, default=None, help="Path to JSON file containing tokens for json_byte_fallback tokenizer")
+    parser.add_argument("--json_tokens_file", type=str, default=None, help="Path to JSON file containing tokens for json_byte_fallback/json_bpe_byte_fallback tokenizers")
 
     # Additional options
     parser.add_argument("-T", "--track_token_counts", action="store_true", help="Track how often each token appears and store in meta.pkl")
@@ -180,6 +181,8 @@ def main():
         tokenizer = CustomCharTokenizerWithByteFallback(args)
     elif args.method == "json_byte_fallback":
         tokenizer = JsonByteTokenizerWithByteFallback(args)
+    elif args.method == "json_bpe_byte_fallback":
+        tokenizer = JsonBPETokenizerWithByteFallback(args, train_data, val_data)
     elif args.method == "python_programming":
         tokenizer = PythonProgrammingTokenizer(args)
     elif args.method == "sinewave":
