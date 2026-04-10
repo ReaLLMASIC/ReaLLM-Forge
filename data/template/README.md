@@ -16,6 +16,7 @@ Whisper-style mel spectrogram CSV export is also supported for audio inputs.
 - **SentencePiece Tokenization**
 - **TikToken Tokenization**
 - **Character-Level Tokenization**
+- **Char-BPE Tokenization with Byte Fallback**
 - **Whisper-style Mel Spectrogram CSV Export**
 
 ## Usage
@@ -87,6 +88,21 @@ This command will tokenize the text in from the input file at the character leve
 
 ```bash
 python3 prepare.py -t input.txt --method char
+```
+
+
+##### Char-BPE Tokenization
+
+Train a Char-BPE vocabulary directly from an input file:
+
+```bash
+python3 prepare.py -t input.txt --method char_bpe --vocab_size 4096
+```
+
+Reuse a previously generated `char_bpe` vocabulary (`meta.pkl`) instead of retraining:
+
+```bash
+python3 prepare.py -t input.txt --method char_bpe --char_bpe_vocab_path /path/to/char_bpe_meta.pkl
 ```
 
 ##### Custom
@@ -188,6 +204,57 @@ sort both lists by byte length or tracked frequency (requires `-T` when running
 
 ```bash
 python3 compare_meta_vocab_tui.py /path/to/first/meta.pkl /path/to/second/meta.pkl
+```
+
+### Large-file batch tokenization (partition + batch_prepare)
+
+For very large text files, split first and run `utils/batch_prepare.py` on each partition.
+Use `--max_parallel` to control how many partition tokenization subprocesses run concurrently while final shard concatenation still follows sorted file order.
+When `--max_parallel` is greater than 1, `batch_prepare.py` renders one thread-safe tqdm bar per worker plus a total bar, so parallel progress is visible without bars overwriting each other. A spacer line is printed before worker bars as a placeholder region for tokenizer progress output.
+When splitting input files, set `--chunk_size_mb` (from `partition_file.py`) to control partition size. This supports decimals (for example `12.5`).
+
+1. Build (or pick) a Char-BPE vocabulary once:
+
+```bash
+python3 prepare.py -t input.txt --method char_bpe --vocab_size 4096 \
+  --train_output warmup_train.bin --val_output warmup_val.bin
+```
+
+This creates `meta.pkl` with the learned Char-BPE vocabulary.
+
+2. Partition and batch-prepare using that prebuilt vocab:
+
+```bash
+python3 utils/partition_file.py --input_file large_input.txt
+python3 utils/batch_prepare.py \
+  --input_dir partitioned_file \
+  --prepare_script prepare.py \
+  --tokenizer char_bpe \
+  --char_bpe_vocab_path /path/to/meta.pkl \
+  --max_parallel 4
+```
+
+The helper script also supports this (`3rd` arg = method-specific config path, `4th` arg = max parallelism, `5th` arg = chunk size in MB):
+
+```bash
+bash utils/large_file_prepare.sh large_input.txt char_bpe /path/to/meta.pkl 4 12.5
+```
+
+For `json_byte_fallback`, provide a JSON token file to each partition run:
+
+```bash
+python3 utils/batch_prepare.py \
+  --input_dir partitioned_file \
+  --prepare_script prepare.py \
+  --tokenizer json_byte_fallback \
+  --json_tokens_file /path/to/tokens.json \
+  --max_parallel 4
+```
+
+Helper script form (`3rd` arg is method-specific config path, `4th` arg is max parallelism, `5th` arg is chunk size MB):
+
+```bash
+bash utils/large_file_prepare.sh large_input.txt json_byte_fallback /path/to/tokens.json 4 12.5
 ```
 
 ### (Optional) Pre-processing of input.txt

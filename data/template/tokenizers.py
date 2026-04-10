@@ -23,6 +23,10 @@ class Tokenizer:
     def __init__(self, args):
         self.args = args
         self.token_counts = defaultdict(int) if getattr(args, "track_token_counts", False) else None
+        self.report_byte_tokenization = getattr(args, "report_byte_tokenization", False)
+        self.has_byte_tokens = False
+        self.byte_token_count = 0
+        self.non_byte_token_count = 0
 
     def tokenize(self, data):
         raise NotImplementedError("Tokenize method must be implemented by subclasses.")
@@ -38,6 +42,46 @@ class Tokenizer:
     def record_token(self, token_id):
         if self.token_counts is not None:
             self.token_counts[token_id] += 1
+        if self.report_byte_tokenization and self.has_byte_tokens:
+            if self.is_byte_token(token_id):
+                self.byte_token_count += 1
+            else:
+                self.non_byte_token_count += 1
+
+    def reset_byte_token_counts(self):
+        if self.report_byte_tokenization and self.has_byte_tokens:
+            self.byte_token_count = 0
+            self.non_byte_token_count = 0
+
+    def is_byte_token(self, token_id):
+        return False
+
+    def get_byte_token_report(self):
+        if not (self.report_byte_tokenization and self.has_byte_tokens):
+            return None
+        total = self.byte_token_count + self.non_byte_token_count
+        if total == 0:
+            return None
+        byte_pct = (self.byte_token_count / total) * 100.0
+        non_byte_pct = (self.non_byte_token_count / total) * 100.0
+        return {
+            "byte_tokens": self.byte_token_count,
+            "non_byte_tokens": self.non_byte_token_count,
+            "total_tokens": total,
+            "byte_percentage": byte_pct,
+            "non_byte_percentage": non_byte_pct,
+        }
+
+    def print_byte_token_report(self, label):
+        report = self.get_byte_token_report()
+        if report is None:
+            return
+        print(
+            f"[byte-token-report] {label}: "
+            f"byte={report['byte_tokens']:,} ({report['byte_percentage']:.2f}%), "
+            f"non-byte={report['non_byte_tokens']:,} ({report['non_byte_percentage']:.2f}%), "
+            f"total={report['total_tokens']:,}"
+        )
 
     def finalize_meta(self, meta):
         if self.token_counts is not None:
@@ -134,6 +178,7 @@ class TiktokenTokenizer(Tokenizer):
         super().__init__(args)
         self.tiktoken_encoding = args.tiktoken_encoding
         self.last_token_count = 0
+        self.has_byte_tokens = True
 
         # Load additional tokens if provided
         self.additional_tokens = {}
@@ -158,6 +203,17 @@ class TiktokenTokenizer(Tokenizer):
         else:
             self.enc = base_enc
             self.special_tokens = {}
+
+    def is_byte_token(self, token_id):
+        if token_id in self.special_tokens.values():
+            return False
+        decode_single = getattr(self.enc, "decode_single_token_bytes", None)
+        if decode_single is None:
+            return False
+        try:
+            return len(decode_single(token_id)) == 1
+        except KeyError:
+            return False
 
     def tokenize(self, data):
         """Tokenize the input data using tiktoken with support for special tokens."""
@@ -276,6 +332,10 @@ class CustomTokenizer(Tokenizer):
 class ByteTokenizer(Tokenizer):
     def __init__(self, args):
         super().__init__(args)
+        self.has_byte_tokens = True
+
+    def is_byte_token(self, token_id):
+        return True
 
     def tokenize(self, data):
         data_bytes = data.encode('utf-8')
@@ -331,6 +391,7 @@ class CharTokenizer(Tokenizer):
 class CharBPETokenizerWithByteFallback(Tokenizer):
     def __init__(self, args, train_data, val_data=None):
         super().__init__(args)
+        self.has_byte_tokens = True
         self.reuse_meta_path = getattr(args, "char_bpe_vocab_path", None)
         if self.reuse_meta_path:
             meta = self._load_char_bpe_meta(self.reuse_meta_path)
@@ -361,6 +422,8 @@ class CharBPETokenizerWithByteFallback(Tokenizer):
         self._train_merges(corpus_text)
         self._build_vocab()
 
+    def is_byte_token(self, token_id):
+        return token_id < 256
     @staticmethod
     def _load_char_bpe_meta(meta_path):
         if not os.path.exists(meta_path):
@@ -528,12 +591,14 @@ class CharBPETokenizerWithByteFallback(Tokenizer):
         self._write_vocab_jsons(meta)
 
     def _write_vocab_jsons(self, meta):
+        output_dir = os.path.dirname(getattr(self.args, "meta_output_path", "")) or "."
         vocab_json = []
         for idx in range(self.vocab_size):
             token = self.itos[idx]
             vocab_json.append(self._format_token_for_json(token))
 
-        with open("char_bpe_vocab.json", "w", encoding="utf-8") as f:
+        vocab_path = os.path.join(output_dir, "char_bpe_vocab.json")
+        with open(vocab_path, "w", encoding="utf-8") as f:
             json.dump(vocab_json, f, ensure_ascii=False, indent=2)
 
         if self.token_counts is not None:
@@ -546,7 +611,8 @@ class CharBPETokenizerWithByteFallback(Tokenizer):
                     "token": self._format_token_for_json(token),
                     "count": counts.get(idx, 0)
                 })
-            with open("char_bpe_token_counts.json", "w", encoding="utf-8") as f:
+            counts_path = os.path.join(output_dir, "char_bpe_token_counts.json")
+            with open(counts_path, "w", encoding="utf-8") as f:
                 json.dump(counts_json, f, ensure_ascii=False, indent=2)
 
     @staticmethod
@@ -574,6 +640,7 @@ class CustomCharTokenizerWithByteFallback(Tokenizer):
 
     def __init__(self, args):
         super().__init__(args)
+        self.has_byte_tokens = True
         if args.custom_chars_file is None:
             raise ValueError("Custom characters file must be provided for this tokenizer.")
 
@@ -583,6 +650,9 @@ class CustomCharTokenizerWithByteFallback(Tokenizer):
 
         # Build vocab dictionaries (bytes first, then custom tokens)
         self.build_vocab()
+
+    def is_byte_token(self, token_id):
+        return token_id < 256
 
     def build_vocab(self):
         # Assign IDs 0..255 to individual bytes
@@ -704,6 +774,7 @@ class JsonByteTokenizerWithByteFallback(Tokenizer):
 
     def __init__(self, args):
         super().__init__(args)
+        self.has_byte_tokens = True
         if args.json_tokens_file is None:
             raise ValueError("JSON tokens file must be provided for this tokenizer.")
 
@@ -715,6 +786,9 @@ class JsonByteTokenizerWithByteFallback(Tokenizer):
 
         # Build vocab dictionaries (bytes first, then custom tokens)
         self.build_vocab()
+
+    def is_byte_token(self, token_id):
+        return token_id < 256
 
     def build_vocab(self):
         # Assign IDs 0..255 to individual bytes
@@ -898,7 +972,7 @@ class SineWaveTokenizer:
         array = np.asarray(ids, dtype=np.int64)
         return ','.join(map(str, array.tolist()))
 
-      
+
 class WhisperMelCsvTokenizer(Tokenizer):
     """Generate Whisper-style log-mel spectrogram frames suitable for CSV export."""
 
@@ -971,4 +1045,3 @@ class WhisperMelCsvTokenizer(Tokenizer):
         array = np.asarray(ids, dtype=np.float32)
         lines = [",".join(map(str, row)) for row in array.tolist()]
         return "\n".join(lines)
-      
