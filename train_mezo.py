@@ -137,6 +137,7 @@ def save_checkpoint(
     model: torch.nn.Module,
     model_args: dict,
     state: CheckpointState,
+    filename: str,
 ) -> None:
     os.makedirs(out_dir, exist_ok=True)
     ckpt = {
@@ -146,7 +147,7 @@ def save_checkpoint(
         "best_val_loss": state.best_val_loss,
         "best_iter": state.best_iter,
     }
-    torch.save(ckpt, os.path.join(out_dir, "ckpt.pt"))
+    torch.save(ckpt, os.path.join(out_dir, filename))
 
 
 def load_checkpoint(path: str, device: torch.device) -> dict:
@@ -283,7 +284,7 @@ def main() -> None:
             if is_best:
                 state.best_val_loss = val_loss
                 state.best_iter = state.iter_num
-                save_checkpoint(args.out_dir, model, model_args, state)
+                save_checkpoint(args.out_dir, model, model_args, state, args.mezo_output_ckpt)
             if args.max_sample_tokens is not None and (is_best or args.sample_each_eval):
                 if encode is None or decode is None:
                     meta = load_meta(args.dataset, args.out_dir)
@@ -292,7 +293,7 @@ def main() -> None:
 
         state.iter_num += 1
 
-    save_checkpoint(args.out_dir, model, model_args, state)
+    save_checkpoint(args.out_dir, model, model_args, state, args.mezo_output_ckpt)
 
 
 if __name__ == "__main__":

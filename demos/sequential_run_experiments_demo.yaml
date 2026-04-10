@@ -1,0 +1,62 @@
+- common_group:
+    dataset: ["minipile"]
+    eval_interval: [1000]
+    max_iters: [10000]
+  parameter_groups:
+    - block_size: [128]
+      batch_size: [12]
+      learning_rate: [1e-3]
+      weight_decay: [0.1]
+      optimizer: ["adamw"]
+      loss_fn: ["cross_entropy"]
+      log_interval: [5]
+      sequential_runs:
+        - name: train_base
+          script: train.py
+          args:
+            max_iters: 20
+            eval_interval: 10
+            eval_iters: 5
+            loss_fn: cross_entropy
+            always_save_checkpoint: true
+            output_ckpt: ckpt_train_base.pt
+        - name: train_finetune
+          script: train.py
+          resume: true
+          input_ckpt: train_base
+          args:
+            max_iters: 10
+            eval_interval: 5
+            eval_iters: 5
+            loss_fn: cross_entropy
+            always_save_checkpoint: true
+            output_ckpt: ckpt_train_finetune.pt
+        - name: recurrent_latent
+          script: train_recurrent.py
+          resume: true
+          input_ckpt: train_finetune
+          args:
+            max_iters: 10
+            eval_interval: 5
+            log_interval: 1
+            max_tokens_per_epoch: 4096
+            latent_steps: 4
+            skip_steps: 1
+            weight_start: 1.0
+            weight_end: 0.5
+            recurrent_variant: latent_chaining
+            reset_optim: true
+            always_save_checkpoint: true
+            recurrent_output_ckpt: ckpt_lat.pt
+        - name: mezo_stage
+          script: train_mezo.py
+          resume: true
+          input_ckpt: recurrent_latent
+          args:
+            max_iters: 10
+            eval_interval: 5
+            log_interval: 1
+            mezo_epsilon: 0.001
+            mezo_seed: 123
+            dataset: minipile
+            mezo_output_ckpt: ckpt_mezo.pt

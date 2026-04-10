@@ -1,5 +1,5 @@
 # ======================================================================
-# train_recurrent.py  –  latent-chaining fine-tuning
+# train_recurrent.py  –  latent-chaining fine-tuning (modularized)
 # ======================================================================
 #  * resumes from an existing checkpoint (no scratch / no GPT-2 import)
 #  * feeds the HIDDEN state (after ln_f / scale_down) back as the next
@@ -8,69 +8,104 @@
 #    linear weighting and an initial “skip” window
 # ----------------------------------------------------------------------
 
+from __future__ import annotations
+
 import argparse
-import sys
 import os
+import sys
 import time
-import math
-import pickle
+from dataclasses import dataclass
+import random
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
-from train_variations.optimizer_variants import optimizer_dictionary
+
+from model import GPT, GPTConfig  # patched model.py
+from recurrent_variations.recurrent_block_variants import (
+    RECURRENT_BLOCK_VARIANTS,
+    RecurrentBlockConfig,
+)
 from train_args import parse_args as parse_generic_args
-
-from model import GPT, GPTConfig           # your patched model.py
-
-
-global_step = 0          # counts *training* iterations
+from train_variations.optimizer_variants import optimizer_dictionary
 
 
 # ----------------------------------------------------------------------
-# 1)  ARGUMENTS  –  reuse *everything* from train_args.py
+# 1) ARGUMENTS
 # ----------------------------------------------------------------------
 
-# ----------------------------------------------------------------------
-# 1-bis)  add the *extra* flags that are unique to latent-chaining
-# ----------------------------------------------------------------------
-recur_parser = argparse.ArgumentParser(add_help=False)
-recur_parser.add_argument("--resume_ckpt",   required=True,
-                          help="Path to .pt checkpoint produced by train.py")
-recur_parser.add_argument("--latent_steps",  type=int, default=0,
-                          help="Chain this many hidden states before teacher-forcing")
-recur_parser.add_argument("--skip_steps",    type=int, default=0,
-                          help="Mask loss for the first K positions in every block")
-recur_parser.add_argument("--weight_start",  type=float, default=1.0)
-recur_parser.add_argument("--weight_end",    type=float, default=1.0)
-recur_parser.add_argument("--reset_optim", action="store_true", help="Ignore optimiser state in the checkpoint")
+def build_recurrent_parser() -> argparse.ArgumentParser:
+    """Parser with options specific to latent-chaining recurrence."""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--resume_ckpt",
+        required=True,
+        help="Path to .pt checkpoint produced by train.py",
+    )
+    parser.add_argument(
+        "--latent_steps",
+        type=int,
+        default=0,
+        help="Chain this many hidden states before teacher-forcing",
+    )
+    parser.add_argument(
+        "--skip_steps",
+        type=int,
+        default=0,
+        help="Mask loss for the first K positions in every block",
+    )
+    parser.add_argument("--weight_start", type=float, default=1.0)
+    parser.add_argument("--weight_end", type=float, default=1.0)
+    parser.add_argument(
+        "--reset_optim",
+        action="store_true",
+        help="Ignore optimiser state in the checkpoint",
+    )
+    parser.add_argument(
+        "--recurrent_variant",
+        default="latent_chaining",
+        choices=sorted(RECURRENT_BLOCK_VARIANTS.keys()),
+        help="Which recurrent block variant to use.",
+    )
+    parser.add_argument(
+        "--max_tokens_per_epoch",
+        type=int,
+        default=None,
+        help="Limit each epoch to a contiguous slice of tokens.",
+    )
+    parser.add_argument(
+        "--progress_bar",
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help="Show a stdout progress bar during epochs.",
+    )
+    parser.add_argument(
+        "--recurrent_output_ckpt",
+        type=str,
+        default="ckpt_lat.pt",
+        help="Checkpoint filename for train_recurrent outputs.",
+    )
+    return parser
 
-# -- split cmdline -----------------------------------------------------
-latent_args, remaining = recur_parser.parse_known_args()
+
+def parse_args() -> argparse.Namespace:
+    """Merge generic train_args with recurrent-specific flags."""
+    recur_parser = build_recurrent_parser()
+    latent_args, remaining = recur_parser.parse_known_args()
+
+    sys.argv = [sys.argv[0]] + remaining
+    generic_args, *_ = parse_generic_args()
+
+    args = generic_args
+    for key, value in vars(latent_args).items():
+        setattr(args, key, value)
+
+    return args
+
 
 # ----------------------------------------------------------------------
-# 1-b)  now run the gigantic parser **only on the leftovers**
+# 2) CHECKPOINT + MODEL SETUP
 # ----------------------------------------------------------------------
-sys.argv = [sys.argv[0]] + remaining          # fake argv for train_args
-generic_args, *_ = parse_generic_args()
-
-# ----------------------------------------------------------------------
-# 1-c)  merge both Namespaces into one `args`
-# ----------------------------------------------------------------------
-args = generic_args
-for k, v in vars(latent_args).items():
-    setattr(args, k, v)
-
-
-# ----------------------------------------------------------------------
-# 2)  LOAD CHECKPOINT + MODEL
-# ----------------------------------------------------------------------
-device = "cuda" if torch.cuda.is_available() else "cpu"
-ckpt   = torch.load(args.resume_ckpt, map_location=device)
-
-gpt_conf = GPTConfig(**ckpt["model_args"])
-model    = GPT(gpt_conf).to(device)
 
 def unwrap_state_dict(wrapped_sd):
     """
@@ -78,211 +113,388 @@ def unwrap_state_dict(wrapped_sd):
     keys match a plain, single-GPU GPT instance.
     """
     clean = {}
-    for k, v in wrapped_sd.items():
-        if k.startswith("_orig_mod."):
-            k = k[len("_orig_mod."):]
-        if k.startswith("module."):
-            k = k[len("module."):]
-        clean[k] = v
+    for key, value in wrapped_sd.items():
+        if key.startswith("_orig_mod."):
+            key = key[len("_orig_mod.") :]
+        if key.startswith("module."):
+            key = key[len("module.") :]
+        clean[key] = value
     return clean
 
-state_dict = unwrap_state_dict(ckpt["model"])
-missing, unexpected = model.load_state_dict(state_dict, strict=False)
 
-if missing:
-    print(f"warning: {len(missing)} missing params (OK if all zero-grad)")
-if unexpected:
-    print(f"warning: {len(unexpected)} extra params ignored")
+def load_checkpoint(args: argparse.Namespace, device: str):
+    ckpt = torch.load(args.resume_ckpt, map_location=device)
+    gpt_conf = GPTConfig(**ckpt["model_args"])
+    model = GPT(gpt_conf).to(device)
 
-# helpers exposed in patched model.py
-embed_tokens     = model.embed_tokens
-forward_embedded = lambda x: model.forward_embedded(x, return_hidden=True)
+    state_dict = unwrap_state_dict(ckpt["model"])
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
 
-decay, no_decay = [], []
-for n, p in model.named_parameters():
-    (decay if p.dim() >= 2 else no_decay).append(p)
+    if missing:
+        print(f"warning: {len(missing)} missing params (OK if all zero-grad)")
+    if unexpected:
+        print(f"warning: {len(unexpected)} extra params ignored")
 
-param_groups = [
-    {"params": decay,     "weight_decay": args.opt_weight_decay},
-    {"params": no_decay,  "weight_decay": 0.0},
-]
-
-optimizer = optimizer_dictionary[args.optimizer](param_groups, args)
-
-if ckpt.get("optimizer") and not getattr(args, "reset_optim", False):
-    optimizer.load_state_dict(ckpt["optimizer"])
+    return ckpt, model, gpt_conf
 
 
-best_val_loss = ckpt["best_val_loss"].item()
-print("best_val_loss", best_val_loss)
-best_val_loss=5.00 # TODO: set a flag so that we can choose to definitely start saving checkpoints in recurrent mode
-iter_num      = ckpt["iter_num"]          # not used, but preserved
+def build_optimizer(model: GPT, args: argparse.Namespace, ckpt: dict):
+    decay, no_decay = [], []
+    for _, param in model.named_parameters():
+        (decay if param.dim() >= 2 else no_decay).append(param)
 
-block_size = gpt_conf.block_size
+    param_groups = [
+        {"params": decay, "weight_decay": args.opt_weight_decay},
+        {"params": no_decay, "weight_decay": 0.0},
+    ]
+
+    optimizer = optimizer_dictionary[args.optimizer](param_groups, args)
+    if ckpt.get("optimizer") and not getattr(args, "reset_optim", False):
+        optimizer.load_state_dict(ckpt["optimizer"])
+
+    return optimizer
+
 
 # ----------------------------------------------------------------------
-# 3)  DATA (mmap – same layout as train.py)
+# 3) DATA
 # ----------------------------------------------------------------------
-def load_bin(split):
+
+def load_bin(args: argparse.Namespace, split: str):
     path = os.path.join("data", args.dataset, f"{split}.bin")
     return np.memmap(path, dtype=np.uint16, mode="r")
 
-train_bin, val_bin = load_bin("train"), load_bin("val")
 
 # ----------------------------------------------------------------------
-# 4)  LOSS-WEIGHT HELPER
+# 4) TRAINING LOOP BUILDING BLOCKS
 # ----------------------------------------------------------------------
-def make_loss_weights(bsz: int, T: int, device):
-    w = torch.linspace(args.weight_start, args.weight_end, steps=T,
-                       device=device).repeat(bsz, 1)
-    if args.skip_steps:
-        w[:, :args.skip_steps] = 0.0
-    return w
 
-# ----------------------------------------------------------------------
-# 5)  ONE BLOCK (B,T)  →  scalar loss
-# ----------------------------------------------------------------------
-def train_block(x_tokens, y_tokens):
-    """
-    One recurrent block that **preserves full self-attention context**.
-    We build a `hidden_buf` (B, ≤T, E); at each step we append either
-    the latent vector from the previous step or the ground-truth embedding,
-    then run the whole sequence through the model once.
-    """
-    B, T   = x_tokens.shape
-    device = x_tokens.device
+@dataclass
+class TrainingState:
+    global_step: int
+    best_val_loss: float
+    iter_num: int
 
-    weights = make_loss_weights(B, T, device)
-    nz_sum  = weights.sum() + 1e-8
 
-    hidden_buf  = None        # grows (B,t,E)
-    hidden_prev = None        # last latent state (B,1,E)
-    total_loss  = 0.0
+def build_recurrent_config(args: argparse.Namespace) -> RecurrentBlockConfig:
+    return RecurrentBlockConfig(
+        latent_steps=args.latent_steps,
+        skip_steps=args.skip_steps,
+        weight_start=args.weight_start,
+        weight_end=args.weight_end,
+    )
 
-    for t in range(T):
-        # ---- decide what to append ---------------------------------
-        # ↳ Teacher-force **until** we reach latent_steps
-        if t < args.latent_steps:
-            new_piece = embed_tokens(x_tokens[:, t:t+1])  # GT token
-        else:
-            new_piece = hidden_prev                       # latent
 
-        # ---- grow the buffer ---------------------------------------
-        hidden_buf = new_piece if hidden_buf is None else \
-                     torch.cat([hidden_buf, new_piece], dim=1)
+def select_recurrent_block(args: argparse.Namespace):
+    return RECURRENT_BLOCK_VARIANTS[args.recurrent_variant]
 
-        # ---- full forward pass on the whole buffer -----------------
-        logits_all, h_all = forward_embedded(hidden_buf)
 
-        logits_step = logits_all[:, -1, :]   # newest position only
-        hidden_prev = h_all[:,  -1:, :]      # keep for next iteration
+def train_block(
+    *,
+    recurrent_block,
+    loss_config: RecurrentBlockConfig,
+    embed_tokens,
+    forward_embedded,
+    x_tokens: torch.Tensor,
+    y_tokens: torch.Tensor,
+):
+    return recurrent_block(
+        embed_tokens=embed_tokens,
+        forward_embedded=forward_embedded,
+        x_tokens=x_tokens,
+        y_tokens=y_tokens,
+        config=loss_config,
+    )
 
-        ce = F.cross_entropy(logits_step, y_tokens[:, t], reduction="none")
-        total_loss += (ce * weights[:, t]).sum()
 
-    return total_loss / nz_sum
+def save_best_checkpoint(
+    *,
+    model: GPT,
+    ckpt_model_args: dict,
+    best_ckpt_path: str,
+    best_val_loss: float,
+    global_step: int,
+):
+    torch.save(
+        {
+            "model": model.state_dict(),
+            "model_args": ckpt_model_args,
+            "iter_num": global_step,
+            "best_val_loss": best_val_loss,
+        },
+        best_ckpt_path,
+    )
+    print(
+        f"  ➜ new best @ step {global_step}; checkpoint saved to {best_ckpt_path}"
+    )
 
-# ----------------------------------------------------------------------
-# 6)  EPOCH LOOPS
-# ----------------------------------------------------------------------
-def run_epoch(split):
-    data   = train_bin if split == "train" else val_bin
+
+def save_checkpoint(
+    *,
+    model: GPT,
+    ckpt_model_args: dict,
+    ckpt_path: str,
+    best_val_loss: float,
+    global_step: int,
+    tag: str,
+):
+    torch.save(
+        {
+            "model": model.state_dict(),
+            "model_args": ckpt_model_args,
+            "iter_num": global_step,
+            "best_val_loss": best_val_loss,
+        },
+        ckpt_path,
+    )
+    print(f"  ➜ {tag} checkpoint saved to {ckpt_path}")
+
+
+def run_epoch(
+    *,
+    split: str,
+    data: np.memmap,
+    model: GPT,
+    optimizer: torch.optim.Optimizer | None,
+    args: argparse.Namespace,
+    state: TrainingState,
+    device: str,
+    block_size: int,
+    loss_config: RecurrentBlockConfig,
+    recurrent_block,
+    embed_tokens,
+    forward_embedded,
+    tb: SummaryWriter | None,
+    ckpt_model_args: dict,
+    best_ckpt_path: str,
+    evaluate_fn=None,
+) -> float:
     losses = []
-    ptr    = 0
-    while ptr + block_size + 1 < len(data):
-        seq = torch.from_numpy(np.array(
-                  data[ptr:ptr + block_size + 1], dtype=np.int64)
-              ).to(device)
-        x, y = seq[:-1].unsqueeze(0), seq[1:].unsqueeze(0)  # (1,T)
+    ptr = 0
+    data_view = data
+    total_tokens = len(data_view) - 1
+    save_enabled = args.always_save_checkpoint or not args.never_save_checkpoint
+
+    if args.max_tokens_per_epoch:
+        if args.max_tokens_per_epoch < block_size + 1:
+            raise ValueError(
+                "--max_tokens_per_epoch must be larger than block_size + 1"
+            )
+        if args.max_tokens_per_epoch < len(data_view):
+            max_start = len(data_view) - args.max_tokens_per_epoch - 1
+            start = random.randint(0, max_start) if max_start > 0 else 0
+            end = start + args.max_tokens_per_epoch + 1
+            data_view = data_view[start:end]
+            total_tokens = len(data_view) - 1
+
+    total_blocks = max(1, (total_tokens - 1) // block_size)
+    last_print_len = 0
+
+    while ptr + block_size + 1 < len(data_view):
+        seq = torch.from_numpy(
+            np.array(data_view[ptr : ptr + block_size + 1], dtype=np.int64)
+        ).to(device)
+        x, y = seq[:-1].unsqueeze(0), seq[1:].unsqueeze(0)
 
         if split == "train":
             model.train()
             optimizer.zero_grad()
-            loss = train_block(x, y)
+            loss = train_block(
+                recurrent_block=recurrent_block,
+                loss_config=loss_config,
+                embed_tokens=embed_tokens,
+                forward_embedded=forward_embedded,
+                x_tokens=x,
+                y_tokens=y,
+            )
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
             optimizer.step()
-            global global_step
-            global_step += 1
 
-            if global_step % args.log_interval == 0:
-                print(f"iter {global_step:>7} | "
-                      f"loss {loss.item():.4f}")
-            # ─── validation & checkpoint ───────────────────────────────
-            if global_step % args.eval_interval == 0:
-                model.eval()
-                with torch.no_grad():
-                    val = run_epoch("val")          # one full pass
+            state.global_step += 1
+
+            if state.global_step % args.log_interval == 0:
+                print(f"iter {state.global_step:>7} | loss {loss.item():.4f}")
+
+            if evaluate_fn and state.global_step % args.eval_interval == 0:
+                val = evaluate_fn()
 
                 if tb:
-                    tb.add_scalar("loss/val", val, global_step)
+                    tb.add_scalar("loss/val", val, state.global_step)
 
-                if val < 5.00:
-                    print(val)
-                    best_val_loss = val
-                    torch.save(
-                        {"model": model.state_dict(),
-                         "model_args": ckpt["model_args"],
-                         "iter_num":   global_step,
-                         "best_val_loss": best_val_loss},
-                        best_ckpt_path)
-                    print(f"  ➜ new best @ step {global_step}; "
-                          f"checkpoint saved to {best_ckpt_path}")
-
-
+                if val < state.best_val_loss:
+                    state.best_val_loss = val
+                    if save_enabled:
+                        save_best_checkpoint(
+                            model=model,
+                            ckpt_model_args=ckpt_model_args,
+                            best_ckpt_path=best_ckpt_path,
+                            best_val_loss=state.best_val_loss,
+                            global_step=state.global_step,
+                        )
+                if args.always_save_checkpoint:
+                    save_checkpoint(
+                        model=model,
+                        ckpt_model_args=ckpt_model_args,
+                        ckpt_path=best_ckpt_path,
+                        best_val_loss=state.best_val_loss,
+                        global_step=state.global_step,
+                        tag="latest",
+                    )
         else:
-
             model.eval()
             with torch.no_grad():
-                loss = train_block(x, y)
+                loss = train_block(
+                    recurrent_block=recurrent_block,
+                    loss_config=loss_config,
+                    embed_tokens=embed_tokens,
+                    forward_embedded=forward_embedded,
+                    x_tokens=x,
+                    y_tokens=y,
+                )
 
         losses.append(loss.item())
         ptr += block_size
+
+        if args.progress_bar:
+            completed = min(total_blocks, ptr // block_size)
+            pct = completed / total_blocks
+            bar_width = 24
+            filled = int(bar_width * pct)
+            bar = "#" * filled + "-" * (bar_width - filled)
+            line = f"{split} [{bar}] {completed}/{total_blocks} ({pct:.0%})"
+            padding = max(0, last_print_len - len(line))
+            print(f"\r{line}{' ' * padding}", end="", flush=True)
+            last_print_len = len(line)
+
+    if args.progress_bar:
+        print()
+
     return sum(losses) / len(losses)
 
-# ----------------------------------------------------------------------
-# 7)  TRAINING DRIVER
-# ----------------------------------------------------------------------
-tb = SummaryWriter() if getattr(args, "tensorboard_log", False) else None
-best_ckpt_path = os.path.join(os.path.dirname(args.resume_ckpt), "ckpt_lat.pt")
 
-val_loss = 999.9
-while global_step < args.max_iters:
-    t0 = time.time()
-    train_loss = run_epoch("train")
+# ----------------------------------------------------------------------
+# 5) TRAINING DRIVER
+# ----------------------------------------------------------------------
 
-    # ── run validation/checkpoint every N iterations ────────────────
-    if global_step % args.eval_interval == 0:
-        val_loss = run_epoch("val")
+def main() -> None:
+    args = parse_args()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    ckpt, model, gpt_conf = load_checkpoint(args, device)
+    optimizer = build_optimizer(model, args, ckpt)
+
+    best_val_loss = ckpt["best_val_loss"].item()
+    print("best_val_loss", best_val_loss)
+    best_val_loss = 5.00  # TODO: allow configurable start threshold
+
+    state = TrainingState(
+        global_step=0,
+        best_val_loss=best_val_loss,
+        iter_num=ckpt["iter_num"],
+    )
+
+    train_bin = load_bin(args, "train")
+    val_bin = load_bin(args, "val")
+
+    embed_tokens = model.embed_tokens
+    forward_embedded = lambda x: model.forward_embedded(x, return_hidden=True)
+
+    block_size = gpt_conf.block_size
+    loss_config = build_recurrent_config(args)
+    recurrent_block = select_recurrent_block(args)
+
+    tb = SummaryWriter() if getattr(args, "tensorboard_log", False) else None
+    best_ckpt_path = os.path.join(
+        os.path.dirname(args.resume_ckpt), args.recurrent_output_ckpt
+    )
+    save_enabled = args.always_save_checkpoint or not args.never_save_checkpoint
+
+    val_loss = 999.9
+
+    def evaluate_validation() -> float:
+        val = run_epoch(
+            split="val",
+            data=val_bin,
+            model=model,
+            optimizer=None,
+            args=args,
+            state=state,
+            device=device,
+            block_size=block_size,
+            loss_config=loss_config,
+            recurrent_block=recurrent_block,
+            embed_tokens=embed_tokens,
+            forward_embedded=forward_embedded,
+            tb=tb,
+            ckpt_model_args=ckpt["model_args"],
+            best_ckpt_path=best_ckpt_path,
+        )
+        print(f"val loss {val:.4f}")
+        return val
+
+    while state.global_step < args.max_iters:
+        t0 = time.time()
+        train_loss = run_epoch(
+            split="train",
+            data=train_bin,
+            model=model,
+            optimizer=optimizer,
+            args=args,
+            state=state,
+            device=device,
+            block_size=block_size,
+            loss_config=loss_config,
+            recurrent_block=recurrent_block,
+            embed_tokens=embed_tokens,
+            forward_embedded=forward_embedded,
+            tb=tb,
+            ckpt_model_args=ckpt["model_args"],
+            best_ckpt_path=best_ckpt_path,
+            evaluate_fn=evaluate_validation,
+        )
+
+        if state.global_step % args.eval_interval == 0:
+            val_loss = evaluate_validation()
+
+            if tb:
+                tb.add_scalar("loss/val", val_loss, state.global_step)
+
+            if val_loss < state.best_val_loss:
+                state.best_val_loss = val_loss
+                if save_enabled:
+                    save_best_checkpoint(
+                        model=model,
+                        ckpt_model_args=ckpt["model_args"],
+                        best_ckpt_path=best_ckpt_path,
+                        best_val_loss=state.best_val_loss,
+                        global_step=state.global_step,
+                    )
+            if args.always_save_checkpoint:
+                save_checkpoint(
+                    model=model,
+                    ckpt_model_args=ckpt["model_args"],
+                    ckpt_path=best_ckpt_path,
+                    best_val_loss=state.best_val_loss,
+                    global_step=state.global_step,
+                    tag="latest",
+                )
 
         if tb:
-            tb.add_scalar("loss/val", val_loss, global_step)
+            tb.add_scalar("loss/train", train_loss, state.global_step)
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            torch.save(
-                {"model": model.state_dict(),
-                 "model_args": ckpt["model_args"],
-                 "iter_num":   global_step,
-                 "best_val_loss": best_val_loss},
-                best_ckpt_path)
-            print(f"  ➜ new best @ step {global_step}; "
-                  f"checkpoint saved to {best_ckpt_path}")
-
-    # (tensorboard train-loss stays per-epoch to avoid spam)
+        print(
+            "iter "
+            f"{state.global_step:03d} | train {train_loss:.4f} | "
+            f"val {val_loss:.4f} | {(time.time() - t0):.1f}s"
+        )
 
     if tb:
-        tb.add_scalar("loss/train", train_loss, global_step)
+        tb.flush()
+        tb.close()
 
-    print(f"iter {global_step:03d} | "
-          f"train {train_loss:.4f} | val {val_loss:.4f} | "
-          f"{(time.time()-t0):.1f}s")
+    print("done.")
 
 
-if tb:
-    tb.flush()
-    tb.close()
-
-print("done.")
+if __name__ == "__main__":
+    main()
 # ======================================================================
-
