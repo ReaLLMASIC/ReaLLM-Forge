@@ -1,4 +1,4 @@
-# colorize_dataset.py  (rolling-window mode added)
+# token_prediction_colorizer.py  (rolling-window mode added)
 """Colourise a dataset split using a trained GPT model.
 
 Modes
@@ -18,7 +18,7 @@ Example
 -------
 ```bash
 # rolling window, colour 3 000 tokens starting  at offset 50 000
-python colorize_dataset.py \
+python token_prediction_colorizer.py \
   --out_dir out/my_run \
   --dataset tiny_shakespeare \
   --split train \
