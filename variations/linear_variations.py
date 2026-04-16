@@ -71,7 +71,7 @@ class QuantizedLinear(nn.Linear):
             bias = dequantize(self.bias_zero_point[0], self.bias_norm, self.quantized_bias)
 
         # Uses the dequantized weights and bias to compute the output using F.linear
-        if self.bias is not none:
+        if self.bias is not None:
             out = F.linear(input, weight, bias)
         else:
             out = F.linear(input, weight)
