@@ -245,6 +245,11 @@ class GPT(nn.Module):
                 setattr(norm_config, f"hsnorm_{attr}", getattr(norm_config, src))
         return norm_dictionary[getattr(config, variant_key)](norm_config)
 
+    @staticmethod
+    def _set_norm_iter(module, iter_num):
+        if hasattr(module, "set_iter_num"):
+            module.set_iter_num(iter_num)
+
     def _init_weights(self, module):
         """
         Custom weight initialization logic for GPT model.
@@ -409,6 +414,7 @@ class GPT(nn.Module):
                 x = token_repr if x is None else x + token_repr
 
             if self.config.norm_variant_wte is not None:
+                self._set_norm_iter(self.transformer.post_embedding_norm, iter_num)
                 x = self.transformer.post_embedding_norm(x)
 
             if self.config.use_embedding_scale:
@@ -452,6 +458,7 @@ class GPT(nn.Module):
                 x = self.ln_f_mixer(layer_outputs)
 
             # 3. Final layer norm
+            self._set_norm_iter(self.transformer.ln_f, iter_num)
             x = self.transformer.ln_f(x)
 
             # 4. Optionally scale down
@@ -553,12 +560,14 @@ class GPT(nn.Module):
                 tok_emb = tok_emb * self.embedding_scale
 
             if self.config.norm_variant_wte is not None:
+                self._set_norm_iter(self.transformer.post_embedding_norm, iter_num)
                 tok_emb = self.transformer.post_embedding_norm(tok_emb)
 
             if self.config.use_abs_pos_embeddings:
                 pos_emb = self.transformer.wpe(t, device=device, training=self.training) # position embeddings of shape (t, n_embd)
                 x = tok_emb + pos_emb
                 if self.config.norm_variant_abs is not None:
+                    self._set_norm_iter(self.transformer.post_abs_norm, iter_num)
                     x = self.transformer.post_abs_norm(x)
                 x = self.transformer.drop(x)
             else:
@@ -597,6 +606,7 @@ class GPT(nn.Module):
             if self.use_ln_f_input_mixer:
                 x = self.ln_f_mixer(layer_outputs)
 
+            self._set_norm_iter(self.transformer.ln_f, iter_num)
             x = self.transformer.ln_f(x)
 
             if self.n_embd_wte:
@@ -660,12 +670,14 @@ class GPT(nn.Module):
             tok_emb = tok_emb * self.embedding_scale
 
         if self.config.norm_variant_wte is not None:
+            self._set_norm_iter(self.transformer.post_embedding_norm, None)
             tok_emb = self.transformer.post_embedding_norm(tok_emb)
 
         if self.config.use_abs_pos_embeddings:
             t = idx.size(1)
             tok_emb = tok_emb + self.transformer.wpe(t, device=device, training=self.training)
             if self.config.norm_variant_abs is not None:
+                self._set_norm_iter(self.transformer.post_abs_norm, None)
                 tok_emb = self.transformer.post_abs_norm(tok_emb)
 
 
@@ -702,6 +714,7 @@ class GPT(nn.Module):
         if self.use_ln_f_input_mixer:
             x = self.ln_f_mixer(layer_outputs)
 
+        self._set_norm_iter(self.transformer.ln_f, iter_num)
         x = self.transformer.ln_f(x)
         if self.n_embd_wte:
             x = F.linear(x, self.transformer.scale_down.weight.t())

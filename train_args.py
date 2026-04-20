@@ -765,6 +765,7 @@ def parse_args():
             "rmsnorm",
             "layernorm",
             "hyperspherenorm",
+            "rmsnorm_hyperspherenorm",
             "dact",
             "identity",
             ]
@@ -805,6 +806,10 @@ def parse_args():
     model_group.add_argument("--hsnorm_scale", type=float, default=1.0)
     model_group.add_argument("--hsnorm_radius", type=float, default=None)
     model_group.add_argument("--hsnorm_radius_learning", default=False, action=argparse.BooleanOptionalAction)
+
+    ## RMSNorm -> HyperSphereNorm finetuning
+    model_group.add_argument("--rms_hsnorm_finetune_start_iter", type=int, default=0)
+    model_group.add_argument("--rms_hsnorm_finetune_iters", type=int, default=0)
 
     activation_variations = [
             "celu",

@@ -472,9 +472,15 @@ class Block(nn.Module):
         self.use_gradient_checkpointing = getattr(config, "use_gradient_checkpointing", False)
 
     def forward(self, x: torch.Tensor, iter_num: int):
+        self._set_norm_iter(iter_num)
         if self.use_gradient_checkpointing and x.requires_grad:
             return checkpoint.checkpoint(self.block_forward, x, iter_num, use_reentrant=False)
         return self.block_forward(x, iter_num)
+
+    def _set_norm_iter(self, iter_num: int):
+        for module in self.modules():
+            if hasattr(module, "set_iter_num"):
+                module.set_iter_num(iter_num)
 
     def _combine_resid(self, kind: str, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
         """Helper method to streamline forward block skip connections"""

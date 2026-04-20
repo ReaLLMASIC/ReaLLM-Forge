@@ -418,6 +418,8 @@ class GPTConfig:
     hsnorm_radius: float | None = None
     hsnorm_scale: float = 1.0
     hsnorm_radius_learning: bool = False
+    rms_hsnorm_finetune_start_iter: int = 0
+    rms_hsnorm_finetune_iters: int = 0
 
     dact_alpha_init: float = 1.0
     dact_activation: str = 'tanh'

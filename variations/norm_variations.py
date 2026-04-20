@@ -99,6 +99,50 @@ class HyperSphereNorm(nn.Module):
         hypersphere_norm = x.norm(2, dim=-1, keepdim=True)
         return  x / hypersphere_norm * radius * self.gain
 
+class RMSHyperSphereNorm(nn.Module):
+    """Blend from RMSNorm into HyperSphereNorm over a finetuning window."""
+
+    def __init__(self, config):
+        super().__init__()
+        ndim = config.n_embd
+        gain_init = torch.ones(ndim)
+        self.gain = nn.Parameter(gain_init)
+
+        radius_init = gain_init.mean().item() * math.sqrt(ndim)
+        self.const_radius_factor = config.hsnorm_scale
+        radius_init = radius_init / self.const_radius_factor
+        self.radius_init_factor = nn.Parameter(torch.tensor([radius_init]))
+
+        self.finetune_start_iter = config.rms_hsnorm_finetune_start_iter
+        self.finetune_iters = config.rms_hsnorm_finetune_iters
+        self.iter_num = None
+
+    def set_iter_num(self, iter_num):
+        if isinstance(iter_num, torch.Tensor):
+            iter_num = int(iter_num.item())
+        self.iter_num = iter_num
+
+    def _alpha(self):
+        if self.iter_num is None:
+            return 1.0
+        if self.iter_num < self.finetune_start_iter:
+            return 1.0
+        if self.finetune_iters <= 0:
+            return 0.0
+        progress = (self.iter_num - self.finetune_start_iter) / float(self.finetune_iters)
+        return max(0.0, 1.0 - progress)
+
+    def forward(self, x):
+        rms = x.norm(2, dim=-1, keepdim=True) / math.sqrt(x.size(-1))
+        rms_out = x / rms * self.gain
+
+        radius = self.const_radius_factor * self.radius_init_factor
+        hypersphere_norm = x.norm(2, dim=-1, keepdim=True)
+        hypersphere_out = x / hypersphere_norm * radius
+
+        alpha = self._alpha()
+        return alpha * rms_out + (1 - alpha) * hypersphere_out
+
 class pRMSNorm(nn.Module):
     """Partial RMS Normalization"""
 
@@ -217,6 +261,7 @@ norm_dictionary = {
     "prmsnorm": pRMSNorm,
     "krmsnorm": kRMSNorm,
     "hyperspherenorm": HyperSphereNorm,
+    "rmsnorm_hyperspherenorm": RMSHyperSphereNorm,
     "dact": DynamicActivation,
     "identity": IdentityNorm,
 }

@@ -1,0 +1,105 @@
+# rmsnorm_hyperspherenorm_finetune.yaml based on default.yaml
+---
+
+named_static_groups:
+  # QK Norm
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    named_group_settings:
+      use_rotary_embeddings: [true]
+      use_abs_pos_embeddings: [false]
+
+  # Embedding Norm
+  - named_group: "rmsnorm_wte_ft_l"
+    named_group_settings:
+      norm_variant_wte: ["rmsnorm_hyperspherenorm"]
+      norm_wte_radius_learning: [true]
+
+  # Embedding Norm
+  - named_group: "rmsnorm_wte"
+    named_group_settings:
+      norm_variant_wte: ["rmsnorm"]
+      norm_wte_radius_learning: [true]
+
+  # Embedding Norm
+  - named_group: "hsnorm_wte"
+    named_group_settings:
+      norm_variant_wte: ["hyperspherenorm"]
+      norm_wte_radius_learning: [true]
+
+  # RMSNorm -> HyperSphereNorm finetuning
+  - named_group: "rmsnorm_hypersphere_finetune_l"
+    named_group_settings:
+      norm_variant_attn: ["rmsnorm_hyperspherenorm"]
+      norm_variant_output: ["rmsnorm_hyperspherenorm"]
+      hsnorm_radius_learning: [true]
+
+  # RMSNorm
+  - named_group: "rmsnorm"
+    named_group_settings:
+      norm_variant_attn: ["rmsnorm"]
+      norm_variant_output: ["rmsnorm"]
+
+  - named_group: "hsnorm"
+    named_group_settings:
+      norm_variant_attn: ["hyperspherenorm"]
+      norm_variant_output: ["hyperspherenorm"]
+      hsnorm_radius_learning: [true]
+
+  # MLP Activation
+  - named_group: "squared_relu"
+    named_group_settings:
+      activation_variant: ["squared_relu"]
+
+common_group:
+  dataset: ["minipile"]
+  eval_interval: [1000]
+  max_iters: [10000]
+  never_save_checkpoint: [true]
+
+parameter_groups:
+  - compile: [true]
+    named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "rmsnorm_hypersphere_finetune_l"
+      - "squared_relu"
+    rms_hsnorm_finetune_start_iter: [2000]
+    rms_hsnorm_finetune_iters: [2000, 4000, 6000, 8000]
+  - compile: [true]
+    named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "rmsnorm_wte_ft_l"
+      - "rmsnorm_hypersphere_finetune_l"
+      - "squared_relu"
+    rms_hsnorm_finetune_start_iter: [2000]
+    rms_hsnorm_finetune_iters: [2000, 4000, 6000, 8000]
+  - compile: [true]
+    named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "rmsnorm_wte"
+      - "rmsnorm"
+      - "squared_relu"
+  - compile: [true]
+    named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "hsnorm_wte"
+      - "hsnorm"
+      - "squared_relu"
