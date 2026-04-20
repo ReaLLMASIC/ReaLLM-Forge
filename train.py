@@ -543,8 +543,30 @@ class Trainer:
             print(f"Loaded teacher checkpoint from {expanded}")
 
 
+    def _apply_optimizer_presets(self):
+        preset = getattr(self.args, "optimizer_preset", "none")
+
+        if preset != "speedrun":
+            return
+
+        if self.args.optimizer == "adamw":
+            self.args.learning_rate = 6e-4
+            self.args.beta1, self.args.beta2 = 0.9, 0.95
+            self.args.adamw_weight_decay = 0.1
+            self.args.adamw_eps = 1e-8
+        elif self.args.optimizer == "muon":
+            self.args.learning_rate = 2e-2
+            self.args.muon_momentum = 0.95
+            self.args.weight_decay = 0.0
+
+        if self.master_process:
+            print(f"Applied {preset} preset for optimizer '{self.args.optimizer}'.")
+
+
     def create_optimizer(self):
         optimizer_key = self.args.optimizer
+
+        self._apply_optimizer_presets()
 
         if optimizer_key == "muon":
             named = list(self.model.named_parameters())

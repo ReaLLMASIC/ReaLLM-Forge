@@ -1,14 +1,10 @@
-# muon_vs_adamw_finewebedu.yaml
+# Compare NanoGPT speedrun optimizer presets for Muon and AdamW on minipile.
 ---
 parameter_groups:
   - optimizer: ["adamw"]
-    learning_rate: ["0.05"]
-    beta1: [0.9]
-    beta2: [0.99]
-    adamw_weight_decay: [0.1]
-    adamw_eps: ["1e-8"]
+    optimizer_preset: ["speedrun"]
   - optimizer: ["muon"]
-    learning_rate: ["0.05"]
+    optimizer_preset: ["speedrun"]
     muon_momentum: [0.95]
   - optimizer: ["adamw"]
 
@@ -18,7 +14,7 @@ n_head: [6]
 n_embd: [384]
 block_size: [256]
 batch_size: [64]
-max_iters: [10000]
+max_iters: [100000]
 eval_interval: [10000]
 eta_variant: ["iteration"]
 dataset: ["minipile"]
@@ -32,4 +28,4 @@ use_peri_ln: [true]
 softmax_variant_attn: ["softmax"]
 compile: [true]
 never_save_checkpoint: [true]
-tensorboard_run_name: ["muon_vs_adamw"]
+tensorboard_run_name: ["muon_vs_adamw_speedrun"]
