@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# Define Green Color and Reset
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
+# 1. Define models (Mapping Ollama-style names to Hugging Face GGUF paths)
+# Note: llama.cpp uses the format: username/repo:quantization
+all_models=(
+    "ggml-org/gemma-3-1b-it-GGUF:Q4_K_M"
+    "ggml-org/gemma-3-4b-it-GGUF:Q4_K_M"
+    "ggml-org/gemma-4-E4B-it-GGUF:Q4_K_M"
+    "unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF:Q4_K_M"
+    "bartowski/Qwen2.5-7B-Instruct-GGUF:Q4_K_M"
+    "bartowski/Llama-3.1-8B-Instruct-GGUF:Q4_K_M"
+)
+
+echo -e "${GREEN}------------------------------------------${NC}"
+echo -e "${GREEN}    LLAMA.CPP AUTO-DOWNLOADER (JETSON)    ${NC}"
+echo -e "${GREEN}------------------------------------------${NC}"
+
+# Display Disk Space
+free_space=$(df -h . | awk 'NR==2 {print $4}')
+echo -e "${GREEN}Available Disk Space: $free_space${NC}"
+echo -e "${GREEN}------------------------------------------${NC}"
+
+# Generate Menu in a clean grid
+for i in "${!all_models[@]}"; do
+    printf "${GREEN}%2s) %-45s${NC}" "$((i+1))" "${all_models[$i]}"
+    if (( (i+1) % 1 == 0 )); then echo ""; fi
+done
+
+echo -e "\n${GREEN}------------------------------------------${NC}"
+read -p "Select number to run (or 'q' to quit): " choice
+
+if [[ "$choice" == "q" ]]; then
+    exit 0
+elif [[ "$choice" -ge 1 && "$choice" -le "${#all_models[@]}" ]]; then
+    selected_model="${all_models[$((choice-1))]}"
+    
+    echo -e "${GREEN}>>> Launching llama-cli with $selected_model...${NC}"
+    echo -e "${GREEN}>>> (llama.cpp will auto-download the weights if missing)${NC}"
+    
+    # 2. Execute via llama-cli
+    # -ngl all: Offload all layers to Orin GPU
+    # -fa on: Flash Attention for Orin
+    ./llama.cpp/build/bin/llama-cli \
+      -hf "$selected_model" \
+      -ngl all \
+      -fa on \
+      -p "Hello! Briefly explain your capabilities on this Jetson Orin."
+else
+    echo -e "${GREEN}Invalid selection.${NC}"
+fi
