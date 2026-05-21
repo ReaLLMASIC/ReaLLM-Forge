@@ -1,0 +1,2663 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Read / Activate / Write with Backprop + Quantization Replay</title>
+  <style>
+    :root {
+      --bg: #1b1b2f;
+      --panel: rgba(255,255,255,0.06);
+      --panel-2: rgba(255,255,255,0.08);
+      --border: rgba(255,255,255,0.12);
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.72);
+      --incoming: #ff7b72;
+      --read: #c77dff;
+      --train: #58c4dd;
+      --target: #ef4444;
+      --base: #ffd166;
+      --scaled: #f4a261;
+      --sum: #4ea8de;
+      --final: #52b788;
+      --final-trained: #7dd3fc;
+      --grid: #8d99ae;
+      --sphere: #ffffff;
+      --class-a: #f97316;
+      --class-b: #38bdf8;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body { overflow: hidden; }
+
+    #app {
+      display: grid;
+      grid-template-columns: 1fr 460px;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    #scene-wrap { position: relative; min-width: 0; }
+    #scene { width: 100%; height: 100%; display: block; }
+
+    .overlay-top {
+      position: absolute;
+      left: 20px;
+      top: 18px;
+      right: 20px;
+      pointer-events: none;
+    }
+
+    .title-card {
+      max-width: 1120px;
+      background: rgba(0,0,0,0.18);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px 18px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .overlay-bottom {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      background: rgba(0,0,0,0.28);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 10px 12px;
+      color: rgba(255,255,255,0.85);
+      font-size: 13px;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+      max-width: 700px;
+    }
+
+    #sidebar {
+      border-left: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      overflow: auto;
+      padding: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    }
+
+    .panel h2 {
+      margin: 0 0 12px 0;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: rgba(255,255,255,0.58);
+      font-weight: 700;
+    }
+
+    .stage-name {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    button, select, input[type="number"] {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 16px;
+      padding: 11px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+      width: 100%;
+    }
+
+    input[type="number"] {
+      cursor: text;
+    }
+
+    button:hover, select:hover, input[type="number"]:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.12);
+    }
+
+    button.active {
+      border-color: rgba(255,255,255,0.28);
+      background: rgba(255,255,255,0.16);
+    }
+
+    .controls-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .controls-row.three {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    .range-wrap { margin-top: 14px; }
+
+    .range-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      gap: 12px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #7dd3fc;
+    }
+
+    .toggle, .stack-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      font-size: 14px;
+      color: rgba(255,255,255,0.9);
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .vector-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .vector-item {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding-bottom: 4px;
+      gap: 12px;
+      align-items: baseline;
+    }
+
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .small { font-size: 12px; color: var(--muted); }
+
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 1180px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+      #sidebar { border-left: 0; border-top: 1px solid var(--border); max-height: 52vh; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="scene-wrap">
+      <canvas id="scene"></canvas>
+      <div class="overlay-top">
+        <div class="title-card">
+          <h1>Read → Activate → Write, now with backprop + quantization modes</h1>
+          <div class="subtitle">
+            This keeps the original single-hidden-layer read / activate / write geometry, but now replays a real gradient-descent training
+            process on two classic toy tasks. On top of the floating-point baseline, you can switch between post-training quantization (PTQ),
+            quantization-aware training (QAT) with a low-precision forward pass, and a snap-after-each-step training mode that projects weights
+            back onto a 1.58-bit ternary, 3-bit, or 4-bit grid. You can also switch the hidden activation among ReLU, ReLU², tanh, GELU, and SiLU,
+            and slow down or speed up the Stage 6 replay from 0.1x to 2x.
+          </div>
+        </div>
+      </div>
+      <div class="overlay-bottom">
+        Drag to rotate • Scroll to zoom • Right-drag to pan • Stage 6 replays the selected backprop / quantization path • Stages 0–5 show the initial floating-point network on the selected probe sample • Stages 7–13 show the final deployed model on that same sample
+      </div>
+    </div>
+
+    <aside id="sidebar">
+      <div class="panel">
+        <h2>Current stage</h2>
+        <div class="stage-name" id="stageName"></div>
+        <div class="button-grid">
+          <button data-stage="0">1. Read</button>
+          <button data-stage="1">2. Activation</button>
+          <button data-stage="2">3. Write</button>
+          <button data-stage="3">4. Scale</button>
+          <button data-stage="4">5. Sum</button>
+          <button data-stage="5">6. Normalize</button>
+          <button data-stage="6">7. Train / quantize</button>
+          <button data-stage="7">8. Final read</button>
+          <button data-stage="8">9. Final activation</button>
+          <button data-stage="9">10. Final write</button>
+          <button data-stage="13">11. Final scale</button>
+          <button data-stage="11">12. Final sum</button>
+          <button data-stage="12">13. Final normalize</button>
+          <button data-stage="10">14. Compare</button>
+          <button data-stage="0">Back to start</button>
+        </div>
+        <div class="controls-row">
+          <button id="playPause">Pause</button>
+          <button id="resetStage">Reset stage</button>
+        </div>
+        <div class="controls-row">
+          <button id="rerollSeed">New seed</button>
+          <button id="initialView">Initial view</button>
+        </div>
+        <div class="range-wrap">
+          <div class="range-row">
+            <span>Stage progress</span>
+            <span id="progressLabel">0%</span>
+          </div>
+          <input id="progressSlider" type="range" min="0" max="1000" value="0" />
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Toy task</h2>
+        <div class="stack">
+          <div class="stack-row">
+            <span>Task</span>
+            <select id="taskSelect">
+              <option value="classification">classification: two moons</option>
+              <option value="regression">function approximation: sine</option>
+            </select>
+          </div>
+          <div class="stack-row">
+            <span>Training mode</span>
+            <select id="trainModeSelect">
+              <option value="fp32">FP32 baseline</option>
+              <option value="ptq">PTQ snap after training</option>
+              <option value="qat">QAT: quantized forward pass</option>
+              <option value="snap">snap after every backprop step</option>
+            </select>
+          </div>
+          <div class="stack-row">
+            <span>Quant grid</span>
+            <select id="quantModeSelect">
+              <option value="ternary">1.58-bit ternary {-1, 0, +1} × layer scale</option>
+              <option value="int3">3-bit signed {-4,-3,-2,-1,0,1,2,3} × layer scale</option>
+              <option value="int4">4-bit signed {-8,-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7} × layer scale</option>
+            </select>
+          </div>
+          <div class="stack-row">
+            <span>Activation</span>
+            <select id="activationSelect">
+              <option value="relu">ReLU</option>
+              <option value="relu2">ReLU²</option>
+              <option value="tanh">tanh</option>
+              <option value="gelu">GELU</option>
+              <option value="silu">SiLU</option>
+            </select>
+          </div>
+          <div class="stack-row">
+            <span>Hidden vectors</span>
+            <select id="vectorCountSelect">
+              <option value="4">4</option>
+              <option value="6">6</option>
+              <option value="8" selected>8</option>
+              <option value="10">10</option>
+              <option value="12">12</option>
+              <option value="16">16</option>
+            </select>
+          </div>
+          <div class="range-wrap" style="margin-top:0;">
+            <div class="range-row">
+              <span>Initialization clustering</span>
+              <span id="initClusterLabel">0%</span>
+            </div>
+            <input id="initClusterSlider" type="range" min="0" max="100" step="1" value="0" />
+            <div class="small" style="margin-top:8px;">
+              0% keeps the hidden vectors isotropic. 100% collapses each bank so every hidden vector starts at the same point.
+            </div>
+          </div>
+          <div class="config-grid">
+            <div>
+              <div class="small" style="margin-bottom:6px;">epochs</div>
+              <input id="epochsInput" type="number" min="20" step="10" value="180" />
+            </div>
+            <div>
+              <div class="small" style="margin-bottom:6px;">learning rate</div>
+              <input id="learningRateInput" type="number" min="0.001" max="1" step="0.001" value="0.035" />
+            </div>
+          </div>
+          <div class="stack-row">
+            <span>Stage 6 replay speed</span>
+            <input id="trainReplaySpeedInput" type="number" min="0.1" max="2.0" step="0.1" value="1.0" />
+          </div>
+          <div class="controls-row" style="margin-top:0;">
+            <button id="retrainModel">Retrain model</button>
+            <button id="applyTaskDefaults">Task defaults</button>
+          </div>
+          <div class="small">
+            PTQ snaps the final trained weights onto the chosen grid. QAT keeps float master weights, but uses quantized weights plus quantized intermediate activations during the forward pass. Snap mode projects the weights back to the chosen grid after every update step.
+          </div>
+          <div class="small">
+            Classification uses a two-moons dataset and learns class prototype directions on the write sphere. Regression uses noisy sine samples and learns an output arc that decodes back to a scalar value.
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Probe sample + view</h2>
+        <div class="stack">
+          <div class="range-wrap" style="margin-top:0;">
+            <div class="range-row">
+              <span>Probe sample</span>
+              <span id="probeLabel">0</span>
+            </div>
+            <input id="probeSlider" type="range" min="0" max="0" value="0" />
+          </div>
+          <div class="range-wrap" style="margin-top:0;">
+            <div class="range-row">
+              <span>Solid angle aperture</span>
+              <span id="solidAngleLabel">16° half-angle</span>
+            </div>
+            <input id="solidAngleSlider" type="range" min="0" max="40" value="16" />
+          </div>
+          <label class="toggle"><span>Auto-rotate scene</span><input id="autoRotate" type="checkbox" /></label>
+          <label class="toggle"><span>Show coefficient labels</span><input id="showLabels" type="checkbox" checked /></label>
+          <label class="toggle"><span>Show dataset dots</span><input id="showDatasetDots" type="checkbox" checked /></label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Task + training summary</h2>
+        <div class="vector-grid" id="taskSummaryGrid"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Initial read vector</h2>
+        <div class="vector-grid" id="readVectorGrid"></div>
+      </div>
+
+      <div class="panel">
+        <h2 id="finalReadTitle">Final / deployed read vector</h2>
+        <div class="vector-grid" id="trainedReadVectorGrid"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Comparison</h2>
+        <div class="vector-grid" id="compareGrid"></div>
+        <div class="small" id="compareNote" style="margin-top:10px;">
+          The compare stage overlays the initial output direction, the final deployed output direction, and the probe target for the currently selected toy sample.
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script type="module">
+import * as THREE from 'https://esm.sh/three@0.160.0';
+import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+const BG = '#1b1b2f';
+const GRID = '#8d99ae';
+const BASE = '#ffd166';
+const TRAIN = '#58c4dd';
+const SCALED = '#f4a261';
+const SUM = '#4ea8de';
+const FINAL = '#52b788';
+const FINAL_TRAINED = '#7dd3fc';
+const WHITE = '#ffffff';
+const INCOMING = '#ff7b72';
+const READ = '#c77dff';
+const TARGET = '#ef4444';
+const CLASS_A = '#f97316';
+const CLASS_B = '#38bdf8';
+const REG_LOW = '#f97316';
+const REG_HIGH = '#38bdf8';
+const SPHERE_RADIUS = 2;
+const STAGE_SECONDS = 1.2;
+const TRAIN_STAGE_SECONDS = 3.0;
+const READ_CENTER = new THREE.Vector3(-2.8, 0, 0);
+const WRITE_CENTER = new THREE.Vector3(2.8, 0, 0);
+const UP = new THREE.Vector3(0, 1, 0);
+const REG_ARC_SCALE = 1.0;
+const CLASS_DIRS = [
+  new THREE.Vector3(-0.9, -0.15, 1.0).normalize(),
+  new THREE.Vector3(0.9, -0.15, 1.0).normalize(),
+];
+
+function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+function smoothstep01(x) { const t = clamp01(x); return t * t * (3 - 2 * t); }
+function unit(v) { const n = v.length(); return n > 1e-9 ? v.clone().multiplyScalar(1 / n) : new THREE.Vector3(0, 1, 0); }
+function safeUnit(v, fallback = new THREE.Vector3(0, 1, 0)) { const n = v.length(); return n > 1e-9 ? v.clone().multiplyScalar(1 / n) : fallback.clone(); }
+function lerpVec(a, b, t) { return a.clone().lerp(b, t); }
+function colorLerp(c1, c2, t) { return new THREE.Color(c1).lerp(new THREE.Color(c2), clamp01(t)); }
+function angleBetween(a, b) { return Math.acos(clamp(unit(a).dot(unit(b)), -1, 1)); }
+function slerpUnit(a, b, t) {
+  const ua = unit(a);
+  const ub = unit(b);
+  let dot = clamp(ua.dot(ub), -1, 1);
+  if (dot > 0.9995) return safeUnit(ua.clone().lerp(ub, t), ua);
+  if (dot < -0.9995) {
+    const ortho = orthogonalUnit(ua);
+    return unit(ua.clone().multiplyScalar(Math.cos(Math.PI * t)).add(ortho.multiplyScalar(Math.sin(Math.PI * t))));
+  }
+  const omega = Math.acos(dot);
+  const so = Math.sin(omega);
+  const s1 = Math.sin((1 - t) * omega) / so;
+  const s2 = Math.sin(t * omega) / so;
+  return unit(ua.clone().multiplyScalar(s1).add(ub.clone().multiplyScalar(s2)));
+}
+function orthogonalUnit(v) {
+  const a = Math.abs(v.x) < 0.6 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+  return safeUnit(new THREE.Vector3().crossVectors(v, a));
+}
+
+function seededRng(seed = 1) {
+  let s = seed >>> 0;
+  return function rand() {
+    s = (1664525 * s + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+function gaussianScalar(rand) {
+  const u1 = Math.max(rand(), 1e-12);
+  const u2 = rand();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+function gaussian3(rand) {
+  return new THREE.Vector3(gaussianScalar(rand), gaussianScalar(rand), gaussianScalar(rand));
+}
+
+function relu(x) { return Math.max(0, x); }
+function relu2(x) { const r = Math.max(0, x); return r * r; }
+function tanh(x) { return Math.tanh(x); }
+function sigmoid(x) {
+  if (x >= 0) {
+    const e = Math.exp(-x);
+    return 1 / (1 + e);
+  }
+  const e = Math.exp(x);
+  return e / (1 + e);
+}
+function gelu(x) {
+  const c = Math.sqrt(2 / Math.PI);
+  const u = c * (x + 0.044715 * x * x * x);
+  return 0.5 * x * (1 + Math.tanh(u));
+}
+function silu(x) {
+  return x * sigmoid(x);
+}
+function activationName(mode) {
+  if (mode === 'relu2') return 'ReLU²';
+  if (mode === 'tanh') return 'tanh';
+  if (mode === 'gelu') return 'GELU';
+  if (mode === 'silu') return 'SiLU';
+  return 'ReLU';
+}
+function applyActivation(mode, x) {
+  if (mode === 'relu2') return relu2(x);
+  if (mode === 'tanh') return tanh(x);
+  if (mode === 'gelu') return gelu(x);
+  if (mode === 'silu') return silu(x);
+  return relu(x);
+}
+function activationGrad(mode, x) {
+  if (mode === 'relu2') return x > 0 ? 2 * x : 0;
+  if (mode === 'tanh') {
+    const t = Math.tanh(x);
+    return 1 - t * t;
+  }
+  if (mode === 'gelu') {
+    const c = Math.sqrt(2 / Math.PI);
+    const u = c * (x + 0.044715 * x * x * x);
+    const t = Math.tanh(u);
+    const sech2 = 1 - t * t;
+    const du = c * (1 + 3 * 0.044715 * x * x);
+    return 0.5 * (1 + t) + 0.5 * x * sech2 * du;
+  }
+  if (mode === 'silu') {
+    const s = sigmoid(x);
+    return s + x * s * (1 - s);
+  }
+  return x > 0 ? 1 : 0;
+}
+function activationCurveColor(mode) {
+  if (mode === 'relu2') return '#52b788';
+  if (mode === 'tanh') return '#7dd3fc';
+  if (mode === 'gelu') return '#f9a8d4';
+  if (mode === 'silu') return '#c4b5fd';
+  return '#ffd166';
+}
+function activationFormulaString(mode, index, inputValue, outputValue) {
+  const x = inputValue.toFixed(2);
+  const y = outputValue.toFixed(2);
+  if (mode === 'relu2') return `a${index} = max(0, ${x})² = ${y}`;
+  if (mode === 'tanh') return `a${index} = tanh(${x}) = ${y}`;
+  if (mode === 'gelu') return `a${index} = GELU(${x}) ≈ ${y}`;
+  if (mode === 'silu') return `a${index} = SiLU(${x}) = ${y}`;
+  return `a${index} = max(0, ${x}) = ${y}`;
+}
+
+function quantModeName(mode) {
+  if (mode === 'int4') return '4-bit signed';
+  if (mode === 'int3') return '3-bit signed';
+  return '1.58-bit ternary';
+}
+function quantGridLabel(mode) {
+  if (mode === 'int4') return '{-8,-7,…,7}';
+  if (mode === 'int3') return '{-4,-3,-2,-1,0,1,2,3}';
+  return '{-1,0,+1}';
+}
+function quantModeShort(mode) {
+  if (mode === 'int4') return '4b';
+  if (mode === 'int3') return '3b';
+  return '1.58b';
+}
+function trainModeName(mode) {
+  if (mode === 'ptq') return 'PTQ snap-to-grid';
+  if (mode === 'qat') return 'QAT low-precision forward';
+  if (mode === 'snap') return 'snap after every step';
+  return 'FP32 backprop';
+}
+function trainModeDescription(mode, quantMode) {
+  if (mode === 'ptq') return `float backprop, then post-training snap to ${quantModeName(quantMode)} ${quantGridLabel(quantMode)} × layer scale`;
+  if (mode === 'qat') return `float master weights, but forward pass uses ${quantModeName(quantMode)} weights + activations via STE`;
+  if (mode === 'snap') return `after every backprop step, weights are projected back onto ${quantModeName(quantMode)} ${quantGridLabel(quantMode)} × layer scale`;
+  return 'full floating-point backprop and floating-point deployment';
+}
+function deployedModelName(mode, quantMode) {
+  if (mode === 'ptq') return `PTQ ${quantModeShort(quantMode)}`;
+  if (mode === 'qat') return `QAT ${quantModeShort(quantMode)}`;
+  if (mode === 'snap') return `snapped ${quantModeShort(quantMode)}`;
+  return 'trained fp32';
+}
+function deployedShortLabel(mode, quantMode) {
+  if (mode === 'ptq') return `PTQ ${quantModeShort(quantMode)}`;
+  if (mode === 'qat') return `QAT ${quantModeShort(quantMode)}`;
+  if (mode === 'snap') return `snap ${quantModeShort(quantMode)}`;
+  return 'trained';
+}
+function deployedHeading(mode, quantMode) {
+  if (mode === 'fp32') return 'Final / deployed read vector';
+  return `${deployedModelName(mode, quantMode)} read vector`;
+}
+function deployedActivationTitle(mode, quantMode) {
+  if (mode === 'ptq') return `PTQ activation (${quantModeShort(quantMode)})`;
+  if (mode === 'qat') return `QAT activation (${quantModeShort(quantMode)})`;
+  if (mode === 'snap') return `Snapped activation (${quantModeShort(quantMode)})`;
+  return 'Final activation';
+}
+function compareNoteText(mode, quantMode) {
+  if (mode === 'ptq') {
+    return `The compare stage overlays the initial floating-point output, the deployed PTQ ${quantModeShort(quantMode)} output, and the probe target. The compare grid also reports the hidden float-trained model so you can see the PTQ gap.`;
+  }
+  if (mode === 'qat') {
+    return `The compare stage overlays the initial floating-point output, the final QAT ${quantModeShort(quantMode)} deployed output, and the probe target. The compare grid also reports the float master model behind QAT.`;
+  }
+  if (mode === 'snap') {
+    return `The compare stage overlays the initial floating-point output, the final snapped ${quantModeShort(quantMode)} output, and the probe target.`;
+  }
+  return 'The compare stage overlays the initial output direction, the trained floating-point output direction, and the probe target for the currently selected toy sample.';
+}
+function usesLowPrecisionForward(mode) {
+  return mode === 'qat';
+}
+function quantUpperCode(mode) {
+  if (mode === 'int4') return 7;
+  if (mode === 'int3') return 3;
+  return 1;
+}
+function chooseQuantScale(values, mode) {
+  let maxAbs = 0;
+  for (const v of values) maxAbs = Math.max(maxAbs, Math.abs(v));
+  return maxAbs > 1e-6 ? maxAbs / quantUpperCode(mode) : 1;
+}
+function quantizeScalarWithScale(x, mode, scale) {
+  const s = Math.max(1e-8, scale || 1);
+  if (mode === 'int4') {
+    const q = clamp(Math.round(x / s), -8, 7);
+    return q * s;
+  }
+  if (mode === 'int3') {
+    const q = clamp(Math.round(x / s), -4, 3);
+    return q * s;
+  }
+  const q = Math.abs(x / s) < 0.5 ? 0 : (x < 0 ? -1 : 1);
+  return q * s;
+}
+function quantizeArrayDynamic(values, mode) {
+  const scale = chooseQuantScale(values, mode);
+  return {
+    scale,
+    values: values.map(v => quantizeScalarWithScale(v, mode, scale)),
+  };
+}
+function quantizeVectorComponents(v, mode, scale) {
+  return new THREE.Vector3(
+    quantizeScalarWithScale(v.x, mode, scale),
+    quantizeScalarWithScale(v.y, mode, scale),
+    quantizeScalarWithScale(v.z, mode, scale),
+  );
+}
+function vectorComponents(vectors) {
+  const arr = [];
+  for (const v of vectors) arr.push(v.x, v.y, v.z);
+  return arr;
+}
+function quantizeVectors(vectors, mode, scale = null) {
+  const useScale = scale ?? chooseQuantScale(vectorComponents(vectors), mode);
+  return {
+    scale: useScale,
+    vectors: vectors.map(v => quantizeVectorComponents(v, mode, useScale)),
+  };
+}
+function quantizeModel(model, mode) {
+  const read = quantizeVectors(model.readWeights, mode);
+  const write = quantizeVectors(model.writeWeights, mode);
+  return {
+    model: {
+      readWeights: read.vectors,
+      writeWeights: write.vectors,
+    },
+    meta: {
+      readScale: read.scale,
+      writeScale: write.scale,
+    },
+  };
+}
+function inferSpec(kind = 'float', quantMode = 'ternary') {
+  return { kind, quantMode };
+}
+function replayInferenceSpec(config) {
+  return usesLowPrecisionForward(config.trainMode) ? inferSpec('lowp', config.quantMode) : inferSpec('float', config.quantMode);
+}
+function deployedInferenceSpec(config) {
+  return usesLowPrecisionForward(config.trainMode) ? inferSpec('lowp', config.quantMode) : inferSpec('float', config.quantMode);
+}
+function replayViewFromMaster(masterModel, config) {
+  if (config.trainMode === 'qat') {
+    const q = quantizeModel(masterModel, config.quantMode);
+    return {
+      model: q.model,
+      inferenceSpec: inferSpec('lowp', config.quantMode),
+      quantMeta: q.meta,
+    };
+  }
+  return {
+    model: cloneModel(masterModel),
+    inferenceSpec: inferSpec('float', config.quantMode),
+    quantMeta: null,
+  };
+}
+function deployedViewFromMaster(masterModel, config) {
+  if (config.trainMode === 'fp32') {
+    return {
+      model: cloneModel(masterModel),
+      inferenceSpec: inferSpec('float', config.quantMode),
+      quantMeta: null,
+    };
+  }
+  const q = quantizeModel(masterModel, config.quantMode);
+  return {
+    model: q.model,
+    inferenceSpec: usesLowPrecisionForward(config.trainMode) ? inferSpec('lowp', config.quantMode) : inferSpec('float', config.quantMode),
+    quantMeta: q.meta,
+  };
+}
+
+function regressionTargetDir(y) {
+  const theta = clamp(y, -1.25, 1.25) * REG_ARC_SCALE;
+  return unit(new THREE.Vector3(Math.cos(theta), Math.sin(theta), 0.7));
+}
+function decodeRegressionValue(dir) {
+  return Math.atan2(dir.y, dir.x) / REG_ARC_SCALE;
+}
+function predictClass(dir) {
+  let best = 0;
+  let bestDot = -Infinity;
+  for (let i = 0; i < CLASS_DIRS.length; i++) {
+    const d = dir.dot(CLASS_DIRS[i]);
+    if (d > bestDot) { bestDot = d; best = i; }
+  }
+  return best;
+}
+
+function sampleColor(sample) {
+  if (sample.task === 'classification') return sample.label === 0 ? CLASS_A : CLASS_B;
+  const t = clamp01((sample.value + 1) / 2);
+  return `#${colorLerp(REG_LOW, REG_HIGH, t).getHexString()}`;
+}
+
+function makeMoonsSamples(seed = 1, total = 96, noise = 0.08) {
+  const rand = seededRng(seed);
+  const n1 = Math.floor(total / 2);
+  const n2 = total - n1;
+  const raw = [];
+  for (let i = 0; i < n1; i++) {
+    const t = rand() * Math.PI;
+    raw.push({ x: Math.cos(t) + gaussianScalar(rand) * noise, y: Math.sin(t) + gaussianScalar(rand) * noise, label: 0 });
+  }
+  for (let i = 0; i < n2; i++) {
+    const t = rand() * Math.PI;
+    raw.push({ x: 1 - Math.cos(t) + gaussianScalar(rand) * noise, y: -Math.sin(t) - 0.5 + gaussianScalar(rand) * noise, label: 1 });
+  }
+  const meanX = raw.reduce((a, p) => a + p.x, 0) / raw.length;
+  const meanY = raw.reduce((a, p) => a + p.y, 0) / raw.length;
+  const stdX = Math.sqrt(raw.reduce((a, p) => a + (p.x - meanX) ** 2, 0) / raw.length) || 1;
+  const stdY = Math.sqrt(raw.reduce((a, p) => a + (p.y - meanY) ** 2, 0) / raw.length) || 1;
+  return raw.map((p, idx) => {
+    const x = (p.x - meanX) / stdX;
+    const y = (p.y - meanY) / stdY;
+    const inputModel = new THREE.Vector3(x, y, 1.2);
+    return {
+      index: idx,
+      task: 'classification',
+      label: p.label,
+      x,
+      y,
+      inputModel,
+      inputDisplay: unit(inputModel).multiplyScalar(SPHERE_RADIUS),
+      targetDir: CLASS_DIRS[p.label].clone(),
+      targetLabel: p.label === 0 ? 'moon A' : 'moon B',
+    };
+  });
+}
+
+function makeSineSamples(seed = 1, total = 72, noise = 0.02) {
+  const rand = seededRng(seed);
+  const samples = [];
+  for (let i = 0; i < total; i++) {
+    const x = -Math.PI + (2 * Math.PI * i) / (total - 1);
+    const value = Math.sin(x) + gaussianScalar(rand) * noise;
+    const xScaled = (x / Math.PI) * 1.45;
+    const inputModel = new THREE.Vector3(xScaled, 0, 1.2);
+    samples.push({
+      index: i,
+      task: 'regression',
+      x,
+      value,
+      inputModel,
+      inputDisplay: unit(inputModel).multiplyScalar(SPHERE_RADIUS),
+      targetDir: regressionTargetDir(value),
+      targetLabel: `sin(x) ≈ ${value.toFixed(3)}`,
+    });
+  }
+  return samples;
+}
+
+function buildTaskData(task, seed = 1) {
+  if (task === 'regression') {
+    const samples = makeSineSamples(seed + 17, 72, 0.02);
+    return {
+      task,
+      name: 'sine approximation',
+      description: '1D noisy sine samples mapped to an output arc on the write sphere',
+      metricName: 'MSE',
+      samples,
+      decodePrediction: decodeRegressionValue,
+    };
+  }
+  const samples = makeMoonsSamples(seed + 11, 96, 0.08);
+  return {
+    task,
+    name: 'two moons classification',
+    description: 'two interleaving half circles mapped to two class prototype directions',
+    metricName: 'accuracy',
+    samples,
+    decodePrediction: predictClass,
+  };
+}
+
+function cloneModel(model) {
+  return {
+    readWeights: model.readWeights.map(v => v.clone()),
+    writeWeights: model.writeWeights.map(v => v.clone()),
+  };
+}
+
+function lerpScalar(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function mixDirectionsTowardPrototype(independentDir, prototypeDir, clustering) {
+  const t = clamp01(clustering);
+  if (t <= 1e-8) return independentDir.clone();
+  if (t >= 1 - 1e-8) return prototypeDir.clone();
+  const mixed = independentDir.clone().multiplyScalar(1 - t).add(prototypeDir.clone().multiplyScalar(t));
+  return safeUnit(mixed, prototypeDir);
+}
+
+function initClusteredBank(rand, hidden, baseScale, clustering = 0, fallbackDir = new THREE.Vector3(0, 1, 0)) {
+  const t = clamp01(clustering);
+  const prototypeRaw = gaussian3(rand).multiplyScalar(baseScale);
+  const prototypeLen = Math.max(1e-4, prototypeRaw.length());
+  const prototypeDir = safeUnit(prototypeRaw, fallbackDir);
+  const prototype = prototypeDir.clone().multiplyScalar(prototypeLen);
+  const vectors = [];
+
+  for (let i = 0; i < hidden; i++) {
+    if (t >= 1 - 1e-8) {
+      vectors.push(prototype.clone());
+      continue;
+    }
+    const isoRaw = gaussian3(rand).multiplyScalar(baseScale);
+    const isoLen = Math.max(1e-4, isoRaw.length());
+    const isoDir = safeUnit(isoRaw, prototypeDir);
+    const dir = mixDirectionsTowardPrototype(isoDir, prototypeDir, t);
+    const len = lerpScalar(isoLen, prototypeLen, t);
+    vectors.push(dir.multiplyScalar(len));
+  }
+
+  return { vectors, prototype };
+}
+
+function meanPairwiseAngleDeg(vecs) {
+  if (!vecs || vecs.length < 2) return 0;
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < vecs.length; i++) {
+    for (let j = i + 1; j < vecs.length; j++) {
+      sum += angleBetween(vecs[i], vecs[j]);
+      count += 1;
+    }
+  }
+  return count ? (sum * 180 / Math.PI) / count : 0;
+}
+
+function modelSpreadStats(model) {
+  return {
+    readSpreadDeg: meanPairwiseAngleDeg(model.readWeights),
+    writeSpreadDeg: meanPairwiseAngleDeg(model.writeWeights),
+  };
+}
+
+function initModel(seed = 1, hidden = 8, clustering = 0) {
+  const rand = seededRng(seed);
+  const readBank = initClusteredBank(rand, hidden, 0.45, clustering, new THREE.Vector3(0, 1, 0));
+  const writeBank = initClusteredBank(rand, hidden, 0.35, clustering, new THREE.Vector3(1, 0, 0));
+  return {
+    readWeights: readBank.vectors,
+    writeWeights: writeBank.vectors,
+  };
+}
+
+function forwardRaw(model, sample, activationMode, inferenceSpec = inferSpec('float')) {
+  const spec = inferenceSpec ?? inferSpec('float');
+  const zBase = model.readWeights.map(w => w.dot(sample.inputModel));
+  const zPack = spec.kind === 'lowp' ? quantizeArrayDynamic(zBase, spec.quantMode) : { values: zBase, scale: null };
+  const z = zPack.values;
+  const aBase = z.map(v => applyActivation(activationMode, v));
+  const aPack = spec.kind === 'lowp' ? quantizeArrayDynamic(aBase, spec.quantMode) : { values: aBase, scale: null };
+  const a = aPack.values;
+  const sumBase = new THREE.Vector3();
+  for (let i = 0; i < model.writeWeights.length; i++) sumBase.add(model.writeWeights[i].clone().multiplyScalar(a[i]));
+  let sumVec = sumBase.clone();
+  let sumScale = null;
+  if (spec.kind === 'lowp') {
+    const sumPack = quantizeArrayDynamic([sumBase.x, sumBase.y, sumBase.z], spec.quantMode);
+    sumVec = new THREE.Vector3(sumPack.values[0], sumPack.values[1], sumPack.values[2]);
+    sumScale = sumPack.scale;
+  }
+  const sumNorm = Math.max(1e-8, sumVec.length());
+  const finalDir = sumVec.lengthSq() > 1e-12 ? sumVec.clone().multiplyScalar(1 / sumNorm) : new THREE.Vector3(0, 1, 0);
+  return {
+    z,
+    a,
+    sumVec,
+    sumNorm,
+    finalDir,
+    zScale: zPack.scale,
+    aScale: aPack.scale,
+    sumScale,
+    inferenceSpec: spec,
+  };
+}
+
+function computePipeline(model, sample, activationMode, inferenceSpec = inferSpec('float')) {
+  const raw = forwardRaw(model, sample, activationMode, inferenceSpec);
+  const scaledVecs = model.writeWeights.map((v, i) => v.clone().multiplyScalar(raw.a[i]));
+  const chain = [];
+  let acc = new THREE.Vector3(0, 0, 0);
+  for (let i = 0; i < scaledVecs.length; i++) {
+    const start = acc.clone();
+    const end = acc.clone().add(scaledVecs[i]);
+    chain.push({ start, end, index: i });
+    acc = end;
+  }
+  return {
+    sample,
+    readVec: raw.z,
+    postVec: raw.a,
+    readDirs: model.readWeights.map(v => safeUnit(v, new THREE.Vector3(0, 1, 0))),
+    writeDirs: model.writeWeights.map(v => safeUnit(v, new THREE.Vector3(1, 0, 0))),
+    scaledVecs,
+    chain,
+    sumVec: raw.sumVec,
+    finalDir: raw.finalDir,
+    finalVec: raw.finalDir.clone().multiplyScalar(SPHERE_RADIUS),
+    zScale: raw.zScale,
+    aScale: raw.aScale,
+    sumScale: raw.sumScale,
+    inferenceSpec,
+  };
+}
+
+function evaluateModel(model, taskData, activationMode, inferenceSpec = inferSpec('float')) {
+  let loss = 0;
+  let correct = 0;
+  let mse = 0;
+  const outputs = [];
+  for (const sample of taskData.samples) {
+    const raw = forwardRaw(model, sample, activationMode, inferenceSpec);
+    const diff = raw.finalDir.clone().sub(sample.targetDir);
+    loss += 0.5 * diff.lengthSq();
+    if (taskData.task === 'classification') {
+      const predLabel = predictClass(raw.finalDir);
+      if (predLabel === sample.label) correct += 1;
+      outputs.push({ predLabel, finalDir: raw.finalDir.clone() });
+    } else {
+      const predValue = decodeRegressionValue(raw.finalDir);
+      mse += (predValue - sample.value) ** 2;
+      outputs.push({ predValue, finalDir: raw.finalDir.clone() });
+    }
+  }
+  const n = taskData.samples.length || 1;
+  return {
+    loss: loss / n,
+    accuracy: correct / n,
+    mse: mse / n,
+    outputs,
+  };
+}
+
+function evalMetricValue(evalObj, taskKind) {
+  return taskKind === 'classification' ? evalObj.accuracy : evalObj.mse;
+}
+
+function snapshotReplayMetric(snapshot, taskKind) {
+  return taskKind === 'classification' ? snapshot.replayAccuracy : snapshot.replayMse;
+}
+
+function snapshotDeployMetric(snapshot, taskKind) {
+  return taskKind === 'classification' ? snapshot.deployAccuracy : snapshot.deployMse;
+}
+
+function trainBackprop(taskData, config) {
+  let masterModel = initModel(config.modelSeed, config.hiddenCount, config.initClustering ?? 0);
+  const initialModel = cloneModel(masterModel);
+  const snapshots = [];
+  const lossHistory = [];
+  const metricHistory = [];
+  const deployLossHistory = [];
+  const deployMetricHistory = [];
+
+  function pushSnapshot(epoch) {
+    const replayView = replayViewFromMaster(masterModel, config);
+    const deployView = deployedViewFromMaster(masterModel, config);
+    const replayEval = evaluateModel(replayView.model, taskData, config.activation, replayView.inferenceSpec);
+    const deployEval = evaluateModel(deployView.model, taskData, config.activation, deployView.inferenceSpec);
+    snapshots.push({
+      epoch,
+      replayModel: cloneModel(replayView.model),
+      deployedModel: cloneModel(deployView.model),
+      replayInferenceSpec: replayView.inferenceSpec,
+      deployedInferenceSpec: deployView.inferenceSpec,
+      replayLoss: replayEval.loss,
+      replayAccuracy: replayEval.accuracy,
+      replayMse: replayEval.mse,
+      deployLoss: deployEval.loss,
+      deployAccuracy: deployEval.accuracy,
+      deployMse: deployEval.mse,
+      quantMeta: deployView.quantMeta ?? replayView.quantMeta ?? null,
+      masterModel: cloneModel(masterModel),
+    });
+    lossHistory.push(replayEval.loss);
+    metricHistory.push(evalMetricValue(replayEval, taskData.task));
+    deployLossHistory.push(deployEval.loss);
+    deployMetricHistory.push(evalMetricValue(deployEval, taskData.task));
+  }
+
+  pushSnapshot(0);
+
+  for (let epoch = 1; epoch <= config.epochs; epoch++) {
+    const gradRead = masterModel.readWeights.map(() => new THREE.Vector3(0, 0, 0));
+    const gradWrite = masterModel.writeWeights.map(() => new THREE.Vector3(0, 0, 0));
+    const trainView = replayViewFromMaster(masterModel, config);
+
+    for (const sample of taskData.samples) {
+      const raw = forwardRaw(trainView.model, sample, config.activation, trainView.inferenceSpec);
+      const diff = raw.finalDir.clone().sub(sample.targetDir);
+      const gy = diff;
+      const gs = gy.clone()
+        .sub(raw.finalDir.clone().multiplyScalar(gy.dot(raw.finalDir)))
+        .multiplyScalar(1 / Math.max(1e-8, raw.sumNorm));
+
+      for (let i = 0; i < masterModel.writeWeights.length; i++) {
+        gradWrite[i].add(gs.clone().multiplyScalar(raw.a[i]));
+        const ga = trainView.model.writeWeights[i].dot(gs);
+        const gz = ga * activationGrad(config.activation, raw.z[i]);
+        gradRead[i].add(sample.inputModel.clone().multiplyScalar(gz));
+      }
+    }
+
+    const invN = 1 / Math.max(1, taskData.samples.length);
+    let gradSq = 0;
+    for (let i = 0; i < masterModel.readWeights.length; i++) {
+      gradRead[i].multiplyScalar(invN).add(masterModel.readWeights[i].clone().multiplyScalar(config.weightDecay));
+      gradWrite[i].multiplyScalar(invN).add(masterModel.writeWeights[i].clone().multiplyScalar(config.weightDecay));
+      gradSq += gradRead[i].lengthSq() + gradWrite[i].lengthSq();
+    }
+
+    const gradNorm = Math.sqrt(gradSq);
+    const clipScale = gradNorm > config.clipGrad ? config.clipGrad / gradNorm : 1;
+    for (let i = 0; i < masterModel.readWeights.length; i++) {
+      masterModel.readWeights[i].addScaledVector(gradRead[i], -config.learningRate * clipScale);
+      masterModel.writeWeights[i].addScaledVector(gradWrite[i], -config.learningRate * clipScale);
+    }
+
+    if (config.trainMode === 'snap') {
+      masterModel = quantizeModel(masterModel, config.quantMode).model;
+    }
+
+    pushSnapshot(epoch);
+  }
+
+  const finalDeployView = deployedViewFromMaster(masterModel, config);
+
+  return {
+    config,
+    taskData,
+    snapshots,
+    lossHistory,
+    metricHistory,
+    deployLossHistory,
+    deployMetricHistory,
+    initialModel,
+    finalModel: cloneModel(finalDeployView.model),
+    finalMasterModel: cloneModel(masterModel),
+    finalInferenceSpec: finalDeployView.inferenceSpec,
+    finalQuantMeta: finalDeployView.quantMeta ?? null,
+  };
+}
+
+function sampleTrainingModel(training, t) {
+  const arr = training.snapshots;
+  const f = clamp01(t) * (arr.length - 1);
+  const i = Math.floor(f);
+  const frac = f - i;
+  const a = arr[i];
+  const b = arr[Math.min(arr.length - 1, i + 1)];
+
+  function lerpModelPart(key) {
+    return {
+      readWeights: a[key].readWeights.map((v, idx) => lerpVec(v, b[key].readWeights[idx], frac)),
+      writeWeights: a[key].writeWeights.map((v, idx) => lerpVec(v, b[key].writeWeights[idx], frac)),
+    };
+  }
+
+  return {
+    epochFloat: f,
+    epochIndex: i,
+    loss: a.replayLoss + (b.replayLoss - a.replayLoss) * frac,
+    metric: snapshotReplayMetric(a, training.taskData.task) + (snapshotReplayMetric(b, training.taskData.task) - snapshotReplayMetric(a, training.taskData.task)) * frac,
+    deployLoss: a.deployLoss + (b.deployLoss - a.deployLoss) * frac,
+    deployMetric: snapshotDeployMetric(a, training.taskData.task) + (snapshotDeployMetric(b, training.taskData.task) - snapshotDeployMetric(a, training.taskData.task)) * frac,
+    model: lerpModelPart('replayModel'),
+    replayModel: lerpModelPart('replayModel'),
+    deployedModel: lerpModelPart('deployedModel'),
+    quantMeta: frac < 0.5 ? a.quantMeta : b.quantMeta,
+  };
+}
+
+const UNIT_CONE_GEOMETRY = (() => {
+  const g = new THREE.ConeGeometry(1, 1, 30, 1, true);
+  g.rotateZ(Math.PI);
+  g.translate(0, 0.5, 0);
+  return g;
+})();
+
+let sharedSolidAngleCapGeometry = null;
+let sharedSolidAngleRimGeometry = null;
+
+function buildSolidAngleSharedGeometries(halfAngleDeg) {
+  const oldCap = sharedSolidAngleCapGeometry;
+  const oldRim = sharedSolidAngleRimGeometry;
+  const alpha = Math.max(1e-4, THREE.MathUtils.degToRad(halfAngleDeg));
+  sharedSolidAngleCapGeometry = new THREE.SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, alpha);
+  const rimPts = [];
+  const r = Math.sin(alpha);
+  const y = Math.cos(alpha);
+  const segs = 64;
+  for (let i = 0; i <= segs; i++) {
+    const phi = (i / segs) * Math.PI * 2;
+    rimPts.push(new THREE.Vector3(Math.cos(phi) * r, y, Math.sin(phi) * r));
+  }
+  sharedSolidAngleRimGeometry = new THREE.BufferGeometry().setFromPoints(rimPts);
+  return { oldCap, oldRim };
+}
+
+class DirectionGlyph {
+  constructor(color, opacity = 1, dashed = false) {
+    this.group = new THREE.Group();
+    this.dashed = dashed;
+
+    this.sectorSideMaterial = new THREE.MeshStandardMaterial({
+      color,
+      transparent: true,
+      opacity: Math.min(0.22, opacity * 0.16),
+      metalness: 0.02,
+      roughness: 0.85,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    this.sectorSide = new THREE.Mesh(UNIT_CONE_GEOMETRY, this.sectorSideMaterial);
+    this.sectorSide.renderOrder = 0;
+    this.group.add(this.sectorSide);
+
+    this.sectorCapMaterial = new THREE.MeshStandardMaterial({
+      color,
+      transparent: true,
+      opacity: Math.min(0.16, opacity * 0.09),
+      metalness: 0.02,
+      roughness: 0.85,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    this.sectorCap = new THREE.Mesh(sharedSolidAngleCapGeometry, this.sectorCapMaterial);
+    this.sectorCap.renderOrder = 0;
+    this.group.add(this.sectorCap);
+
+    this.sectorRimMaterial = new THREE.LineBasicMaterial({ color, transparent: true, opacity: Math.min(0.3, opacity * 0.22), depthWrite: false });
+    this.sectorRim = new THREE.Line(sharedSolidAngleRimGeometry, this.sectorRimMaterial);
+    this.sectorRim.renderOrder = 1;
+    this.group.add(this.sectorRim);
+
+    this.linePositions = new Float32Array([0, 0, 0, 0, 1, 0]);
+    this.lineGeometry = new THREE.BufferGeometry();
+    this.lineGeometry.setAttribute('position', new THREE.BufferAttribute(this.linePositions, 3));
+    this.lineMaterial = dashed
+      ? new THREE.LineDashedMaterial({ color, transparent: true, opacity, dashSize: 0.12, gapSize: 0.08 })
+      : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+    this.line = new THREE.Line(this.lineGeometry, this.lineMaterial);
+    this.line.renderOrder = 2;
+    this.group.add(this.line);
+
+    this.coneGeometry = new THREE.ConeGeometry(0.05, 0.18, 18);
+    this.coneMaterial = new THREE.MeshStandardMaterial({ color, transparent: true, opacity, metalness: 0.05, roughness: 0.55, depthWrite: false });
+    this.cone = new THREE.Mesh(this.coneGeometry, this.coneMaterial);
+    this.cone.renderOrder = 2;
+    this.group.add(this.cone);
+  }
+
+  set(start, end, color, opacity = 1, sectorScale = 1) {
+    const dir = end.clone().sub(start);
+    const len = dir.length();
+    this.group.visible = len > 1e-6 && opacity > 0.001;
+    if (!this.group.visible) return;
+
+    this.group.position.copy(start);
+    this.group.quaternion.setFromUnitVectors(UP, dir.clone().normalize());
+
+    if (this.sectorCap.geometry !== sharedSolidAngleCapGeometry) this.sectorCap.geometry = sharedSolidAngleCapGeometry;
+    if (this.sectorRim.geometry !== sharedSolidAngleRimGeometry) this.sectorRim.geometry = sharedSolidAngleRimGeometry;
+
+    const alpha = THREE.MathUtils.degToRad(state.solidAngleDeg * sectorScale);
+    const coneHeight = Math.max(0.001, len * Math.cos(alpha));
+    const baseRadius = Math.max(0.001, len * Math.sin(alpha));
+
+    this.sectorSide.scale.set(baseRadius, coneHeight, baseRadius);
+    this.sectorCap.scale.set(len, len, len);
+    this.sectorRim.scale.set(len, len, len);
+
+    this.sectorSideMaterial.color.set(color);
+    this.sectorCapMaterial.color.set(color);
+    this.sectorRimMaterial.color.set(color);
+    this.sectorSideMaterial.opacity = opacity * 0.16;
+    this.sectorCapMaterial.opacity = opacity * 0.08;
+    this.sectorRimMaterial.opacity = opacity * 0.24;
+
+    const headLen = Math.min(0.24, Math.max(0.12, len * 0.18));
+    const shaftLen = Math.max(0.001, len - headLen);
+    const headRadius = Math.min(0.06, Math.max(0.035, len * 0.06));
+
+    this.linePositions[0] = 0;
+    this.linePositions[1] = 0;
+    this.linePositions[2] = 0;
+    this.linePositions[3] = 0;
+    this.linePositions[4] = shaftLen;
+    this.linePositions[5] = 0;
+    this.lineGeometry.attributes.position.needsUpdate = true;
+    this.lineGeometry.computeBoundingSphere();
+    if (this.dashed) this.line.computeLineDistances();
+
+    this.lineMaterial.color.set(color);
+    this.lineMaterial.opacity = opacity;
+    this.coneMaterial.color.set(color);
+    this.coneMaterial.opacity = opacity;
+    this.cone.scale.set(headRadius / 0.05, headLen / 0.18, headRadius / 0.05);
+    this.cone.position.set(0, len - headLen / 2, 0);
+    this.cone.quaternion.identity();
+  }
+
+  dispose() {
+    this.lineGeometry.dispose();
+    this.lineMaterial.dispose();
+    this.coneGeometry.dispose();
+    this.coneMaterial.dispose();
+    this.sectorSideMaterial.dispose();
+    this.sectorCapMaterial.dispose();
+    this.sectorRimMaterial.dispose();
+  }
+}
+
+function makeAxis(start, end, color) {
+  const geom = new THREE.BufferGeometry().setFromPoints([start, end]);
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.75 });
+  return new THREE.Line(geom, mat);
+}
+
+function makeTextSprite(text, color = '#ffffff', width = 256, height = 96, fontSize = 34) {
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  c.width = width;
+  c.height = height;
+  ctx.font = `bold ${fontSize}px Inter, Arial, sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, c.width / 2, c.height / 2);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(0.9, 0.3, 1);
+  sprite.renderOrder = 4;
+  sprite.userData = { canvas: c, ctx, texture: tex, fontSize };
+  return sprite;
+}
+
+function updateTextSprite(sprite, text, color = '#ffffff') {
+  const { canvas, ctx, texture, fontSize } = sprite.userData;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = `bold ${fontSize}px Inter, Arial, sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  texture.needsUpdate = true;
+}
+
+function makePanel(width = 980, height = 620, sceneWidth = 4.1, sceneHeight = 2.6) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.98, side: THREE.DoubleSide, depthWrite: false });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(sceneWidth, sceneHeight), material);
+  mesh.position.set(0, 0, 2.8);
+  mesh.renderOrder = 10;
+  mesh.userData = { canvas, ctx: canvas.getContext('2d'), texture };
+  return mesh;
+}
+
+function drawRoundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawActivationPanel(mesh, mode, inputVals, outputVals, progress, titlePrefix = '', options = {}) {
+  const { canvas, ctx, texture } = mesh.userData;
+  const showRowHighlight = options.showRowHighlight ?? true;
+  const showFormula = options.showFormula ?? true;
+  const showMarker = options.showMarker ?? true;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(0,0,0,0.34)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 2;
+  drawRoundedRect(ctx, 28, 28, canvas.width - 56, canvas.height - 56, 26);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 34px Inter, Arial';
+  ctx.fillText(`${titlePrefix}${activationName(mode)}`, 48, 58);
+
+  const gx = 70, gy = 105, gw = 300, gh = 200;
+  const maxAbsIn = Math.max(1.75, ...inputVals.map(v => Math.abs(v)));
+  const plotX = maxAbsIn * 1.12;
+  const sampledYs = [];
+  for (let i = 0; i <= 240; i++) {
+    const x = -plotX + (i / 240) * (2 * plotX);
+    sampledYs.push(applyActivation(mode, x));
+  }
+  const rawMinY = Math.min(-1.0, ...outputVals, ...sampledYs);
+  const rawMaxY = Math.max(1.0, ...outputVals, ...sampledYs);
+  const padY = Math.max(0.18, (rawMaxY - rawMinY) * 0.08);
+  const plotMinY = rawMinY - padY;
+  const plotMaxY = rawMaxY + padY;
+  const xToPx = x => gx + ((x + plotX) / (2 * plotX)) * gw;
+  const yToPy = y => gy + gh - (((y - plotMinY) / Math.max(1e-6, plotMaxY - plotMinY)) * gh);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  if (plotMinY <= 0 && plotMaxY >= 0) {
+    const axisY = yToPy(0);
+    ctx.moveTo(gx, axisY);
+    ctx.lineTo(gx + gw, axisY);
+  }
+  if (-plotX <= 0 && plotX >= 0) {
+    const axisX = xToPx(0);
+    ctx.moveTo(axisX, gy);
+    ctx.lineTo(axisX, gy + gh);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = activationCurveColor(mode);
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  for (let i = 0; i <= 240; i++) {
+    const x = -plotX + (i / 240) * (2 * plotX);
+    const y = applyActivation(mode, x);
+    const px = xToPx(x);
+    const py = yToPy(clamp(y, plotMinY, plotMaxY));
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  const currentIdx = Math.max(0, Math.min(inputVals.length - 1, Math.floor(progress * inputVals.length)));
+  const perItemT = idx => smoothstep01(progress * inputVals.length - idx);
+  const leftX = 460;
+  const rightX = 760;
+  const startY = 130;
+  const rowH = Math.min(42, 300 / Math.max(1, inputVals.length));
+
+  ctx.fillStyle = 'rgba(255,255,255,0.86)';
+  ctx.font = '24px Inter, Arial';
+  ctx.fillText('read coefficients', leftX, 100);
+  ctx.fillText('activated coefficients', rightX, 100);
+
+  ctx.font = 'bold 22px ui-monospace, Menlo, Consolas, monospace';
+  for (let i = 0; i < inputVals.length; i++) {
+    const y = startY + i * rowH;
+    const alphaIn = perItemT(i);
+    const alphaOut = smoothstep01(progress * inputVals.length - i - 0.35);
+    const rowActive = i === currentIdx;
+    if (showRowHighlight && rowActive) {
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(leftX - 95, y - 16, 430, 28);
+    }
+    ctx.fillStyle = `rgba(199,125,255,${0.25 + 0.75 * alphaIn})`;
+    ctx.fillText(`r${i} = ${inputVals[i].toFixed(2)}`, leftX, y);
+    ctx.fillStyle = `rgba(82,183,136,${0.18 + 0.82 * alphaOut})`;
+    ctx.fillText(`a${i} = ${outputVals[i].toFixed(2)}`, rightX, y);
+  }
+
+  const activeIn = inputVals[currentIdx] ?? 0;
+  const activeOut = outputVals[currentIdx] ?? 0;
+  if (showFormula) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 24px Inter, Arial';
+    ctx.fillText(activationFormulaString(mode, currentIdx, activeIn, activeOut), 80, 355);
+  }
+
+  if (showMarker) {
+    const markerX = xToPx(activeIn);
+    const markerY = yToPy(clamp(applyActivation(mode, activeIn), plotMinY, plotMaxY));
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(markerX, markerY, 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  texture.needsUpdate = true;
+}
+
+function drawTrainingPanel(mesh, training, live, taskData, liveEval, probeSample) {
+  const { canvas, ctx, texture } = mesh.userData;
+  const initSpread = modelSpreadStats(training.initialModel);
+  const initClusterPct = Math.round(clamp01(training.config.initClustering ?? 0) * 100);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(0,0,0,0.34)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 2;
+  drawRoundedRect(ctx, 28, 28, canvas.width - 56, canvas.height - 56, 26);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 34px Inter, Arial';
+  ctx.fillText('Backprop + quantization replay', 48, 58);
+
+  ctx.font = '20px Inter, Arial';
+  ctx.fillStyle = 'rgba(255,255,255,0.86)';
+  const metricText = taskData.task === 'classification'
+    ? `replay epoch ${live.epochFloat.toFixed(1)} / ${training.config.epochs}   loss ${live.loss.toFixed(4)}   accuracy ${(live.metric * 100).toFixed(1)}%`
+    : `replay epoch ${live.epochFloat.toFixed(1)} / ${training.config.epochs}   loss ${live.loss.toFixed(4)}   MSE ${live.metric.toFixed(4)}`;
+  ctx.fillText(metricText, 48, 88);
+
+  ctx.font = '17px Inter, Arial';
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.fillText(trainModeDescription(training.config.trainMode, training.config.quantMode), 48, 112);
+  ctx.fillText(`activation ${activationName(training.config.activation)}   replay ${state.trainReplaySpeed.toFixed(1)}x`, 48, 134);
+  ctx.fillText(`init clustering ${initClusterPct}%   read spread ${initSpread.readSpreadDeg.toFixed(1)}°   write spread ${initSpread.writeSpreadDeg.toFixed(1)}°`, 48, 156);
+
+  const showDeployLine = training.config.trainMode === 'ptq';
+  if (showDeployLine) {
+    const deployText = taskData.task === 'classification'
+      ? `deployed ${deployedModelName(training.config.trainMode, training.config.quantMode)} now: loss ${live.deployLoss.toFixed(4)}   accuracy ${(live.deployMetric * 100).toFixed(1)}%`
+      : `deployed ${deployedModelName(training.config.trainMode, training.config.quantMode)} now: loss ${live.deployLoss.toFixed(4)}   MSE ${live.deployMetric.toFixed(4)}`;
+    ctx.fillText(deployText, 48, 178);
+  }
+
+  const boxTop = showDeployLine ? 200 : 188;
+  const lossBox = { x: 54, y: boxTop, w: 390, h: 126 };
+  const metricBox = { x: 530, y: boxTop, w: 390, h: 126 };
+  const dataBox = { x: 54, y: boxTop + 148, w: 866, h: 248 };
+
+  function drawBox(box, title) {
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    drawRoundedRect(ctx, box.x, box.y, box.w, box.h, 18);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = 'bold 18px Inter, Arial';
+    ctx.fillText(title, box.x + 16, box.y + 26);
+  }
+
+  drawBox(lossBox, 'loss curve');
+  drawBox(metricBox, taskData.task === 'classification' ? 'accuracy curve' : 'MSE curve');
+  drawBox(dataBox, taskData.task === 'classification' ? 'dataset' : 'target vs learned function');
+
+  function drawSeries(box, series, currentIndex, color, yLabel) {
+    const left = box.x + 18;
+    const right = box.x + box.w - 18;
+    const bottom = box.y + box.h - 18;
+    const top = box.y + 36;
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath();
+    ctx.moveTo(left, bottom);
+    ctx.lineTo(right, bottom);
+    ctx.lineTo(right, top);
+    ctx.stroke();
+    const maxY = Math.max(1e-6, ...series);
+    const minY = Math.min(...series, 0);
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '12px Inter, Arial';
+    ctx.fillText(yLabel, left, top - 6);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i < series.length; i++) {
+      const x = left + (i / Math.max(1, series.length - 1)) * (right - left);
+      const normY = (series[i] - minY) / Math.max(1e-6, maxY - minY);
+      const y = bottom - normY * (bottom - top);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    const idx = Math.min(series.length - 1, Math.max(0, Math.floor(currentIndex)));
+    const cx = left + (idx / Math.max(1, series.length - 1)) * (right - left);
+    const cy = bottom - (((series[idx] - minY) / Math.max(1e-6, maxY - minY)) * (bottom - top));
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawSeries(lossBox, training.lossHistory, live.epochFloat, '#ffd166', 'L');
+  drawSeries(metricBox, training.metricHistory, live.epochFloat, taskData.task === 'classification' ? '#7dd3fc' : '#52b788', taskData.task === 'classification' ? 'acc' : 'mse');
+
+  const left = dataBox.x + 24;
+  const right = dataBox.x + dataBox.w - 24;
+  const bottom = dataBox.y + dataBox.h - 20;
+  const top = dataBox.y + 36;
+
+  if (taskData.task === 'classification') {
+    const xs = taskData.samples.map(s => s.x);
+    const ys = taskData.samples.map(s => s.y);
+    const minX = Math.min(...xs) - 0.2;
+    const maxX = Math.max(...xs) + 0.2;
+    const minY = Math.min(...ys) - 0.2;
+    const maxY = Math.max(...ys) + 0.2;
+    const xToPx = x => left + ((x - minX) / (maxX - minX)) * (right - left);
+    const yToPy = y => bottom - ((y - minY) / (maxY - minY)) * (bottom - top);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath();
+    ctx.moveTo(left, bottom); ctx.lineTo(right, bottom);
+    ctx.moveTo(left, top); ctx.lineTo(left, bottom);
+    ctx.stroke();
+
+    for (let i = 0; i < taskData.samples.length; i++) {
+      const s = taskData.samples[i];
+      const out = liveEval.outputs[i];
+      const px = xToPx(s.x);
+      const py = yToPy(s.y);
+      ctx.fillStyle = s.label === 0 ? CLASS_A : CLASS_B;
+      ctx.beginPath();
+      ctx.arc(px, py, s.index === probeSample.index ? 6 : 4, 0, Math.PI * 2);
+      ctx.fill();
+      if (out.predLabel !== s.label) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(px, py, s.index === probeSample.index ? 8.5 : 6.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  } else {
+    const samples = [...taskData.samples].sort((a, b) => a.x - b.x);
+    const preds = liveEval.outputs.map(o => o.predValue);
+    const minX = -Math.PI;
+    const maxX = Math.PI;
+    const minY = -1.35;
+    const maxY = 1.35;
+    const xToPx = x => left + ((x - minX) / (maxX - minX)) * (right - left);
+    const yToPy = y => bottom - ((y - minY) / (maxY - minY)) * (bottom - top);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath();
+    ctx.moveTo(left, yToPy(0)); ctx.lineTo(right, yToPy(0));
+    ctx.moveTo(xToPx(0), top); ctx.lineTo(xToPx(0), bottom);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#7dd3fc';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i < samples.length; i++) {
+      const px = xToPx(samples[i].x);
+      const py = yToPy(preds[samples[i].index]);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    for (const s of samples) {
+      const px = xToPx(s.x);
+      const py = yToPy(s.value);
+      ctx.fillStyle = sampleColor(s);
+      ctx.beginPath();
+      ctx.arc(px, py, s.index === probeSample.index ? 5.5 : 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      if (s.index === probeSample.index) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(px, py, 8, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  texture.needsUpdate = true;
+}
+
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(BG, 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(BG);
+
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
+const INITIAL_CAMERA_POS = new THREE.Vector3(0, 4.2, 9.6);
+camera.position.copy(INITIAL_CAMERA_POS);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.enablePan = true;
+controls.target.set(0, 0, 0);
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+const dir1 = new THREE.DirectionalLight(0xffffff, 1.2); dir1.position.set(4, 5, 6); scene.add(dir1);
+const dir2 = new THREE.DirectionalLight(0xffffff, 0.45); dir2.position.set(-5, -3, -4); scene.add(dir2);
+
+const world = new THREE.Group(); scene.add(world);
+
+const sphereGeometry = new THREE.SphereGeometry(SPHERE_RADIUS, 32, 22);
+const sphereMaterial = new THREE.MeshBasicMaterial({ color: WHITE, wireframe: true, transparent: true, opacity: 0.08, depthWrite: false });
+const readSphere = new THREE.Mesh(sphereGeometry, sphereMaterial.clone());
+readSphere.position.copy(READ_CENTER);
+world.add(readSphere);
+const writeSphere = new THREE.Mesh(sphereGeometry, sphereMaterial.clone());
+writeSphere.position.copy(WRITE_CENTER);
+world.add(writeSphere);
+
+const readSphereLabel = makeTextSprite('Read Sphere', WHITE, 320, 90, 30);
+readSphereLabel.position.copy(READ_CENTER.clone().add(new THREE.Vector3(0, 2.45, 0)));
+world.add(readSphereLabel);
+const writeSphereLabel = makeTextSprite('Write Sphere', WHITE, 320, 90, 30);
+writeSphereLabel.position.copy(WRITE_CENTER.clone().add(new THREE.Vector3(0, 2.45, 0)));
+world.add(writeSphereLabel);
+
+function makeLocalAxes(center) {
+  const g = new THREE.Group();
+  const len = 2.45;
+  g.add(makeAxis(center.clone().add(new THREE.Vector3(-len, 0, 0)), center.clone().add(new THREE.Vector3(len, 0, 0)), GRID));
+  g.add(makeAxis(center.clone().add(new THREE.Vector3(0, -len, 0)), center.clone().add(new THREE.Vector3(0, len, 0)), GRID));
+  g.add(makeAxis(center.clone().add(new THREE.Vector3(0, 0, -len)), center.clone().add(new THREE.Vector3(0, 0, len)), GRID));
+  return g;
+}
+
+const readLocalAxes = makeLocalAxes(READ_CENTER);
+const writeLocalAxes = makeLocalAxes(WRITE_CENTER);
+world.add(readLocalAxes);
+world.add(writeLocalAxes);
+
+const state = {
+  forceOverview: true,
+  stage: 0,
+  progress: 0,
+  playing: true,
+  autoRotate: false,
+  showLabels: true,
+  showDatasetDots: true,
+  activation: 'relu',
+  task: 'classification',
+  trainMode: 'fp32',
+  quantMode: 'ternary',
+  vectorCount: 8,
+  solidAngleDeg: 16,
+  trainEpochs: 180,
+  learningRate: 0.035,
+  initClustering: 0,
+  trainReplaySpeed: 1.0,
+  seed: 11,
+  probeIndex: 24,
+  stageStartedAt: performance.now(),
+};
+
+buildSolidAngleSharedGeometries(state.solidAngleDeg);
+
+const incomingArrow = new DirectionGlyph(INCOMING, 1, false); world.add(incomingArrow.group);
+const sumArrow = new DirectionGlyph(SUM, 0.28, true); world.add(sumArrow.group);
+const trainedSumArrow = new DirectionGlyph(FINAL_TRAINED, 0.28, true); world.add(trainedSumArrow.group);
+const finalArrow = new DirectionGlyph(FINAL, 1, false); world.add(finalArrow.group);
+const trainedFinalArrow = new DirectionGlyph(FINAL_TRAINED, 1, false); world.add(trainedFinalArrow.group);
+const compareGhost = new DirectionGlyph(FINAL, 0.75, false); world.add(compareGhost.group);
+const targetArrow = new DirectionGlyph(TARGET, 0.6, true); world.add(targetArrow.group);
+
+const initialLabel = makeTextSprite('initial', FINAL, 300, 90, 30); initialLabel.visible = false; world.add(initialLabel);
+const trainedLabel = makeTextSprite('final', FINAL_TRAINED, 300, 90, 30); trainedLabel.visible = false; world.add(trainedLabel);
+const targetLabelSprite = makeTextSprite('target', TARGET, 300, 90, 30); targetLabelSprite.visible = false; world.add(targetLabelSprite);
+const activationPanel = makePanel(); activationPanel.visible = false; scene.add(activationPanel);
+const trainedActivationPanel = makePanel(); trainedActivationPanel.visible = false; scene.add(trainedActivationPanel);
+const trainingPanel = makePanel(980, 620, 4.5, 2.85); trainingPanel.visible = false; scene.add(trainingPanel);
+
+const readDatasetDotsGroup = new THREE.Group(); readDatasetDotsGroup.position.copy(READ_CENTER); world.add(readDatasetDotsGroup);
+const writeDatasetDotsGroup = new THREE.Group(); writeDatasetDotsGroup.position.copy(WRITE_CENTER); world.add(writeDatasetDotsGroup);
+const probeReadMarker = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 12), new THREE.MeshBasicMaterial({ color: WHITE, transparent: true, opacity: 0.95, depthWrite: false }));
+const probeWriteMarker = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 12), new THREE.MeshBasicMaterial({ color: TARGET, transparent: true, opacity: 0.95, depthWrite: false }));
+world.add(probeReadMarker);
+world.add(probeWriteMarker);
+
+let taskData = null;
+let training = null;
+let initialProbe = null;
+let trainedProbe = null;
+let finalMasterProbe = null;
+
+const dyn = {
+  initialReadArrows: [],
+  trainedReadArrows: [],
+  initialWriteArrows: [],
+  trainedWriteArrows: [],
+  initialScaledArrows: [],
+  trainedScaledArrows: [],
+  initialChainArrows: [],
+  trainedChainArrows: [],
+  initialDotLines: [],
+  trainedDotLines: [],
+  initialDotLabels: [],
+  trainedDotLabels: [],
+  initialCoeffLabels: [],
+  trainedCoeffLabels: [],
+  transferLines: [],
+  trainedTransferLines: [],
+};
+
+function syncGlyphSectorGeometry(glyph) {
+  if (!glyph) return;
+  glyph.sectorCap.geometry = sharedSolidAngleCapGeometry;
+  glyph.sectorRim.geometry = sharedSolidAngleRimGeometry;
+}
+
+function syncAllGlyphSectorGeometries() {
+  const allGlyphs = [
+    incomingArrow,
+    sumArrow,
+    trainedSumArrow,
+    finalArrow,
+    trainedFinalArrow,
+    compareGhost,
+    targetArrow,
+    ...dyn.initialReadArrows,
+    ...dyn.trainedReadArrows,
+    ...dyn.initialWriteArrows,
+    ...dyn.trainedWriteArrows,
+    ...dyn.initialScaledArrows,
+    ...dyn.trainedScaledArrows,
+    ...dyn.initialChainArrows,
+    ...dyn.trainedChainArrows,
+  ];
+  allGlyphs.forEach(syncGlyphSectorGeometry);
+}
+
+function clearGroupChildren(group) {
+  while (group.children.length) {
+    const c = group.children[group.children.length - 1];
+    group.remove(c);
+    c.geometry?.dispose?.();
+    c.material?.dispose?.();
+  }
+}
+
+function clearDynamicVisuals() {
+  const arrays = Object.values(dyn);
+  for (const arr of arrays) {
+    for (const item of arr) {
+      if (item.group) {
+        world.remove(item.group);
+        item.dispose?.();
+      } else {
+        world.remove(item);
+        item.geometry?.dispose?.();
+        item.material?.dispose?.();
+      }
+    }
+    arr.length = 0;
+  }
+}
+
+function buildDynamicVisuals() {
+  clearDynamicVisuals();
+  for (let i = 0; i < state.vectorCount; i++) {
+    const makeDashedLine = (color) => {
+      const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      const m = new THREE.LineDashedMaterial({ color, transparent: true, opacity: 0.5, dashSize: 0.08, gapSize: 0.06, depthWrite: false });
+      const l = new THREE.Line(g, m);
+      l.visible = false;
+      world.add(l);
+      return l;
+    };
+
+    dyn.initialDotLines.push(makeDashedLine(READ));
+    dyn.trainedDotLines.push(makeDashedLine(TRAIN));
+    dyn.transferLines.push(makeDashedLine(FINAL));
+    dyn.trainedTransferLines.push(makeDashedLine(FINAL_TRAINED));
+
+    const initialDotLabel = makeTextSprite('0.00', READ, 220, 84, 30); initialDotLabel.visible = false; dyn.initialDotLabels.push(initialDotLabel); world.add(initialDotLabel);
+    const trainedDotLabel = makeTextSprite('0.00', TRAIN, 220, 84, 30); trainedDotLabel.visible = false; dyn.trainedDotLabels.push(trainedDotLabel); world.add(trainedDotLabel);
+    const coeffLabel = makeTextSprite('0.00', WHITE, 220, 84, 30); coeffLabel.visible = false; dyn.initialCoeffLabels.push(coeffLabel); world.add(coeffLabel);
+    const trainedCoeffLabel = makeTextSprite('0.00', WHITE, 220, 84, 30); trainedCoeffLabel.visible = false; dyn.trainedCoeffLabels.push(trainedCoeffLabel); world.add(trainedCoeffLabel);
+
+    const groups = [
+      ['initialReadArrows', BASE],
+      ['trainedReadArrows', TRAIN],
+      ['initialWriteArrows', BASE],
+      ['trainedWriteArrows', TRAIN],
+      ['initialScaledArrows', SCALED],
+      ['trainedScaledArrows', FINAL_TRAINED],
+      ['initialChainArrows', SUM],
+      ['trainedChainArrows', FINAL_TRAINED],
+    ];
+    for (const [name, color] of groups) {
+      const g = new DirectionGlyph(color, 1, false);
+      dyn[name].push(g);
+      world.add(g.group);
+    }
+  }
+}
+
+function currentProbeSample() {
+  return taskData?.samples?.[clamp(state.probeIndex, 0, Math.max(0, (taskData?.samples?.length ?? 1) - 1))] ?? null;
+}
+
+function rebuildDatasetDots() {
+  clearGroupChildren(readDatasetDotsGroup);
+  clearGroupChildren(writeDatasetDotsGroup);
+  if (!taskData) return;
+  for (const sample of taskData.samples) {
+    const color = sampleColor(sample);
+    const geom = new THREE.SphereGeometry(0.04, 10, 10);
+    const readDot = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.82, depthWrite: false }));
+    readDot.position.copy(sample.inputDisplay);
+    readDatasetDotsGroup.add(readDot);
+    const writeDot = new THREE.Mesh(geom.clone(), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.82, depthWrite: false }));
+    writeDot.position.copy(sample.targetDir.clone().multiplyScalar(SPHERE_RADIUS));
+    writeDatasetDotsGroup.add(writeDot);
+  }
+}
+
+function defaultConfigForTask(task) {
+  if (task === 'regression') {
+    return { activation: 'tanh', epochs: 260, learningRate: 0.028, probeIndex: 36, initClustering: 0 };
+  }
+  return { activation: 'relu', epochs: 180, learningRate: 0.035, probeIndex: 24, initClustering: 0 };
+}
+
+function rebuildTraining(resetStage = true) {
+  taskData = buildTaskData(state.task, state.seed);
+  state.probeIndex = clamp(state.probeIndex, 0, taskData.samples.length - 1);
+  buildDynamicVisuals();
+  training = trainBackprop(taskData, {
+    activation: state.activation,
+    hiddenCount: state.vectorCount,
+    epochs: state.trainEpochs,
+    learningRate: state.learningRate,
+    initClustering: state.initClustering,
+    modelSeed: state.seed + 1000,
+    clipGrad: 1.0,
+    weightDecay: 1e-4,
+    trainMode: state.trainMode,
+    quantMode: state.quantMode,
+  });
+  const probe = currentProbeSample();
+  if (probe) {
+    initialProbe = computePipeline(training.initialModel, probe, state.activation, inferSpec('float', state.quantMode));
+    trainedProbe = computePipeline(training.finalModel, probe, state.activation, training.finalInferenceSpec);
+    finalMasterProbe = computePipeline(training.finalMasterModel, probe, state.activation, inferSpec('float', state.quantMode));
+  } else {
+    initialProbe = null;
+    trainedProbe = null;
+    finalMasterProbe = null;
+  }
+  rebuildDatasetDots();
+  if (resetStage) {
+    state.playing = false;
+    state.progress = 0;
+    state.stage = 0;
+    state.stageStartedAt = performance.now();
+  }
+  refreshUi();
+}
+
+const stageNameEl = document.getElementById('stageName');
+const progressLabelEl = document.getElementById('progressLabel');
+const progressSliderEl = document.getElementById('progressSlider');
+const playPauseBtn = document.getElementById('playPause');
+const resetStageBtn = document.getElementById('resetStage');
+const rerollSeedBtn = document.getElementById('rerollSeed');
+const initialViewBtn = document.getElementById('initialView');
+const autoRotateEl = document.getElementById('autoRotate');
+const showLabelsEl = document.getElementById('showLabels');
+const showDatasetDotsEl = document.getElementById('showDatasetDots');
+const activationSelectEl = document.getElementById('activationSelect');
+const taskSelectEl = document.getElementById('taskSelect');
+const trainModeSelectEl = document.getElementById('trainModeSelect');
+const quantModeSelectEl = document.getElementById('quantModeSelect');
+const vectorCountSelectEl = document.getElementById('vectorCountSelect');
+const solidAngleSliderEl = document.getElementById('solidAngleSlider');
+const solidAngleLabelEl = document.getElementById('solidAngleLabel');
+const initClusterSliderEl = document.getElementById('initClusterSlider');
+const initClusterLabelEl = document.getElementById('initClusterLabel');
+const epochsInputEl = document.getElementById('epochsInput');
+const learningRateInputEl = document.getElementById('learningRateInput');
+const trainReplaySpeedInputEl = document.getElementById('trainReplaySpeedInput');
+const retrainModelBtn = document.getElementById('retrainModel');
+const applyTaskDefaultsBtn = document.getElementById('applyTaskDefaults');
+const probeSliderEl = document.getElementById('probeSlider');
+const probeLabelEl = document.getElementById('probeLabel');
+const stageButtons = [...document.querySelectorAll('[data-stage]')];
+const taskSummaryGrid = document.getElementById('taskSummaryGrid');
+const readVectorGrid = document.getElementById('readVectorGrid');
+const trainedReadVectorGrid = document.getElementById('trainedReadVectorGrid');
+const finalReadTitleEl = document.getElementById('finalReadTitle');
+const compareGrid = document.getElementById('compareGrid');
+const compareNoteEl = document.getElementById('compareNote');
+
+buildDynamicVisuals();
+rebuildTraining(false);
+
+function stageDurationSeconds(stage = state.stage) {
+  return stage === 6 ? TRAIN_STAGE_SECONDS / Math.max(0.1, state.trainReplaySpeed || 1) : STAGE_SECONDS;
+}
+
+function stageLabel(stage) {
+  return ({
+    0: 'Read vectors',
+    1: `Activation (${activationName(state.activation)})`,
+    2: 'Write vectors',
+    3: 'Scale',
+    4: 'Sum',
+    5: 'Normalize',
+    6: state.trainMode === 'fp32'
+      ? 'FP32 backprop replay'
+      : state.trainMode === 'ptq'
+        ? `FP32 replay + PTQ deploy (${quantModeShort(state.quantMode)})`
+        : state.trainMode === 'qat'
+          ? `QAT replay (${quantModeShort(state.quantMode)})`
+          : `Snap-after-step replay (${quantModeShort(state.quantMode)})`,
+    7: `${deployedModelName(state.trainMode, state.quantMode)} read vectors`,
+    8: `${deployedActivationTitle(state.trainMode, state.quantMode)} (${activationName(state.activation)})`,
+    9: `${deployedModelName(state.trainMode, state.quantMode)} write vectors`,
+    10: `Compare initial vs ${deployedModelName(state.trainMode, state.quantMode)}`,
+    11: `${deployedModelName(state.trainMode, state.quantMode)} sum`,
+    12: `${deployedModelName(state.trainMode, state.quantMode)} normalize`,
+    13: `${deployedModelName(state.trainMode, state.quantMode)} scale`,
+  })[stage] || 'Read vectors';
+}
+
+function compareAngleDeg() {
+  return angleBetween(initialProbe.finalVec, trainedProbe.finalVec) * 180 / Math.PI;
+}
+
+function populateVectorGrid(el, vals, prefix) {
+  el.innerHTML = '';
+  vals.forEach((v, i) => {
+    const item = document.createElement('div');
+    item.className = 'vector-item';
+    item.innerHTML = `<span>${prefix}${i}</span><span class="mono">${v.toFixed(4)}</span>`;
+    el.appendChild(item);
+  });
+}
+
+function vecStr(v) {
+  return `[${v.toArray().map(x => x.toFixed(3)).join(', ')}]`;
+}
+
+function finalVectorPrefix() {
+  if (state.trainMode === 'ptq') return 'ptq';
+  if (state.trainMode === 'qat') return 'qat';
+  if (state.trainMode === 'snap') return 'snap';
+  return 'f';
+}
+
+function probePredictionRows() {
+  const probe = currentProbeSample();
+  if (!probe || !initialProbe || !trainedProbe) return [];
+  const finalLabel = deployedModelName(state.trainMode, state.quantMode);
+  const rows = [];
+  if (taskData.task === 'classification') {
+    const initPred = predictClass(initialProbe.finalDir);
+    const finalPred = predictClass(trainedProbe.finalDir);
+    rows.push(['probe label', probe.label === 0 ? 'moon A' : 'moon B']);
+    rows.push(['initial prediction', initPred === 0 ? 'moon A' : 'moon B']);
+    if (state.trainMode === 'ptq' || state.trainMode === 'qat') {
+      const masterPred = predictClass(finalMasterProbe.finalDir);
+      rows.push(['float final prediction', masterPred === 0 ? 'moon A' : 'moon B']);
+    }
+    rows.push([`${finalLabel} prediction`, finalPred === 0 ? 'moon A' : 'moon B']);
+    rows.push(['target cosine (init)', initialProbe.finalDir.dot(probe.targetDir).toFixed(4)]);
+    if (state.trainMode === 'ptq' || state.trainMode === 'qat') {
+      rows.push(['target cosine (float final)', finalMasterProbe.finalDir.dot(probe.targetDir).toFixed(4)]);
+    }
+    rows.push([`target cosine (${finalLabel})`, trainedProbe.finalDir.dot(probe.targetDir).toFixed(4)]);
+    return rows;
+  }
+
+  const initPred = decodeRegressionValue(initialProbe.finalDir);
+  const finalPred = decodeRegressionValue(trainedProbe.finalDir);
+  rows.push(['probe x', probe.x.toFixed(3)]);
+  rows.push(['target y', probe.value.toFixed(4)]);
+  rows.push(['initial prediction', initPred.toFixed(4)]);
+  if (state.trainMode === 'ptq' || state.trainMode === 'qat') {
+    const masterPred = decodeRegressionValue(finalMasterProbe.finalDir);
+    rows.push(['float final prediction', masterPred.toFixed(4)]);
+    rows.push(['abs error (float final)', Math.abs(masterPred - probe.value).toFixed(4)]);
+  }
+  rows.push([`${finalLabel} prediction`, finalPred.toFixed(4)]);
+  rows.push(['abs error (init)', Math.abs(initPred - probe.value).toFixed(4)]);
+  rows.push([`abs error (${finalLabel})`, Math.abs(finalPred - probe.value).toFixed(4)]);
+  return rows;
+}
+
+function populateTaskSummary() {
+  taskSummaryGrid.innerHTML = '';
+  const initialEval = evaluateModel(training.initialModel, taskData, state.activation, inferSpec('float', state.quantMode));
+  const finalEval = evaluateModel(training.finalModel, taskData, state.activation, training.finalInferenceSpec);
+  const masterFinalEval = evaluateModel(training.finalMasterModel, taskData, state.activation, inferSpec('float', state.quantMode));
+  const initSpread = modelSpreadStats(training.initialModel);
+  const initClusterPct = Math.round(clamp01(training.config.initClustering ?? 0) * 100);
+  const rows = [
+    ['task', taskData.name],
+    ['dataset size', String(taskData.samples.length)],
+    ['hidden vectors', String(state.vectorCount)],
+    ['activation', activationName(state.activation)],
+    ['train mode', trainModeName(state.trainMode)],
+    ['epochs', String(state.trainEpochs)],
+    ['learning rate', state.learningRate.toFixed(3)],
+    ['init clustering', `${initClusterPct}%`],
+    ['init read spread', `${initSpread.readSpreadDeg.toFixed(1)}°`],
+    ['init write spread', `${initSpread.writeSpreadDeg.toFixed(1)}°`],
+    ['replay speed', `${state.trainReplaySpeed.toFixed(1)}x`],
+    ['initial loss', initialEval.loss.toFixed(4)],
+  ];
+
+  if (state.trainMode !== 'fp32') {
+    rows.push(['quant grid', `${quantModeName(state.quantMode)} ${quantGridLabel(state.quantMode)}`]);
+  }
+
+  if (state.trainMode === 'ptq' || state.trainMode === 'qat') {
+    rows.push(['float final loss', masterFinalEval.loss.toFixed(4)]);
+    rows.push([`${deployedModelName(state.trainMode, state.quantMode)} loss`, finalEval.loss.toFixed(4)]);
+  } else {
+    rows.push(['final loss', finalEval.loss.toFixed(4)]);
+  }
+
+  if (taskData.task === 'classification') {
+    rows.push(['initial accuracy', `${(initialEval.accuracy * 100).toFixed(1)}%`]);
+    if (state.trainMode === 'ptq' || state.trainMode === 'qat') {
+      rows.push(['float final accuracy', `${(masterFinalEval.accuracy * 100).toFixed(1)}%`]);
+      rows.push([`${deployedModelName(state.trainMode, state.quantMode)} accuracy`, `${(finalEval.accuracy * 100).toFixed(1)}%`]);
+    } else {
+      rows.push(['final accuracy', `${(finalEval.accuracy * 100).toFixed(1)}%`]);
+    }
+  } else {
+    rows.push(['initial MSE', initialEval.mse.toFixed(4)]);
+    if (state.trainMode === 'ptq' || state.trainMode === 'qat') {
+      rows.push(['float final MSE', masterFinalEval.mse.toFixed(4)]);
+      rows.push([`${deployedModelName(state.trainMode, state.quantMode)} MSE`, finalEval.mse.toFixed(4)]);
+    } else {
+      rows.push(['final MSE', finalEval.mse.toFixed(4)]);
+    }
+  }
+
+  if (training.finalQuantMeta) {
+    rows.push(['read scale', training.finalQuantMeta.readScale.toFixed(4)]);
+    rows.push(['write scale', training.finalQuantMeta.writeScale.toFixed(4)]);
+  }
+
+  rows.push(...probePredictionRows());
+  for (const [k, v] of rows) {
+    const item = document.createElement('div');
+    item.className = 'vector-item';
+    item.innerHTML = `<span>${k}</span><span class="mono">${v}</span>`;
+    taskSummaryGrid.appendChild(item);
+  }
+}
+
+function populateCompareGrid() {
+  compareGrid.innerHTML = '';
+  const probe = currentProbeSample();
+  if (!probe || !initialProbe || !trainedProbe) return;
+  const finalLabel = deployedModelName(state.trainMode, state.quantMode);
+  const initSpread = modelSpreadStats(training.initialModel);
+  const initClusterPct = Math.round(clamp01(training.config.initClustering ?? 0) * 100);
+  const rows = [
+    ['task', taskData.name],
+    ['probe index', String(probe.index)],
+    ['final mode', finalLabel],
+    ['init clustering', `${initClusterPct}%`],
+    ['init spread r/w', `${initSpread.readSpreadDeg.toFixed(1)}° / ${initSpread.writeSpreadDeg.toFixed(1)}°`],
+    ['angle init→final', `${compareAngleDeg().toFixed(3)}°`],
+    ['initial final dir', vecStr(initialProbe.finalVec)],
+    [`${finalLabel} dir`, vecStr(trainedProbe.finalVec)],
+    ['target dir', vecStr(probe.targetDir.clone().multiplyScalar(SPHERE_RADIUS))],
+  ];
+
+  if (state.trainMode === 'ptq' || state.trainMode === 'qat') {
+    rows.push(['float final dir', vecStr(finalMasterProbe.finalVec)]);
+    rows.push([`angle float→${finalLabel}`, `${(angleBetween(finalMasterProbe.finalVec, trainedProbe.finalVec) * 180 / Math.PI).toFixed(3)}°`]);
+  }
+
+  if (taskData.task === 'classification') {
+    rows.push(['initial class', predictClass(initialProbe.finalDir) === 0 ? 'moon A' : 'moon B']);
+    if (state.trainMode === 'ptq' || state.trainMode === 'qat') {
+      rows.push(['float final class', predictClass(finalMasterProbe.finalDir) === 0 ? 'moon A' : 'moon B']);
+    }
+    rows.push([`${finalLabel} class`, predictClass(trainedProbe.finalDir) === 0 ? 'moon A' : 'moon B']);
+    rows.push(['target class', probe.label === 0 ? 'moon A' : 'moon B']);
+  } else {
+    rows.push(['probe x', probe.x.toFixed(3)]);
+    rows.push(['target y', probe.value.toFixed(4)]);
+    rows.push(['initial y', decodeRegressionValue(initialProbe.finalDir).toFixed(4)]);
+    if (state.trainMode === 'ptq' || state.trainMode === 'qat') {
+      rows.push(['float final y', decodeRegressionValue(finalMasterProbe.finalDir).toFixed(4)]);
+    }
+    rows.push([`${finalLabel} y`, decodeRegressionValue(trainedProbe.finalDir).toFixed(4)]);
+  }
+
+  for (const [k, v] of rows) {
+    const item = document.createElement('div');
+    item.className = 'vector-item';
+    item.innerHTML = `<span>${k}</span><span class="mono">${v}</span>`;
+    compareGrid.appendChild(item);
+  }
+}
+
+function refreshUi() {
+  const probe = currentProbeSample();
+  if (training && probe) {
+    initialProbe = computePipeline(training.initialModel, probe, state.activation, inferSpec('float', state.quantMode));
+    trainedProbe = computePipeline(training.finalModel, probe, state.activation, training.finalInferenceSpec);
+    finalMasterProbe = computePipeline(training.finalMasterModel, probe, state.activation, inferSpec('float', state.quantMode));
+  }
+  stageNameEl.textContent = stageLabel(state.stage);
+  progressLabelEl.textContent = `${Math.round(state.progress * 100)}%`;
+  progressSliderEl.value = String(Math.round(state.progress * 1000));
+  playPauseBtn.textContent = state.playing ? 'Pause' : 'Play';
+  solidAngleSliderEl.value = String(state.solidAngleDeg);
+  solidAngleLabelEl.textContent = `${state.solidAngleDeg}° half-angle`;
+  activationSelectEl.value = state.activation;
+  taskSelectEl.value = state.task;
+  trainModeSelectEl.value = state.trainMode;
+  quantModeSelectEl.value = state.quantMode;
+  vectorCountSelectEl.value = String(state.vectorCount);
+  epochsInputEl.value = String(state.trainEpochs);
+  learningRateInputEl.value = state.learningRate.toFixed(3);
+  initClusterSliderEl.value = String(Math.round(clamp01(state.initClustering) * 100));
+  initClusterLabelEl.textContent = `${Math.round(clamp01(state.initClustering) * 100)}%`;
+  trainReplaySpeedInputEl.value = state.trainReplaySpeed.toFixed(1);
+  probeSliderEl.max = String(Math.max(0, taskData.samples.length - 1));
+  probeSliderEl.value = String(state.probeIndex);
+  probeLabelEl.textContent = `${state.probeIndex}`;
+  finalReadTitleEl.textContent = deployedHeading(state.trainMode, state.quantMode);
+  compareNoteEl.textContent = compareNoteText(state.trainMode, state.quantMode);
+  stageButtons.forEach(btn => btn.classList.toggle('active', Number(btn.dataset.stage) === state.stage));
+  populateVectorGrid(readVectorGrid, initialProbe ? initialProbe.readVec : [], 'r');
+  populateVectorGrid(trainedReadVectorGrid, trainedProbe ? trainedProbe.readVec : [], finalVectorPrefix());
+  populateTaskSummary();
+  populateCompareGrid();
+}
+
+function goToStage(next) {
+  state.forceOverview = false;
+  state.stage = Math.max(0, Math.min(13, next));
+  state.playing = true;
+  state.progress = 0;
+  state.stageStartedAt = performance.now();
+  refreshUi();
+}
+
+stageButtons.forEach(btn => btn.addEventListener('click', () => goToStage(Number(btn.dataset.stage))));
+playPauseBtn.addEventListener('click', () => {
+  state.playing = !state.playing;
+  if (state.playing) state.stageStartedAt = performance.now() - state.progress * stageDurationSeconds() * 1000;
+  refreshUi();
+});
+resetStageBtn.addEventListener('click', () => {
+  state.progress = 0;
+  state.playing = false;
+  refreshUi();
+});
+rerollSeedBtn.addEventListener('click', () => {
+  state.seed += 1;
+  state.forceOverview = true;
+  rebuildTraining(true);
+});
+initialViewBtn.addEventListener('click', () => {
+  state.forceOverview = true;
+  state.stage = 0;
+  state.progress = 0;
+  state.playing = false;
+  controls.target.set(0, 0, 0);
+  camera.position.copy(INITIAL_CAMERA_POS);
+  controls.update();
+  refreshUi();
+});
+progressSliderEl.addEventListener('input', e => {
+  state.progress = Number(e.target.value) / 1000;
+  state.playing = false;
+  refreshUi();
+});
+autoRotateEl.addEventListener('change', e => { state.autoRotate = e.target.checked; });
+showLabelsEl.addEventListener('change', e => { state.showLabels = e.target.checked; });
+showDatasetDotsEl.addEventListener('change', e => { state.showDatasetDots = e.target.checked; refreshUi(); });
+activationSelectEl.addEventListener('change', e => {
+  state.activation = e.target.value;
+  rebuildTraining(true);
+});
+taskSelectEl.addEventListener('change', e => {
+  state.task = e.target.value;
+  const defaults = defaultConfigForTask(state.task);
+  state.activation = defaults.activation;
+  state.trainEpochs = defaults.epochs;
+  state.learningRate = defaults.learningRate;
+  state.probeIndex = defaults.probeIndex;
+  state.initClustering = defaults.initClustering ?? 0;
+  rebuildTraining(true);
+});
+trainModeSelectEl.addEventListener('change', e => {
+  state.trainMode = e.target.value;
+  rebuildTraining(true);
+});
+quantModeSelectEl.addEventListener('change', e => {
+  state.quantMode = e.target.value;
+  rebuildTraining(true);
+});
+vectorCountSelectEl.addEventListener('change', e => {
+  state.vectorCount = Number(e.target.value);
+  rebuildTraining(true);
+});
+solidAngleSliderEl.addEventListener('input', e => {
+  state.solidAngleDeg = Number(e.target.value);
+  const { oldCap, oldRim } = buildSolidAngleSharedGeometries(state.solidAngleDeg);
+  syncAllGlyphSectorGeometries();
+  oldCap?.dispose();
+  oldRim?.dispose();
+  refreshUi();
+});
+epochsInputEl.addEventListener('change', e => {
+  state.trainEpochs = Math.max(20, Math.round(Number(e.target.value) || state.trainEpochs));
+  rebuildTraining(true);
+});
+learningRateInputEl.addEventListener('change', e => {
+  state.learningRate = clamp(Number(e.target.value) || state.learningRate, 0.001, 1);
+  rebuildTraining(true);
+});
+initClusterSliderEl.addEventListener('input', e => {
+  state.initClustering = clamp(Number(e.target.value) / 100, 0, 1);
+  initClusterLabelEl.textContent = `${Math.round(clamp01(state.initClustering) * 100)}%`;
+});
+initClusterSliderEl.addEventListener('change', e => {
+  state.initClustering = clamp(Number(e.target.value) / 100, 0, 1);
+  rebuildTraining(true);
+});
+trainReplaySpeedInputEl.addEventListener('change', e => {
+  state.trainReplaySpeed = clamp(Number(e.target.value) || state.trainReplaySpeed, 0.1, 2.0);
+  state.stageStartedAt = performance.now() - state.progress * stageDurationSeconds(state.stage) * 1000;
+  refreshUi();
+});
+retrainModelBtn.addEventListener('click', () => rebuildTraining(true));
+applyTaskDefaultsBtn.addEventListener('click', () => {
+  const defaults = defaultConfigForTask(state.task);
+  state.activation = defaults.activation;
+  state.trainEpochs = defaults.epochs;
+  state.learningRate = defaults.learningRate;
+  state.probeIndex = defaults.probeIndex;
+  state.initClustering = defaults.initClustering ?? 0;
+  rebuildTraining(true);
+});
+probeSliderEl.addEventListener('input', e => {
+  state.probeIndex = Number(e.target.value);
+  refreshUi();
+});
+
+function resize() {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+refreshUi();
+
+function setDashedLine(line, a, b, opacity, color = null) {
+  line.visible = opacity > 0.001;
+  if (!line.visible) return;
+  line.geometry.dispose();
+  line.geometry = new THREE.BufferGeometry().setFromPoints([a, b]);
+  line.computeLineDistances();
+  line.material.opacity = opacity;
+  if (color) line.material.color.set(color);
+}
+
+function stageFocusCenter(stage) {
+  if (state.forceOverview) return new THREE.Vector3(0, 0, 0);
+  if (stage === 0 || stage === 1 || stage === 7 || stage === 8) return READ_CENTER;
+  if (stage === 2 || stage === 3 || stage === 4 || stage === 5 || stage === 9 || stage === 10 || stage === 11 || stage === 12 || stage === 13) return WRITE_CENTER;
+  return new THREE.Vector3(0, 0, 0);
+}
+
+function sideOpacities(stage) {
+  if (state.forceOverview) return { read: 1.0, write: 1.0 };
+  if (stage === 0 || stage === 1 || stage === 7 || stage === 8) return { read: 1.0, write: 0.08 };
+  if (stage === 2 || stage === 3 || stage === 4 || stage === 5 || stage === 9 || stage === 10 || stage === 11 || stage === 12 || stage === 13) return { read: 0.08, write: 1.0 };
+  return { read: 1.0, write: 1.0 };
+}
+
+function hideAllExtras() {
+  activationPanel.visible = false;
+  trainedActivationPanel.visible = false;
+  trainingPanel.visible = false;
+  initialLabel.visible = false;
+  trainedLabel.visible = false;
+  targetLabelSprite.visible = false;
+  sumArrow.group.visible = false;
+  trainedSumArrow.group.visible = false;
+  finalArrow.group.visible = false;
+  trainedFinalArrow.group.visible = false;
+  compareGhost.group.visible = false;
+  targetArrow.group.visible = false;
+  for (const arr of [dyn.initialScaledArrows, dyn.trainedScaledArrows, dyn.initialChainArrows, dyn.trainedChainArrows]) {
+    for (const a of arr) a.group.visible = false;
+  }
+  for (const l of [
+    ...dyn.initialDotLines,
+    ...dyn.trainedDotLines,
+    ...dyn.transferLines,
+    ...dyn.trainedTransferLines,
+    ...dyn.initialDotLabels,
+    ...dyn.trainedDotLabels,
+    ...dyn.initialCoeffLabels,
+    ...dyn.trainedCoeffLabels,
+  ]) l.visible = false;
+  readDatasetDotsGroup.visible = state.showDatasetDots;
+  writeDatasetDotsGroup.visible = state.showDatasetDots;
+}
+
+function renderProbeMarkers() {
+  const probe = currentProbeSample();
+  if (!probe) return;
+  probeReadMarker.visible = state.showDatasetDots;
+  probeWriteMarker.visible = state.showDatasetDots;
+  probeReadMarker.position.copy(READ_CENTER.clone().add(probe.inputDisplay));
+  probeWriteMarker.position.copy(WRITE_CENTER.clone().add(probe.targetDir.clone().multiplyScalar(SPHERE_RADIUS)));
+}
+
+function renderBaseBanks(probeInfo) {
+  const side = sideOpacities(state.stage);
+  for (let i = 0; i < state.vectorCount; i++) {
+    const initReadEnd = READ_CENTER.clone().add(probeInfo.readDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+    const initWriteEnd = WRITE_CENTER.clone().add(probeInfo.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+    dyn.initialReadArrows[i].set(READ_CENTER, initReadEnd, BASE, side.read);
+    dyn.initialWriteArrows[i].set(WRITE_CENTER, initWriteEnd, BASE, side.write);
+    dyn.trainedReadArrows[i].group.visible = false;
+    dyn.trainedWriteArrows[i].group.visible = false;
+  }
+  readSphere.material.opacity = 0.08 * side.read;
+  writeSphere.material.opacity = 0.08 * side.write;
+  readLocalAxes.children.forEach(c => { c.material.opacity = 0.75 * side.read; });
+  writeLocalAxes.children.forEach(c => { c.material.opacity = 0.75 * side.write; });
+  readSphereLabel.material.opacity = side.read;
+  writeSphereLabel.material.opacity = side.write;
+}
+
+function renderTrainedBanks(probeInfo) {
+  const side = sideOpacities(state.stage);
+  for (let i = 0; i < state.vectorCount; i++) {
+    const trainedReadEnd = READ_CENTER.clone().add(probeInfo.readDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+    const trainedWriteEnd = WRITE_CENTER.clone().add(probeInfo.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+    dyn.trainedReadArrows[i].set(READ_CENTER, trainedReadEnd, TRAIN, side.read);
+    dyn.trainedWriteArrows[i].set(WRITE_CENTER, trainedWriteEnd, TRAIN, side.write);
+    dyn.initialReadArrows[i].group.visible = false;
+    dyn.initialWriteArrows[i].group.visible = false;
+  }
+  readSphere.material.opacity = 0.08 * side.read;
+  writeSphere.material.opacity = 0.08 * side.write;
+  readLocalAxes.children.forEach(c => { c.material.opacity = 0.75 * side.read; });
+  writeLocalAxes.children.forEach(c => { c.material.opacity = 0.75 * side.write; });
+  readSphereLabel.material.opacity = side.read;
+  writeSphereLabel.material.opacity = side.write;
+}
+
+function renderTrainingTransitionStage(t) {
+  const live = sampleTrainingModel(training, smoothstep01(t));
+  const replaySpec = replayInferenceSpec(training.config);
+  const liveProbe = computePipeline(live.model, currentProbeSample(), state.activation, replaySpec);
+  const liveEval = evaluateModel(live.model, taskData, state.activation, replaySpec);
+  renderBaseBanks(liveProbe, null, false);
+  incomingArrow.set(READ_CENTER, READ_CENTER.clone().add(currentProbeSample().inputDisplay), INCOMING, 1.0);
+  targetArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(currentProbeSample().targetDir.clone().multiplyScalar(SPHERE_RADIUS)), TARGET, 0.65);
+  trainedFinalArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(liveProbe.finalVec), colorLerp(FINAL, FINAL_TRAINED, t), 0.95);
+  trainingPanel.visible = true;
+  trainingPanel.position.set(0, 0, 2.9);
+  drawTrainingPanel(trainingPanel, training, live, taskData, liveEval, currentProbeSample());
+  trainingPanel.lookAt(camera.position);
+}
+
+function renderStage() {
+  const s = state.stage;
+  const t = state.progress;
+  hideAllExtras();
+  renderProbeMarkers();
+
+  const probe = currentProbeSample();
+  if (!probe) return;
+  const inputEnd = READ_CENTER.clone().add(probe.inputDisplay);
+  incomingArrow.set(READ_CENTER, inputEnd, INCOMING, s === 6 ? 1 : (s <= 7 ? 1 : 0.25));
+
+  if (s <= 5) renderBaseBanks(initialProbe);
+  else if (s === 6) renderTrainingTransitionStage(t);
+  else if (s === 10) renderTrainedBanks(trainedProbe);
+  else renderTrainedBanks(trainedProbe);
+
+  if (s === 0) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      const end = READ_CENTER.clone().add(initialProbe.readDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+      setDashedLine(dyn.initialDotLines[i], inputEnd, end, localT * 0.55, READ);
+      updateTextSprite(dyn.initialDotLabels[i], initialProbe.readVec[i].toFixed(2), READ);
+      dyn.initialDotLabels[i].position.copy(lerpVec(inputEnd, end, 0.55).add(new THREE.Vector3(0.08, 0.08, 0.08)));
+      dyn.initialDotLabels[i].visible = state.showLabels && localT > 0.05;
+      dyn.initialDotLabels[i].material.opacity = localT;
+    }
+  }
+
+  if (s === 1) {
+    activationPanel.visible = true;
+    activationPanel.position.set(0, 0, 2.8);
+    drawActivationPanel(activationPanel, state.activation, initialProbe.readVec, initialProbe.postVec, t, 'Initial activation: ');
+    activationPanel.lookAt(camera.position);
+  }
+
+  if (s === 2) {
+    activationPanel.visible = true;
+    activationPanel.position.set(0, 0, 2.8);
+    drawActivationPanel(activationPanel, state.activation, initialProbe.readVec, initialProbe.postVec, 1.0, 'Initial activation: ', { showRowHighlight: false, showFormula: false, showMarker: false });
+    activationPanel.lookAt(camera.position);
+    for (let i = 0; i < state.vectorCount; i++) {
+      const readEnd = READ_CENTER.clone().add(initialProbe.readDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const writeEnd = WRITE_CENTER.clone().add(initialProbe.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const localT = smoothstep01(t * state.vectorCount - i);
+      setDashedLine(dyn.transferLines[i], readEnd, writeEnd, 0.32 * localT, FINAL);
+      updateTextSprite(dyn.initialCoeffLabels[i], `${i}:${initialProbe.postVec[i].toFixed(2)}`, WHITE);
+      dyn.initialCoeffLabels[i].position.copy(writeEnd.clone().add(new THREE.Vector3(0.14, 0.12, 0.12)));
+      dyn.initialCoeffLabels[i].visible = state.showLabels && localT > 0.02;
+      dyn.initialCoeffLabels[i].material.opacity = localT;
+    }
+  }
+
+  if (s === 3) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      const writeDirEnd = WRITE_CENTER.clone().add(initialProbe.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const scaledEnd = WRITE_CENTER.clone().add(lerpVec(initialProbe.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS), initialProbe.scaledVecs[i], t));
+      dyn.initialWriteArrows[i].set(WRITE_CENTER, writeDirEnd, BASE, 0.12);
+      dyn.initialScaledArrows[i].set(WRITE_CENTER, scaledEnd, SCALED, 1.0);
+      updateTextSprite(dyn.initialCoeffLabels[i], `${i}:${initialProbe.postVec[i].toFixed(2)}`, WHITE);
+      dyn.initialCoeffLabels[i].position.copy(WRITE_CENTER.clone().add(initialProbe.scaledVecs[i]).add(new THREE.Vector3(0.12, 0.12, 0.12)));
+      dyn.initialCoeffLabels[i].visible = state.showLabels;
+    }
+  }
+
+  if (s === 4 || s === 5) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      dyn.initialScaledArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(initialProbe.scaledVecs[i]), SCALED, 1.0);
+      dyn.initialWriteArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(initialProbe.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS)), BASE, 0.04);
+      if (s === 4) {
+        const seg = initialProbe.chain[i];
+        const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+        dyn.initialChainArrows[i].set(
+          WRITE_CENTER.clone().add(seg.start),
+          WRITE_CENTER.clone().add(lerpVec(seg.start, seg.end, smoothstep01(localT))),
+          SUM,
+          localT > 0 ? 1.0 : 0,
+        );
+      } else {
+        const seg = initialProbe.chain[i];
+        dyn.initialChainArrows[i].set(WRITE_CENTER.clone().add(seg.start), WRITE_CENTER.clone().add(seg.end), SUM, 1.0);
+      }
+    }
+    sumArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(initialProbe.sumVec), SUM, s === 4 ? Math.max(0.18, 1 - t * 0.55) : 0.24);
+  }
+
+  if (s === 5) {
+    finalArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(lerpVec(initialProbe.sumVec, initialProbe.finalVec, smoothstep01(t))), colorLerp(SUM, FINAL, t), 1.0);
+    targetArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(probe.targetDir.clone().multiplyScalar(SPHERE_RADIUS)), TARGET, 0.65);
+    updateTextSprite(initialLabel, 'initial', FINAL);
+    initialLabel.position.copy(WRITE_CENTER.clone().add(initialProbe.finalVec).add(new THREE.Vector3(0.24, 0.14, 0.12)));
+    targetLabelSprite.position.copy(WRITE_CENTER.clone().add(probe.targetDir.clone().multiplyScalar(SPHERE_RADIUS)).add(new THREE.Vector3(0.24, -0.18, 0.12)));
+    updateTextSprite(targetLabelSprite, 'target', TARGET);
+    initialLabel.visible = state.showLabels;
+    targetLabelSprite.visible = state.showLabels;
+  }
+
+  if (s === 7) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      const end = READ_CENTER.clone().add(trainedProbe.readDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+      setDashedLine(dyn.trainedDotLines[i], inputEnd, end, localT * 0.55, TRAIN);
+      updateTextSprite(dyn.trainedDotLabels[i], trainedProbe.readVec[i].toFixed(2), TRAIN);
+      dyn.trainedDotLabels[i].position.copy(lerpVec(inputEnd, end, 0.55).add(new THREE.Vector3(0.08, 0.08, 0.08)));
+      dyn.trainedDotLabels[i].visible = state.showLabels && localT > 0.05;
+      dyn.trainedDotLabels[i].material.opacity = localT;
+    }
+  }
+
+  if (s === 8) {
+    trainedActivationPanel.visible = true;
+    trainedActivationPanel.position.set(0, 0, 2.8);
+    drawActivationPanel(trainedActivationPanel, state.activation, trainedProbe.readVec, trainedProbe.postVec, t, state.trainMode === 'fp32' ? 'Final activation: ' : `${deployedShortLabel(state.trainMode, state.quantMode)} activation: `);
+    trainedActivationPanel.lookAt(camera.position);
+  }
+
+  if (s === 9) {
+    trainedActivationPanel.visible = true;
+    trainedActivationPanel.position.set(0, 0, 2.8);
+    drawActivationPanel(trainedActivationPanel, state.activation, trainedProbe.readVec, trainedProbe.postVec, 1.0, state.trainMode === 'fp32' ? 'Final activation: ' : `${deployedShortLabel(state.trainMode, state.quantMode)} activation: `, { showRowHighlight: false, showFormula: false, showMarker: false });
+    trainedActivationPanel.lookAt(camera.position);
+    for (let i = 0; i < state.vectorCount; i++) {
+      const readEnd = READ_CENTER.clone().add(trainedProbe.readDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const writeEnd = WRITE_CENTER.clone().add(trainedProbe.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const localT = smoothstep01(t * state.vectorCount - i);
+      setDashedLine(dyn.trainedTransferLines[i], readEnd, writeEnd, 0.35 * localT, FINAL_TRAINED);
+      updateTextSprite(dyn.trainedCoeffLabels[i], `${i}:${trainedProbe.postVec[i].toFixed(2)}`, WHITE);
+      dyn.trainedCoeffLabels[i].position.copy(writeEnd.clone().add(new THREE.Vector3(0.14, 0.12, 0.12)));
+      dyn.trainedCoeffLabels[i].visible = state.showLabels && localT > 0.02;
+      dyn.trainedCoeffLabels[i].material.opacity = localT;
+    }
+  }
+
+  if (s === 13) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      const writeDirEnd = WRITE_CENTER.clone().add(trainedProbe.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const scaledEnd = WRITE_CENTER.clone().add(lerpVec(trainedProbe.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS), trainedProbe.scaledVecs[i], t));
+      dyn.trainedWriteArrows[i].set(WRITE_CENTER, writeDirEnd, TRAIN, 0.12);
+      dyn.trainedScaledArrows[i].set(WRITE_CENTER, scaledEnd, FINAL_TRAINED, 1.0);
+      updateTextSprite(dyn.trainedCoeffLabels[i], `${i}:${trainedProbe.postVec[i].toFixed(2)}`, WHITE);
+      dyn.trainedCoeffLabels[i].position.copy(WRITE_CENTER.clone().add(trainedProbe.scaledVecs[i]).add(new THREE.Vector3(0.12, 0.12, 0.12)));
+      dyn.trainedCoeffLabels[i].visible = state.showLabels;
+    }
+  }
+
+  if (s === 11 || s === 12) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      dyn.trainedScaledArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(trainedProbe.scaledVecs[i]), FINAL_TRAINED, 1.0);
+      dyn.trainedWriteArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(trainedProbe.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS)), TRAIN, 0.04);
+      if (s === 11) {
+        const seg = trainedProbe.chain[i];
+        const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+        dyn.trainedChainArrows[i].set(
+          WRITE_CENTER.clone().add(seg.start),
+          WRITE_CENTER.clone().add(lerpVec(seg.start, seg.end, smoothstep01(localT))),
+          FINAL_TRAINED,
+          localT > 0 ? 1.0 : 0,
+        );
+      } else {
+        const seg = trainedProbe.chain[i];
+        dyn.trainedChainArrows[i].set(WRITE_CENTER.clone().add(seg.start), WRITE_CENTER.clone().add(seg.end), FINAL_TRAINED, 1.0);
+      }
+    }
+    trainedSumArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(trainedProbe.sumVec), FINAL_TRAINED, s === 11 ? Math.max(0.18, 1 - t * 0.3) : 0.24);
+  }
+
+  if (s === 12) {
+    trainedFinalArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(lerpVec(trainedProbe.sumVec, trainedProbe.finalVec, smoothstep01(t))), FINAL_TRAINED, 1.0);
+    targetArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(probe.targetDir.clone().multiplyScalar(SPHERE_RADIUS)), TARGET, 0.65);
+    updateTextSprite(trainedLabel, deployedShortLabel(state.trainMode, state.quantMode), FINAL_TRAINED);
+    updateTextSprite(targetLabelSprite, 'target', TARGET);
+    trainedLabel.position.copy(WRITE_CENTER.clone().add(trainedProbe.finalVec).add(new THREE.Vector3(0.24, 0.14, 0.12)));
+    targetLabelSprite.position.copy(WRITE_CENTER.clone().add(probe.targetDir.clone().multiplyScalar(SPHERE_RADIUS)).add(new THREE.Vector3(0.24, -0.18, 0.12)));
+    trainedLabel.visible = state.showLabels;
+    targetLabelSprite.visible = state.showLabels;
+  }
+
+  if (s === 10) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      dyn.initialReadArrows[i].set(READ_CENTER, READ_CENTER.clone().add(initialProbe.readDirs[i].clone().multiplyScalar(SPHERE_RADIUS)), BASE, 0.04);
+      dyn.trainedReadArrows[i].set(READ_CENTER, READ_CENTER.clone().add(trainedProbe.readDirs[i].clone().multiplyScalar(SPHERE_RADIUS)), TRAIN, 0.04);
+      dyn.initialWriteArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(initialProbe.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS)), BASE, 0.04);
+      dyn.trainedWriteArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(trainedProbe.writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS)), TRAIN, 0.04);
+      dyn.initialScaledArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(initialProbe.scaledVecs[i]), SCALED, 0.03);
+      dyn.trainedScaledArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(trainedProbe.scaledVecs[i]), FINAL_TRAINED, 0.03);
+      dyn.initialChainArrows[i].set(WRITE_CENTER.clone().add(initialProbe.chain[i].start), WRITE_CENTER.clone().add(initialProbe.chain[i].end), SUM, 0.03);
+      dyn.trainedChainArrows[i].set(WRITE_CENTER.clone().add(trainedProbe.chain[i].start), WRITE_CENTER.clone().add(trainedProbe.chain[i].end), FINAL_TRAINED, 0.03);
+    }
+    compareGhost.set(WRITE_CENTER, WRITE_CENTER.clone().add(initialProbe.finalVec), FINAL, 0.9);
+    trainedFinalArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(trainedProbe.finalVec), FINAL_TRAINED, 0.95);
+    targetArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(probe.targetDir.clone().multiplyScalar(SPHERE_RADIUS)), TARGET, 0.65);
+    updateTextSprite(initialLabel, 'initial', FINAL);
+    updateTextSprite(trainedLabel, deployedShortLabel(state.trainMode, state.quantMode), FINAL_TRAINED);
+    updateTextSprite(targetLabelSprite, 'target', TARGET);
+    initialLabel.position.copy(WRITE_CENTER.clone().add(initialProbe.finalVec).add(new THREE.Vector3(0.24, 0.14, 0.12)));
+    trainedLabel.position.copy(WRITE_CENTER.clone().add(trainedProbe.finalVec).add(new THREE.Vector3(0.24, -0.18, 0.12)));
+    targetLabelSprite.position.copy(WRITE_CENTER.clone().add(probe.targetDir.clone().multiplyScalar(SPHERE_RADIUS)).add(new THREE.Vector3(0.24, 0.42, 0.12)));
+    initialLabel.visible = state.showLabels;
+    trainedLabel.visible = state.showLabels;
+    targetLabelSprite.visible = state.showLabels;
+  }
+}
+
+let lastTs = performance.now();
+function animate(ts) {
+  const dt = Math.min(0.05, (ts - lastTs) / 1000);
+  lastTs = ts;
+  if (state.playing) {
+    const elapsed = (ts - state.stageStartedAt) / 1000;
+    state.progress = clamp01(elapsed / stageDurationSeconds());
+    if (state.progress >= 1) state.playing = false;
+    refreshUi();
+  }
+  const targetCenter = stageFocusCenter(state.stage);
+  controls.target.lerp(targetCenter, 0.08);
+  if (state.autoRotate) {
+    const orbitPoint = controls.target.clone();
+    camera.position.sub(orbitPoint);
+    camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), dt * 0.22);
+    camera.position.add(orbitPoint);
+  }
+  controls.update();
+  renderStage();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

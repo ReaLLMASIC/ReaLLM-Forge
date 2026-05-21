@@ -6,9 +6,10 @@ import sys
 import pickle
 import json
 import prepare
-from tokenizers import (
+from nanogpt_tokenizers import (
     SentencePieceTokenizer,
     TiktokenTokenizer,
+    HuggingFaceTokenizer,
     CustomTokenizer,
     ByteTokenizer,
     CharTokenizer,
@@ -183,6 +184,48 @@ class TestTokenizers(unittest.TestCase):
         console.print(detokenized, style="output")
 
         self.assertEqual(self.sample_text, detokenized)
+
+    def test_huggingface_tokenizer(self):
+        try:
+            import transformers  # noqa: F401
+        except ImportError:
+            self.skipTest("transformers package not installed")
+
+        args = Namespace(
+            hf_tokenizer_name="gpt2",
+            hf_trust_remote_code=False,
+            hf_use_fast=True,
+            meta_output_path="meta.pkl",
+        )
+        try:
+            tokenizer = HuggingFaceTokenizer(args)
+        except Exception as exc:
+            # Offline environments or missing model files should not hard-fail
+            # the whole suite.
+            self.skipTest(f"could not load HF tokenizer 'gpt2': {exc}")
+
+        ids = tokenizer.tokenize(self.sample_text)
+        detokenized = tokenizer.detokenize(ids)
+
+        console.print("[input]Input:[/input]")
+        console.print(self.sample_text, style="input")
+        console.print("[output]Detokenized Output:[/output]")
+        console.print(detokenized, style="output")
+
+        self.assertEqual(self.sample_text, detokenized)
+
+        with open("meta.pkl", "rb") as f:
+            meta = pickle.load(f)
+        self.assertEqual(meta["tokenizer"], "huggingface")
+        self.assertEqual(meta["hf_tokenizer_name"], "gpt2")
+        self.assertGreater(meta["vocab_size"], 0)
+        self.assertIn("stoi", meta)
+        self.assertIn("itos", meta)
+
+        # Clean up the snapshot directory written next to meta.pkl.
+        import shutil
+        if os.path.isdir("hf_tokenizer"):
+            shutil.rmtree("hf_tokenizer", ignore_errors=True)
 
 
     def test_custom_tokenizer(self):

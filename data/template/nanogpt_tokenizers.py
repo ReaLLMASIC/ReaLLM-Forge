@@ -1,4 +1,10 @@
-# tokenizers.py
+# nanogpt_tokenizers.py
+#
+# NOTE: this module is deliberately NOT named `tokenizers.py`. An earlier
+# revision was, which shadowed the third-party HuggingFace `tokenizers`
+# package on `sys.path` (because `data/*/prepare.py` are symlinks to
+# `data/template/prepare.py`, so Python's `sys.path[0]` resolves to this
+# directory) and broke `from transformers import AutoTokenizer`.
 import os
 import pickle
 import tempfile
@@ -229,6 +235,189 @@ class TiktokenTokenizer(Tokenizer):
                 result.append(self.enc.decode([token_id]))
 
         return ''.join(result)
+
+
+class HuggingFaceTokenizer(Tokenizer):
+    """Wrap any HuggingFace tokenizer via `transformers.AutoTokenizer`.
+
+    `AutoTokenizer` is a unified entry point that transparently loads both
+    fast (Rust `tokenizers`-backed) and slow (Python) variants, from either a
+    Hub name (e.g. ``"gpt2"``) or a local directory saved via
+    ``save_pretrained``.
+
+    This module is intentionally named ``nanogpt_tokenizers.py`` rather than
+    ``tokenizers.py`` so that it cannot shadow the third-party
+    ``tokenizers`` package that ``transformers`` imports internally (via
+    ``from tokenizers import decoders, normalizers, ...``).
+    """
+
+    def __init__(self, args):
+        super().__init__(args)
+        try:
+            from transformers import AutoTokenizer  # lazy import
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ImportError(
+                "HuggingFaceTokenizer requires the `transformers` package. "
+                "Install with `pip install transformers`."
+            ) from exc
+
+        self.hf_tokenizer_name = getattr(args, "hf_tokenizer_name", None)
+        if not self.hf_tokenizer_name:
+            raise ValueError(
+                "--hf_tokenizer_name must be provided for the huggingface method "
+                "(accepts a Hub id like 'gpt2' or 'google/gemma-3-270m', or a "
+                "local path to a directory written by save_pretrained)."
+            )
+
+        trust_remote_code = bool(getattr(args, "hf_trust_remote_code", False))
+        use_fast = getattr(args, "hf_use_fast", True)
+        if use_fast is None:
+            use_fast = True
+
+        # Optional Hub knobs. All of these mirror real `from_pretrained` args.
+        self.hf_revision = getattr(args, "hf_revision", None) or None
+        self.hf_subfolder = getattr(args, "hf_subfolder", None) or None
+        self.hf_cache_dir = getattr(args, "hf_cache_dir", None) or None
+        self.hf_token = getattr(args, "hf_token", None) or None
+
+        # Build a kwargs dict so we can omit None-valued knobs cleanly.
+        from_pretrained_kwargs = {
+            "trust_remote_code": trust_remote_code,
+            "use_fast": bool(use_fast),
+        }
+        if self.hf_revision is not None:
+            from_pretrained_kwargs["revision"] = self.hf_revision
+        if self.hf_subfolder is not None:
+            from_pretrained_kwargs["subfolder"] = self.hf_subfolder
+        if self.hf_cache_dir is not None:
+            from_pretrained_kwargs["cache_dir"] = self.hf_cache_dir
+        if self.hf_token is not None:
+            # `token=` is the modern (v4.32+) parameter; `use_auth_token=` is
+            # deprecated and emits a warning. Prefer `token=`.
+            from_pretrained_kwargs["token"] = self.hf_token
+
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.hf_tokenizer_name,
+                **from_pretrained_kwargs,
+            )
+        except Exception as exc:  # broad: HF raises a few specific subclasses
+            self._explain_load_error(exc)
+            raise
+
+        # Try to resolve the actual commit SHA the tokenizer was loaded from,
+        # for reproducibility. This is best-effort and never fatal.
+        self.hf_resolved_commit = self._resolve_commit_hash()
+
+        # Where to cache a local snapshot of the tokenizer so `sample.py` /
+        # `train.py` can reload it even without network access.
+        meta_output_path = getattr(args, "meta_output_path", "meta.pkl")
+        output_dir = os.path.dirname(meta_output_path) or "."
+        self.hf_local_dir = os.path.join(output_dir, "hf_tokenizer")
+        self.last_token_count = 0
+
+    def _explain_load_error(self, exc):
+        """Print a friendly hint when from_pretrained fails on a Hub repo."""
+        msg = str(exc)
+        repo = self.hf_tokenizer_name
+        cls_name = type(exc).__name__
+        # huggingface_hub.utils.GatedRepoError / 401 / 403 / "gated repo"
+        is_gated = (
+            "gated" in msg.lower()
+            or "GatedRepoError" in cls_name
+            or "401" in msg
+            or "403" in msg
+        )
+        is_missing = "RepositoryNotFoundError" in cls_name or "404" in msg
+        print()
+        if is_gated:
+            print(f"[huggingface] '{repo}' is a gated repository.")
+            print( "[huggingface] To use it you must:")
+            print(f"[huggingface]   1) visit https://huggingface.co/{repo} and accept the license")
+            print( "[huggingface]   2) authenticate locally via ONE of:")
+            print( "[huggingface]        - `huggingface-cli login`")
+            print( "[huggingface]        - environment: `export HF_TOKEN=hf_xxx`")
+            print( "[huggingface]        - this CLI flag: `--hf_token hf_xxx`")
+        elif is_missing:
+            print(f"[huggingface] Repository '{repo}' was not found on the Hub.")
+            print( "[huggingface] Check the spelling, or pass a local path "
+                  "(a directory previously written by save_pretrained).")
+        else:
+            print(f"[huggingface] Failed to load '{repo}': {cls_name}: {msg}")
+
+    def _resolve_commit_hash(self):
+        """Best-effort: return the actual commit SHA of the loaded tokenizer."""
+        # 1) transformers stamps `_commit_hash` into init_kwargs when it
+        #    downloaded from the Hub. This is the most reliable source.
+        try:
+            init_kwargs = getattr(self.tokenizer, "init_kwargs", {}) or {}
+            commit = init_kwargs.get("_commit_hash")
+            if commit:
+                return str(commit)
+        except Exception:
+            pass
+        # 2) Fall back to whatever the user pinned (could be a tag/branch/sha).
+        return self.hf_revision
+
+    def _build_vocab_maps(self):
+        try:
+            stoi = dict(self.tokenizer.get_vocab())
+        except Exception:
+            stoi = {}
+        itos = {int(v): k for k, v in stoi.items()}
+        return stoi, itos
+
+    def _effective_vocab_size(self):
+        # `len(tokenizer)` includes added/special tokens. Fall back gracefully.
+        try:
+            return len(self.tokenizer)
+        except Exception:
+            return int(getattr(self.tokenizer, "vocab_size", 0))
+
+    def tokenize(self, data):
+        # Encode without special tokens to match the behavior of our other
+        # subword tokenizers (tiktoken/sentencepiece) so that text resumes
+        # cleanly across chunks.
+        ids = self.tokenizer.encode(data, add_special_tokens=False)
+
+        for token_id in ids:
+            self.record_token(token_id)
+
+        stoi, itos = self._build_vocab_maps()
+
+        # Save a local snapshot of the tokenizer next to meta.pkl so it can
+        # be reloaded offline during sampling / training. This is what makes
+        # gated models like Gemma "just work" downstream: prepare-time is the
+        # only step that has to authenticate against the Hub.
+        hf_saved_path = None
+        try:
+            os.makedirs(self.hf_local_dir, exist_ok=True)
+            self.tokenizer.save_pretrained(self.hf_local_dir)
+            hf_saved_path = self.hf_local_dir
+        except Exception as exc:  # pragma: no cover - best effort
+            print(f"[huggingface] Warning: could not save tokenizer snapshot to "
+                  f"{self.hf_local_dir}: {exc}")
+
+        meta = {
+            "vocab_size": self._effective_vocab_size(),
+            "tokenizer": "huggingface",
+            "hf_tokenizer_name": self.hf_tokenizer_name,
+            "hf_tokenizer_path": hf_saved_path,
+            "hf_use_fast": bool(getattr(self.args, "hf_use_fast", True)),
+            "hf_trust_remote_code": bool(getattr(self.args, "hf_trust_remote_code", False)),
+            "hf_revision": self.hf_revision,
+            "hf_resolved_commit": self.hf_resolved_commit,
+            "hf_subfolder": self.hf_subfolder,
+            "stoi": stoi,
+            "itos": itos,
+        }
+        self.finalize_meta(meta)
+
+        self.last_token_count = len(ids)
+        return ids
+
+    def detokenize(self, ids):
+        return self.tokenizer.decode(list(ids), skip_special_tokens=False)
 
 
 class CustomTokenizer(Tokenizer):

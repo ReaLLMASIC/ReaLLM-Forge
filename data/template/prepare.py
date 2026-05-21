@@ -3,9 +3,10 @@ import json
 import os
 import argparse
 import numpy as np
-from tokenizers import (
+from nanogpt_tokenizers import (
     SentencePieceTokenizer,
     TiktokenTokenizer,
+    HuggingFaceTokenizer,
     CustomTokenizer,
     ByteTokenizer,
     CharTokenizer,
@@ -31,8 +32,35 @@ def parse_arguments():
 
     # Tokenizer selection and configuration
     parser.add_argument("--method", type=str,
-                       choices=["sentencepiece", "tiktoken", "char", "char_bpe", "custom", "byte", "custom_char_byte_fallback", "json_byte_fallback", "python_programming", "sinewave", "whisper_mel_csv"],
+                       choices=["sentencepiece", "tiktoken", "huggingface", "char", "char_bpe", "custom", "byte", "custom_char_byte_fallback", "json_byte_fallback", "python_programming", "sinewave", "whisper_mel_csv"],
                        default="tiktoken", help="Tokenization method")
+
+    # HuggingFace tokenizer arguments
+    parser.add_argument("--hf_tokenizer_name", type=str, default=None,
+                        help="HuggingFace tokenizer: a Hub repo id (e.g. 'gpt2', "
+                             "'google/gemma-3-270m', 'meta-llama/Llama-3.2-1B') or a "
+                             "local directory previously written by save_pretrained. "
+                             "Hub repos are downloaded and cached automatically.")
+    parser.add_argument("--hf_trust_remote_code", action="store_true",
+                        help="Trust remote code when loading a HuggingFace tokenizer "
+                             "(needed for some custom tokenizer classes shipped in repos)")
+    parser.add_argument("--hf_use_fast", action=argparse.BooleanOptionalAction, default=True,
+                        help="Use the fast (Rust-based) HuggingFace tokenizer variant if available")
+    parser.add_argument("--hf_revision", type=str, default=None,
+                        help="Pin the HuggingFace repo to a specific commit SHA, branch, or tag "
+                             "for reproducibility (forwarded to from_pretrained as `revision=`)")
+    parser.add_argument("--hf_subfolder", type=str, default=None,
+                        help="Subfolder inside the HuggingFace repo that holds the tokenizer files "
+                             "(forwarded to from_pretrained as `subfolder=`)")
+    parser.add_argument("--hf_cache_dir", type=str, default=None,
+                        help="Override the HuggingFace download cache directory "
+                             "(forwarded to from_pretrained as `cache_dir=`). Default honors "
+                             "HF_HOME / HF_HUB_CACHE / ~/.cache/huggingface/hub.")
+    parser.add_argument("--hf_token", type=str, default=None,
+                        help="HuggingFace auth token for gated repos (e.g. Gemma, Llama). "
+                             "Alternatively run `huggingface-cli login` once, or set the "
+                             "HF_TOKEN environment variable. You must also accept the model's "
+                             "license at https://huggingface.co/<repo> while logged in.")
 
     # Sine wave tokenizer arguments
     parser.add_argument("--sine_period", type=float, default=1.0,
@@ -134,6 +162,9 @@ def main():
             output_dir = os.path.splitext(os.path.basename(args.json_tokens_file))[0]
         elif args.method == "sentencepiece":
             output_dir = f"sp_{args.vocab_size}"
+        elif args.method == "huggingface" and args.hf_tokenizer_name:
+            sanitized = args.hf_tokenizer_name.replace("/", "_").replace(os.sep, "_")
+            output_dir = f"hf_{sanitized}"
         else:
             output_dir = args.method
         if args.output_subdir_suffix:
@@ -168,6 +199,8 @@ def main():
         tokenizer = SentencePieceTokenizer(args, input_files=args.train_input)
     elif args.method == "tiktoken":
         tokenizer = TiktokenTokenizer(args)
+    elif args.method == "huggingface":
+        tokenizer = HuggingFaceTokenizer(args)
     elif args.method == "custom":
         tokenizer = CustomTokenizer(args)
     elif args.method == "byte":
@@ -194,8 +227,8 @@ def main():
         train_ids = tokenizer.tokenize(args.train_input)
     else:
         train_ids = tokenizer.tokenize(train_data)
-    if args.method == "tiktoken":
-        print(f"[tiktoken] Total train tokens: {tokenizer.last_token_count:,}")
+    if args.method in ("tiktoken", "huggingface"):
+        print(f"[{args.method}] Total train tokens: {tokenizer.last_token_count:,}")
     if args.method == "whisper_mel_csv" and args.val_input is None:
         split_point = int(len(train_ids) * args.percentage_train)
         val_ids = train_ids[split_point:]
@@ -209,8 +242,8 @@ def main():
             val_ids = tokenizer.tokenize(args.val_input)
         else:
             val_ids = tokenizer.tokenize(val_data)
-        if args.method == "tiktoken":
-            print(f"[tiktoken] Total val tokens: {tokenizer.last_token_count:,}")
+        if args.method in ("tiktoken", "huggingface"):
+            print(f"[{args.method}] Total val tokens: {tokenizer.last_token_count:,}")
     else:
         val_ids = None
 

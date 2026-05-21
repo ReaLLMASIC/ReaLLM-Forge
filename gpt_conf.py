@@ -225,8 +225,8 @@ class GPTConfig:
     shared_attn_seq: int = 1
 
     # Softmax Alternatives and Options
-    softmax_variant_attn: str = "softmax" # Choices: "softmax" "softermax" "sigsoftmax" "polymax" "strongermax" "consmax"
-    softmax_variant_output: str = "softmax" # Choices: "softmax" "softermax" "sigsoftmax" "polymax" "strongermax" "consmax"
+    softmax_variant_attn: str = "softmax" # Choices: "softmax" "softermax" "sigsoftmax" "polymax" "strongermax" "consmax" "ste_argmax_softmax"
+    softmax_variant_output: str = "softmax" # Choices: "softmax" "softermax" "sigsoftmax" "polymax" "strongermax" "consmax" "ste_argmax_softmax"
 
 
     ## General Options
@@ -335,6 +335,9 @@ class GPTConfig:
     use_fire_embeddings: bool = False
     shared_fire_embeddings: bool = False
     use_rotary_embeddings: bool = False
+    absolute_pos_embedding_variant: str = "learned"  # options: "learned", "cyclic"
+    cyclic_abs_pos_cycle_lengths: list[int] | None = None
+    cyclic_abs_pos_randomize_starts: bool = False
     sym_rot_num_angles: int = 512
     rope_variant: str = "rope" # options: "shortrope", "rope"
     rope_length: int = 8 # number of embeddings to use in shortrope
@@ -343,6 +346,11 @@ class GPTConfig:
     embedding_mean_init: float= 0.0
     embedding_std_init: float= 0.02
     embedding_gaussian_noise_std: float = 0.0
+    embedding_gaussian_noise_start_iter: int = 0
+    embedding_gaussian_noise_end_iter: int | None = None
+    embedding_gaussian_noise_start_std: float | None = None
+    embedding_gaussian_noise_end_std: float | None = None
+    embedding_gaussian_noise_in_eval: bool = False
 
     ## FIRE Options (Functional Interpolation for Relative Positional Encoding)
     fire_log_bias: float = 1.0

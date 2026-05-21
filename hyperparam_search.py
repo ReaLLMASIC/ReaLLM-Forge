@@ -27,6 +27,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+import random
 
 import torch
 import yaml
@@ -107,7 +108,7 @@ def run_trial_inproc(cfg: Dict[str, Any]) -> TrialMetrics:
 
     loss = float(tr.best_val_loss)
     nparam = float(tr.raw_model.num_param)
-    best_iter = int(getattr(tr, "best_iter", getattr(tr, "iter_num_best_val_loss", 0)))
+    best_iter = int(getattr(tr, "best_iter", 0))
     torch_alloc_mb = float(
         getattr(tr, "peak_torch_allocated", getattr(tr, "peak_gpu_usage", 0.0))
         / (1024 ** 2)
@@ -272,6 +273,11 @@ def main():
         default="max",
         help="Whether to maximize or minimize the selected optimization target.",
     )
+    ap.add_argument(
+        "--randomize_seed",
+        action="store_true",
+        help="Whether to random seed for each separate train.py run, and prevent overfitting via hillclimbing on one section of the target dataset",
+    )
 
     args = ap.parse_args()
 
@@ -419,6 +425,8 @@ def main():
                 nonlocal best_choice, candidates
 
                 seed0 = int(cfg_template.get("seed", 1337))
+                if args.randomize_seed:
+                    seed0 = random.randint(0, 2**31 - 1)
                 seed_runs: List[Dict[str, Any]] = []
                 scores: List[float] = []
 

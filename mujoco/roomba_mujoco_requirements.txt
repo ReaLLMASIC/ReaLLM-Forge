@@ -1,0 +1,4 @@
+mujoco>=3.0
+numpy
+pillow
+imageio[ffmpeg]

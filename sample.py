@@ -240,8 +240,8 @@ def colorize_text(tokens, data_for_color, decode, colorize_mode='minmax'):
         # Normalize the chosen values (probabilities or logits) to [0..1]
         norm_values = (values - values.min()) / (values.max() - values.min() + 1e-6)
 
-    for i, token_id in enumerate(tokens):
-        token_str = decode([token_id])
+    segments = _token_segments(tokens, decode)
+    for i, token_str in enumerate(segments):
         color_val = norm_values[i].item()  # 0..1
         r = int((1 - color_val) * 255)
         g = int(color_val * 255)
@@ -251,6 +251,27 @@ def colorize_text(tokens, data_for_color, decode, colorize_mode='minmax'):
 
 def _escape_ws(text: str) -> str:
     return text.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+
+
+def _token_segments(tokens: List[int], decode: Callable) -> List[str]:
+    """Return per-token text segments via incremental prefix decoding.
+
+    Some tokenizers (notably HuggingFace byte-level BPE) apply cleanup or
+    joining logic that makes ``decode([single_id])`` differ from the
+    corresponding slice of ``decode(full_sequence)``.  Incremental prefix
+    decoding avoids this: the text contributed by token *i* is defined as
+    ``decode(tokens[:i+1])[len(decode(tokens[:i])):]``, which exactly
+    partitions ``decode(tokens)`` into per-token segments.
+    """
+    if not tokens:
+        return []
+    segments: List[str] = []
+    prev = decode([])  # baseline: empty sequence → ""
+    for i in range(len(tokens)):
+        cur = decode(list(tokens[: i + 1]))
+        segments.append(cur[len(prev):])
+        prev = cur
+    return segments
 
 
 def _topk_table(
@@ -466,10 +487,9 @@ def _colorize_rank(
     """
     text = Text()
     max_rank = max(k or 0, 2)      # guarantees divisor ≥ 1
+    segments = _token_segments(list(token_ids), decode)
 
-    for tid, rnk in zip(token_ids, ranks):
-        token_str = decode([tid])
-
+    for token_str, rnk in zip(segments, ranks):
         if rnk == 1:
             # best-rank token: leave unstyled
             text.append(token_str)
@@ -910,8 +930,15 @@ def load_validation_data(block_size, eval_dataset):
     # Load validation data similar to how train data is handled
     val_path = os.path.join('data', eval_dataset, 'val.bin')
     assert os.path.exists(val_path), f"Validation data file {val_path} not found."
-    # Assuming validation data is similar in format to train data
-    val_data = np.memmap(val_path, dtype=np.uint16, mode='r')
+    meta_path = os.path.join('data', eval_dataset, 'meta.pkl')
+    dtype = np.uint16
+    if os.path.exists(meta_path):
+        with open(meta_path, 'rb') as f:
+            meta = pickle.load(f)
+        vocab_size = meta.get('vocab_size')
+        if vocab_size is not None and int(vocab_size) > np.iinfo(np.uint16).max:
+            dtype = np.uint32
+    val_data = np.memmap(val_path, dtype=dtype, mode='r')
     return val_data
 
 def get_batch(data, block_size, device):
@@ -1159,6 +1186,58 @@ def get_tokenizer_functions(meta):
         enc = tiktoken.get_encoding(meta['tiktoken_encoding'])
         encode = lambda s: enc.encode(s, allowed_special={""})
         decode = lambda l: enc.decode(l)
+        return encode, decode
+
+    if meta['tokenizer'] == 'huggingface':
+        try:
+            from transformers import AutoTokenizer
+        except ImportError as exc:
+            raise ImportError(
+                "Loading a 'huggingface' tokenizer from meta.pkl requires the "
+                "`transformers` package. Install with `pip install transformers`."
+            ) from exc
+
+        hf_name = meta.get('hf_tokenizer_name')
+        hf_local_path = meta.get('hf_tokenizer_path')
+        trust_remote_code = bool(meta.get('hf_trust_remote_code', False))
+        use_fast = meta.get('hf_use_fast', True)
+        hf_revision = meta.get('hf_resolved_commit') or meta.get('hf_revision')
+        hf_subfolder = meta.get('hf_subfolder')
+
+        # Prefer the local snapshot written at prepare-time so we work offline
+        # and avoid re-authenticating against the Hub for gated repos.
+        load_target = None
+        loading_local = False
+        if hf_local_path and os.path.isdir(hf_local_path):
+            load_target = hf_local_path
+            loading_local = True
+        elif hf_name:
+            load_target = hf_name
+        else:
+            raise ValueError(
+                "meta.pkl is missing 'hf_tokenizer_name' / 'hf_tokenizer_path' "
+                "for huggingface tokenizer."
+            )
+
+        from_pretrained_kwargs = {
+            "trust_remote_code": trust_remote_code,
+            "use_fast": bool(use_fast),
+        }
+        # Revision/subfolder only apply when re-fetching from the Hub.
+        if not loading_local:
+            if hf_revision:
+                from_pretrained_kwargs["revision"] = hf_revision
+            if hf_subfolder:
+                from_pretrained_kwargs["subfolder"] = hf_subfolder
+
+        hf_tok = AutoTokenizer.from_pretrained(load_target, **from_pretrained_kwargs)
+
+        def encode(s):
+            return hf_tok.encode(s, add_special_tokens=False)
+
+        def decode(ids):
+            return hf_tok.decode(list(ids), skip_special_tokens=False)
+
         return encode, decode
 
     if meta['tokenizer'] == 'byte':

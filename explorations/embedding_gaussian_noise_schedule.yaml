@@ -1,0 +1,41 @@
+# explorations/embedding_gaussian_noise_schedule.yaml
+---
+# Demonstrates the scheduled embedding Gaussian-noise options:
+# - start/end iteration window
+# - start/end noise magnitude
+# - eval-time noise gating (kept disabled for clean validation/sample behavior)
+
+common_group:
+  dataset: ["shakespeare_char"]
+  n_layer: [6]
+  n_head: [6]
+  n_embd: [384]
+  block_size: [256]
+  batch_size: [64]
+  max_iters: [3000]
+  device: ["cuda"]
+  dtype: ["bfloat16"]
+  eval_interval: [200]
+  never_save_checkpoint: [true]
+
+parameter_groups:
+  # Baseline: no embedding noise
+  - embedding_gaussian_noise_std: [0.0, 0.01, 0.02, 0.05]
+
+  # Scheduled decay: stronger early regularization, weaker later
+  - embedding_gaussian_noise_std: [0.05]
+    embedding_gaussian_noise_start_iter: [0]
+    embedding_gaussian_noise_end_iter: [3000]
+    embedding_gaussian_noise_start_std: [0.12]
+    embedding_gaussian_noise_end_std: [0.01]
+
+  # Scheduled warmup: introduce noise after early stabilization
+  - embedding_gaussian_noise_std: [0.05]
+    embedding_gaussian_noise_start_iter: [1000]
+    embedding_gaussian_noise_end_iter: [4000]
+    embedding_gaussian_noise_start_std: [0.0]
+    embedding_gaussian_noise_end_std: [0.08]
+
+# Keep noise off during model.eval() so validation loss and sample.py are unaffected.
+embedding_gaussian_noise_in_eval: [false]
+

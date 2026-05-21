@@ -34,6 +34,7 @@ from variations.lsv_variations import lsv_dictionary
 from variations.softmax_variations import softmax_dictionary
 from variations.norm_variations import norm_dictionary
 from variations.position_encoding_variations import QuantizedEmbedding, RotaryEmbedding, SymmetricalOverlapAngularPositions, FIRE
+from variations.absolute_position_variations import absolute_position_embedding_dict
 from variations.activation_variations import activation_dictionary
 from variations.linear_variations import linear_dictionary
 from variations.router_variations import router_dictionary
@@ -151,11 +152,7 @@ class GPT(nn.Module):
             self.transformer['post_abs_norm'] = self.build_norm_from_variant(config, "norm_variant_abs", "norm_abs")
 
         if self.config.use_abs_pos_embeddings:
-            if config.quantize_wpe:
-                pos_embd = QuantizedEmbedding(config.block_size, config.n_embd, config.quantize_wpe_method, config.quantize_wpe_bits)
-            else:
-                pos_embd = nn.Embedding(config.block_size, config.n_embd)
-            self.transformer['wpe'] = pos_embd
+            self.transformer['wpe'] = absolute_position_embedding_dict[config.absolute_pos_embedding_variant](config)
 
         # Select softmax variant for output layer
         self.softmax_variant_output = config.softmax_variant_output
@@ -226,7 +223,7 @@ class GPT(nn.Module):
         """
         n_params = sum(p.numel() for p in self.parameters())
         if non_embedding and self.config.use_abs_pos_embeddings:
-            n_params -= self.transformer.wpe.weight.numel()
+            n_params -= sum(p.numel() for p in self.transformer.wpe.parameters())
         return n_params
 
     def update_block_size(self, new_block_size):
@@ -234,11 +231,7 @@ class GPT(nn.Module):
         if new_block_size > self.config.block_size:
             self.config.block_size = new_block_size
             if self.config.use_abs_pos_embeddings:
-                if self.config.quantize_wpe:
-                    pos_embd = QuantizedEmbedding(new_block_size, self.config.n_embd, self.config.quantize_wpe_method, self.config.quantize_wpe_bits)
-                else:
-                    pos_embd = nn.Embedding(new_block_size, self.config.n_embd)
-                self.transformer.wpe = pos_embd
+                self.transformer.wpe.update_block_size(new_block_size)
             for block in self.transformer.h:
                 if hasattr(block.attn, 'bias'):
                     block.attn.bias = torch.tril(torch.ones(new_block_size, new_block_size)).view(1, 1, new_block_size, new_block_size)
@@ -352,11 +345,36 @@ class GPT(nn.Module):
         np.savez(file_path, scale_up=scale_up_matrix, scale_down=scale_down_matrix)
         print(f"Scale matrices saved to {file_path}")
 
-    def add_embedding_gaussian_noise(self, embeddings):
-        if self.config.embedding_gaussian_noise_std and self.config.embedding_gaussian_noise_std > 0:
+    def get_embedding_gaussian_noise_std(self, iter_num=None):
+        if not self.config.embedding_gaussian_noise_in_eval and not self.training:
+            return 0.0
+
+        base_std = float(self.config.embedding_gaussian_noise_std or 0.0)
+        start_std = self.config.embedding_gaussian_noise_start_std
+        end_std = self.config.embedding_gaussian_noise_end_std
+        start_std = base_std if start_std is None else float(start_std)
+        end_std = base_std if end_std is None else float(end_std)
+
+        end_iter = self.config.embedding_gaussian_noise_end_iter
+        if end_iter is None or iter_num is None:
+            return max(0.0, end_std)
+
+        start_iter = int(self.config.embedding_gaussian_noise_start_iter or 0)
+        end_iter = int(end_iter)
+        if end_iter <= start_iter:
+            return max(0.0, end_std)
+
+        progress = (float(iter_num) - start_iter) / float(end_iter - start_iter)
+        progress = min(max(progress, 0.0), 1.0)
+        current_std = start_std + progress * (end_std - start_std)
+        return max(0.0, current_std)
+
+    def add_embedding_gaussian_noise(self, embeddings, iter_num=None):
+        noise_std = self.get_embedding_gaussian_noise_std(iter_num=iter_num)
+        if noise_std > 0:
             noise = torch.randn_like(embeddings)
             noise = noise / (noise.norm(dim=-1, keepdim=True) + 1e-6)
-            noise = noise * self.config.embedding_gaussian_noise_std
+            noise = noise * noise_std
             embeddings = embeddings / (embeddings.norm(dim=-1, keepdim=True) + 1e-6)
             return embeddings + noise
         return embeddings
@@ -387,7 +405,7 @@ class GPT(nn.Module):
                 else:
                     token_repr = self.transformer[f'wte_{i}'](tokens)
 
-                token_repr = self.add_embedding_gaussian_noise(token_repr)
+                token_repr = self.add_embedding_gaussian_noise(token_repr, iter_num=iter_num)
                 x = token_repr if x is None else x + token_repr
 
             if self.config.norm_variant_wte is not None:
@@ -397,8 +415,7 @@ class GPT(nn.Module):
                 x = x * self.embedding_scale
 
             if self.config.use_abs_pos_embeddings:
-                pos = torch.arange(0, t, dtype=torch.long, device=device)
-                pos_emb = self.transformer.wpe(pos)  # (t, n_embd)
+                pos_emb = self.transformer.wpe(t, device=device, training=self.training)  # (t, n_embd)
                 x = self.transformer.drop(x + pos_emb)
             else:
                 x = self.transformer.drop(x)
@@ -528,7 +545,7 @@ class GPT(nn.Module):
                 tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
             x = None
 
-            tok_emb = self.add_embedding_gaussian_noise(tok_emb)
+            tok_emb = self.add_embedding_gaussian_noise(tok_emb, iter_num=iter_num)
             if self.n_embd_wte:
                 tok_emb = self.transformer.scale_up(tok_emb)
 
@@ -539,8 +556,7 @@ class GPT(nn.Module):
                 tok_emb = self.transformer.post_embedding_norm(tok_emb)
 
             if self.config.use_abs_pos_embeddings:
-                pos = torch.arange(0, t, dtype=torch.long, device=device) # shape (t)
-                pos_emb = self.transformer.wpe(pos) # position embeddings of shape (t, n_embd)
+                pos_emb = self.transformer.wpe(t, device=device, training=self.training) # position embeddings of shape (t, n_embd)
                 x = tok_emb + pos_emb
                 if self.config.norm_variant_abs is not None:
                     x = self.transformer.post_abs_norm(x)
@@ -635,7 +651,7 @@ class GPT(nn.Module):
         else:
             tok_emb = self.transformer.wte(idx)
 
-        tok_emb = self.add_embedding_gaussian_noise(tok_emb)
+        tok_emb = self.add_embedding_gaussian_noise(tok_emb, iter_num=None)
 
         if self.n_embd_wte:
             tok_emb = self.transformer.scale_up(tok_emb)
@@ -648,8 +664,7 @@ class GPT(nn.Module):
 
         if self.config.use_abs_pos_embeddings:
             t = idx.size(1)
-            pos = torch.arange(0, t, dtype=torch.long, device=device)
-            tok_emb = tok_emb + self.transformer.wpe(pos)
+            tok_emb = tok_emb + self.transformer.wpe(t, device=device, training=self.training)
             if self.config.norm_variant_abs is not None:
                 tok_emb = self.transformer.post_abs_norm(tok_emb)
 
@@ -810,7 +825,7 @@ class GPT(nn.Module):
         assert block_size <= self.config.block_size
         self.config.block_size = block_size
         if self.config.use_abs_pos_embeddings:
-            self.transformer.wpe.weight = nn.Parameter(self.transformer.wpe.weight[:block_size])
+            self.transformer.wpe.crop_block_size(block_size)
         for block in self.transformer.h:
             if hasattr(block.attn, 'bias'):
                 block.attn.bias = block.attn.bias[:,:,:block_size,:block_size]

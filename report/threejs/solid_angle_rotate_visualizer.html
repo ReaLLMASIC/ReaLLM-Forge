@@ -1,0 +1,1368 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Read / Activate / Write with Solid-Angle Rotation</title>
+  <style>
+    :root {
+      --bg: #1b1b2f;
+      --panel: rgba(255,255,255,0.06);
+      --panel-2: rgba(255,255,255,0.08);
+      --border: rgba(255,255,255,0.12);
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.72);
+      --incoming: #ff7b72;
+      --read: #c77dff;
+      --move: #58c4dd;
+      --base: #ffd166;
+      --scaled: #f4a261;
+      --sum: #4ea8de;
+      --final: #52b788;
+      --finalm: #7dd3fc;
+      --grid: #8d99ae;
+      --sphere: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { overflow: hidden; }
+
+    #app {
+      display: grid;
+      grid-template-columns: 1fr 460px;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    #scene-wrap { position: relative; min-width: 0; }
+    #scene { width: 100%; height: 100%; display: block; }
+
+    .overlay-top {
+      position: absolute; left: 20px; top: 18px; right: 20px; pointer-events: none;
+    }
+
+    .title-card {
+      max-width: 1100px; background: rgba(0,0,0,0.18); border: 1px solid var(--border);
+      border-radius: 20px; padding: 16px 18px; backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    }
+
+    h1 { margin: 0; font-size: 30px; line-height: 1.1; letter-spacing: -0.03em; }
+    .subtitle { margin-top: 8px; color: var(--muted); font-size: 15px; line-height: 1.55; }
+
+    .overlay-bottom {
+      position: absolute; left: 18px; bottom: 18px; background: rgba(0,0,0,0.28); border: 1px solid var(--border);
+      border-radius: 16px; padding: 10px 12px; color: rgba(255,255,255,0.85); font-size: 13px; backdrop-filter: blur(8px);
+      pointer-events: none; max-width: 560px;
+    }
+
+    #sidebar {
+      border-left: 1px solid var(--border); background: rgba(255,255,255,0.03); overflow: auto; padding: 18px;
+    }
+
+    .panel {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 16px; margin-bottom: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    }
+
+    .panel h2 {
+      margin: 0 0 12px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.18em; color: rgba(255,255,255,0.58); font-weight: 700;
+    }
+
+    .stage-name { font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+    .button-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    button, select {
+      appearance: none; border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+      border-radius: 16px; padding: 11px 12px; font-size: 14px; cursor: pointer;
+      transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease; width: 100%;
+    }
+
+    button:hover, select:hover { transform: translateY(-1px); background: rgba(255,255,255,0.12); }
+    button.active { border-color: rgba(255,255,255,0.28); background: rgba(255,255,255,0.16); }
+
+    .controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .range-wrap { margin-top: 14px; }
+    .range-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); margin-bottom: 6px; gap: 12px; }
+    input[type="range"] { width: 100%; accent-color: #7dd3fc; }
+
+    .toggle, .stack-row {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; font-size: 14px; color: rgba(255,255,255,0.9);
+    }
+    .stack { display: flex; flex-direction: column; gap: 10px; }
+
+    .vector-grid { display: grid; grid-template-columns: 1fr; gap: 8px; font-size: 13px; }
+    .vector-item { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px; gap: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .small { font-size: 12px; color: var(--muted); }
+
+    @media (max-width: 1180px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+      #sidebar { border-left: 0; border-top: 1px solid var(--border); max-height: 50vh; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="scene-wrap">
+      <canvas id="scene"></canvas>
+      <div class="overlay-top">
+        <div class="title-card">
+          <h1>Read → Activate → Write, then Random-Rotate Solid Angles → Read → Activate → Write</h1>
+          <div class="subtitle">
+            Two separate vector banks are initialized: a read bank and a write bank. The read bank produces coefficients from dot products with the incoming vector.
+            Those coefficients are transferred to the write bank by shared index, then used to scale, sum, and normalize. In the second pass, both banks rotate toward fixed random sphere targets while every vector is shown as a transparent solid-angle cone with an arrow at its center. If cones overlap while moving, the system applies tangential separation so they slide around each other instead of bouncing.
+          </div>
+        </div>
+      </div>
+      <div class="overlay-bottom">Drag to rotate • Scroll to zoom • Right-drag to pan • Use the solid-angle slider, then click “Replay same move” to rerun the identical target set with a different cone size</div>
+    </div>
+
+    <aside id="sidebar">
+      <div class="panel">
+        <h2>Current stage</h2>
+        <div class="stage-name" id="stageName"></div>
+        <div class="button-grid">
+          <button data-stage="0">1. Read</button>
+          <button data-stage="1">2. Activation</button>
+          <button data-stage="2">3. Write</button>
+          <button data-stage="3">4. Scale</button>
+          <button data-stage="4">5. Sum</button>
+          <button data-stage="5">6. Normalize</button>
+          <button data-stage="6">7. Random Rotate</button>
+          <button data-stage="7">8. Moved Read</button>
+          <button data-stage="8">9. Moved Activation</button>
+          <button data-stage="9">10. Moved Write</button>
+          <button data-stage="13">11. Moved Scale</button>
+          <button data-stage="11">12. Moved Sum</button>
+          <button data-stage="12">13. Moved Normalize</button>
+          <button data-stage="10">14. Compare</button>
+          <button data-stage="0">Back to Start</button>
+        </div>
+        <div class="controls-row">
+          <button id="playPause">Pause</button>
+          <button id="resetStage">Reset stage</button>
+        </div>
+        <div class="controls-row">
+          <button id="newRandomTargets">New random move</button>
+          <button id="replayMove">Replay same move</button>
+        </div>
+        <div class="controls-row">
+          <button id="reinitializeVectors">Reinitialize vectors</button>
+          <button id="initialView">Initial view</button>
+        </div>
+        <div class="range-wrap">
+          <div class="range-row">
+            <span>Stage progress</span>
+            <span id="progressLabel">0%</span>
+          </div>
+          <input id="progressSlider" type="range" min="0" max="1000" value="0" />
+        </div>
+        <div class="range-wrap">
+          <div class="range-row">
+            <span>Solid-angle size</span>
+            <span id="solidAngleLabel">α = 10.0° • Ω = 0.095 sr</span>
+          </div>
+          <input id="solidAngleSlider" type="range" min="2" max="22" step="0.25" value="10" />
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Options</h2>
+        <div class="stack">
+          <div class="stack-row">
+            <span>Activation</span>
+            <select id="activationSelect">
+              <option value="relu">ReLU</option>
+              <option value="relu2">ReLU²</option>
+            </select>
+          </div>
+          <div class="stack-row">
+            <span>Read / write vector count</span>
+            <select id="vectorCountSelect">
+              <option value="4">4</option>
+              <option value="6">6</option>
+              <option value="8" selected>8</option>
+              <option value="10">10</option>
+              <option value="12">12</option>
+              <option value="16">16</option>
+            </select>
+          </div>
+          <label class="toggle"><span>Auto-rotate scene</span><input id="autoRotate" type="checkbox" /></label>
+          <label class="toggle"><span>Show coefficient labels</span><input id="showLabels" type="checkbox" checked /></label>
+          <label class="toggle"><span>Show random target dots</span><input id="showTargetDots" type="checkbox" checked /></label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Continuous read coefficients</h2>
+        <div class="vector-grid" id="readVectorGrid"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Moved read coefficients</h2>
+        <div class="vector-grid" id="movedReadVectorGrid"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Comparison</h2>
+        <div class="vector-grid" id="compareGrid"></div>
+        <div class="small" style="margin-top:10px;">The last stage shows the continuous and moved final output directions, plus the final target error and the minimum cone-separation angle after collision sliding.</div>
+      </div>
+    </aside>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://esm.sh/three@0.160.0';
+    import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+    const BG = '#1b1b2f';
+    const GRID = '#8d99ae';
+    const BASE = '#ffd166';
+    const MOVE = '#58c4dd';
+    const SCALED = '#f4a261';
+    const SUM = '#4ea8de';
+    const FINAL = '#52b788';
+    const FINALM = '#7dd3fc';
+    const WHITE = '#ffffff';
+    const INCOMING = '#ff7b72';
+    const READ = '#c77dff';
+    const SPHERE_RADIUS = 2;
+    const STAGE_SECONDS = 1.2;
+    const ROTATE_STAGE_SECONDS = 1.6;
+    const ROTATE_STEP_COUNT = 220;
+    const READ_CENTER = new THREE.Vector3(-2.8, 0, 0);
+    const WRITE_CENTER = new THREE.Vector3(2.8, 0, 0);
+
+    function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+    function smoothstep01(x) { const t = clamp01(x); return t * t * (3 - 2 * t); }
+    function clampDot(x) { return Math.max(-1, Math.min(1, x)); }
+    function unit(v) {
+      const n = v.length();
+      return n > 1e-9 ? v.clone().multiplyScalar(1 / n) : new THREE.Vector3(0, 0, 0);
+    }
+    function lerpVec(a, b, t) { return a.clone().lerp(b, t); }
+    function colorLerp(c1, c2, t) { return new THREE.Color(c1).lerp(new THREE.Color(c2), clamp01(t)); }
+    function angleBetween(a, b) { return Math.acos(clampDot(unit(a).dot(unit(b)))); }
+    function orthogonalUnit(v) {
+      const seed = Math.abs(v.x) < 0.75 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+      return unit(new THREE.Vector3().crossVectors(v, seed));
+    }
+    function slerpUnit(a, b, t) {
+      const ua = unit(a);
+      const ub = unit(b);
+      const dot = clampDot(ua.dot(ub));
+      if (dot > 0.9995) return unit(ua.clone().lerp(ub, t));
+      if (dot < -0.9995) {
+        const ortho = orthogonalUnit(ua);
+        return unit(ua.clone().multiplyScalar(Math.cos(Math.PI * t)).add(ortho.multiplyScalar(Math.sin(Math.PI * t))));
+      }
+      const theta = Math.acos(dot);
+      const sinTheta = Math.sin(theta);
+      const s1 = Math.sin((1 - t) * theta) / sinTheta;
+      const s2 = Math.sin(t * theta) / sinTheta;
+      return unit(ua.clone().multiplyScalar(s1).add(ub.clone().multiplyScalar(s2)));
+    }
+    function steradiansForHalfAngle(rad) { return 2 * Math.PI * (1 - Math.cos(rad)); }
+
+    function seededRng(seed = 1) {
+      let s = seed >>> 0;
+      return function rand() {
+        s = (1664525 * s + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+    }
+
+    function gaussian3(rand) {
+      const arr = [];
+      for (let i = 0; i < 3; i++) {
+        const u1 = Math.max(rand(), 1e-12);
+        const u2 = rand();
+        arr.push(Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2));
+      }
+      return new THREE.Vector3(arr[0], arr[1], arr[2]);
+    }
+
+    function relu(x) { return Math.max(0, x); }
+    function relu2(x) { const r = Math.max(0, x); return r * r; }
+    function activationName(mode) { return mode === 'relu2' ? 'ReLU²' : 'ReLU'; }
+    function applyActivation(mode, x) { return mode === 'relu2' ? relu2(x) : relu(x); }
+    function getStageDuration(stage) { return stage === 6 ? ROTATE_STAGE_SECONDS : STAGE_SECONDS; }
+
+    function stageLabel(stage) {
+      return [
+        'Read Solid Angles',
+        `Activation (${activationName(state.activation)})`,
+        'Write Solid Angles',
+        'Scale',
+        'Sum',
+        'Normalize',
+        'Rotate Banks to RANDOM Sphere Targets',
+        'Moved Read Solid Angles',
+        `Moved Activation (${activationName(state.activation)})`,
+        'Moved Write Solid Angles',
+        'Compare Final Directions',
+        'Moved Sum',
+        'Moved Normalize',
+        'Moved Scale',
+      ][stage] || 'Read Solid Angles';
+    }
+
+    function makeDataset(seed = 11, count = 8) {
+      const rand = seededRng(seed);
+      const readUnitVecs = [];
+      const writeUnitVecs = [];
+      for (let i = 0; i < count; i++) readUnitVecs.push(unit(gaussian3(rand)));
+      for (let i = 0; i < count; i++) writeUnitVecs.push(unit(gaussian3(rand)));
+      const incomingVec = unit(gaussian3(rand)).multiplyScalar(SPHERE_RADIUS);
+      return { readUnitVecs, writeUnitVecs, incomingVec };
+    }
+
+    function makeRotationTargets(seed = 101, count = 8) {
+      const rand = seededRng(seed);
+      const readTargets = [];
+      const writeTargets = [];
+      for (let i = 0; i < count; i++) readTargets.push(unit(gaussian3(rand)));
+      for (let i = 0; i < count; i++) writeTargets.push(unit(gaussian3(rand)));
+      return { readTargets, writeTargets };
+    }
+
+    function pairwiseMinAngle(dirs) {
+      let best = Infinity;
+      for (let i = 0; i < dirs.length; i++) {
+        for (let j = i + 1; j < dirs.length; j++) {
+          best = Math.min(best, angleBetween(dirs[i], dirs[j]));
+        }
+      }
+      return Number.isFinite(best) ? best : Math.PI;
+    }
+
+    function bankStats(finalDirs, targets, separationThresholdRad) {
+      let mean = 0;
+      let max = 0;
+      for (let i = 0; i < finalDirs.length; i++) {
+        const ang = angleBetween(finalDirs[i], targets[i]);
+        mean += ang;
+        max = Math.max(max, ang);
+      }
+      mean = finalDirs.length ? mean / finalDirs.length : 0;
+      return {
+        meanTargetErrorDeg: mean * 180 / Math.PI,
+        maxTargetErrorDeg: max * 180 / Math.PI,
+        minPairAngleDeg: pairwiseMinAngle(finalDirs) * 180 / Math.PI,
+        thresholdDeg: separationThresholdRad * 180 / Math.PI,
+      };
+    }
+
+    function simulateBankRotation(startDirs, targetDirs, halfAngleRad, stepCount = ROTATE_STEP_COUNT) {
+      const dirs = startDirs.map(v => unit(v));
+      const trajectory = [dirs.map(v => v.clone())];
+      const separationThreshold = Math.min(Math.PI - 1e-4, 2 * halfAngleRad + THREE.MathUtils.degToRad(0.35));
+      const solverIterations = 14;
+      for (let step = 0; step < stepCount; step++) {
+        const remaining = stepCount - step;
+        const candidates = dirs.map((u, i) => slerpUnit(u, targetDirs[i], 1 / remaining));
+
+        for (let iter = 0; iter < solverIterations; iter++) {
+          let changed = false;
+          for (let i = 0; i < candidates.length; i++) {
+            for (let j = i + 1; j < candidates.length; j++) {
+              const ang = angleBetween(candidates[i], candidates[j]);
+              if (ang < separationThreshold) {
+                let axis = new THREE.Vector3().crossVectors(candidates[i], candidates[j]);
+                if (axis.lengthSq() < 1e-12) axis = orthogonalUnit(candidates[i]);
+                axis.normalize();
+                const overlap = separationThreshold - ang;
+                const correction = overlap * 0.52;
+                candidates[i] = unit(candidates[i].clone().applyAxisAngle(axis, -correction * 0.5));
+                candidates[j] = unit(candidates[j].clone().applyAxisAngle(axis, correction * 0.5));
+                changed = true;
+              }
+            }
+          }
+          if (!changed) break;
+        }
+
+        for (let i = 0; i < dirs.length; i++) dirs[i].copy(candidates[i]);
+        trajectory.push(dirs.map(v => v.clone()));
+      }
+      return {
+        trajectory,
+        finalDirs: dirs.map(v => v.clone()),
+        separationThreshold,
+      };
+    }
+
+    const unitSolidConeGeometry = new THREE.ConeGeometry(1, 1, 28, 1, false);
+    unitSolidConeGeometry.translate(0, -0.5, 0);
+    const unitSolidConeEdges = new THREE.EdgesGeometry(unitSolidConeGeometry);
+    const arrowTipGeometry = new THREE.ConeGeometry(0.05, 0.18, 18);
+
+    class SolidAngleArrowObject {
+      constructor(color, opacity = 1, dashed = false) {
+        this.group = new THREE.Group();
+
+        this.bodyMaterial = new THREE.MeshStandardMaterial({
+          color,
+          transparent: true,
+          opacity: opacity * 0.18,
+          metalness: 0.02,
+          roughness: 0.72,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        });
+        this.body = new THREE.Mesh(unitSolidConeGeometry, this.bodyMaterial);
+        this.body.renderOrder = 1;
+        this.group.add(this.body);
+
+        this.edgeMaterial = new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.33, depthWrite: false });
+        this.edges = new THREE.LineSegments(unitSolidConeEdges, this.edgeMaterial);
+        this.edges.renderOrder = 2;
+        this.group.add(this.edges);
+
+        const lineMaterial = dashed
+          ? new THREE.LineDashedMaterial({ color, transparent: true, opacity, dashSize: 0.12, gapSize: 0.08 })
+          : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+        this.line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]), lineMaterial);
+        this.group.add(this.line);
+
+        this.tipMaterial = new THREE.MeshStandardMaterial({ color, transparent: true, opacity, metalness: 0.05, roughness: 0.55 });
+        this.tip = new THREE.Mesh(arrowTipGeometry, this.tipMaterial);
+        this.group.add(this.tip);
+
+        this.dashed = dashed;
+      }
+
+      set(start, end, color, opacity = 1, halfAngleRad = THREE.MathUtils.degToRad(10)) {
+        const dir = end.clone().sub(start);
+        const len = dir.length();
+        this.group.visible = len > 1e-6 && opacity > 1e-3;
+        if (!this.group.visible) return;
+
+        const dirNorm = dir.clone().normalize();
+        const bodyQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), dirNorm);
+        const baseRadius = Math.max(0.001, len * Math.tan(halfAngleRad));
+
+        this.body.position.copy(start);
+        this.body.quaternion.copy(bodyQuat);
+        this.body.scale.set(baseRadius, len, baseRadius);
+        this.body.material.color.set(color);
+        this.body.material.opacity = opacity * 0.18;
+
+        this.edges.position.copy(start);
+        this.edges.quaternion.copy(bodyQuat);
+        this.edges.scale.copy(this.body.scale);
+        this.edgeMaterial.color.set(color);
+        this.edgeMaterial.opacity = opacity * 0.34;
+
+        const headLen = Math.min(0.24, Math.max(0.12, len * 0.18));
+        const shaftLen = Math.max(0.001, len - headLen);
+        const shaftEnd = start.clone().add(dirNorm.clone().multiplyScalar(shaftLen));
+        this.line.geometry.dispose();
+        this.line.geometry = new THREE.BufferGeometry().setFromPoints([start, shaftEnd]);
+        if (this.dashed) this.line.computeLineDistances();
+        this.line.material.color.set(color);
+        this.line.material.opacity = opacity;
+
+        const headRadius = Math.min(0.06, Math.max(0.035, len * 0.06));
+        const tipQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirNorm);
+        this.tip.quaternion.copy(tipQuat);
+        this.tip.material.color.set(color);
+        this.tip.material.opacity = opacity;
+        this.tip.scale.set(headRadius / 0.05, headLen / 0.18, headRadius / 0.05);
+        this.tip.position.copy(end.clone().sub(dirNorm.clone().multiplyScalar(headLen / 2)));
+      }
+
+      dispose() {
+        this.line.geometry.dispose();
+        this.line.material.dispose();
+        this.bodyMaterial.dispose();
+        this.edgeMaterial.dispose();
+        this.tipMaterial.dispose();
+      }
+    }
+
+    function makeAxis(start, end, color) {
+      const geom = new THREE.BufferGeometry().setFromPoints([start, end]);
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.75 });
+      return new THREE.Line(geom, mat);
+    }
+
+    function makeTextSprite(text, color = '#ffffff', width = 256, height = 96, fontSize = 34) {
+      const c = document.createElement('canvas');
+      const ctx = c.getContext('2d');
+      c.width = width;
+      c.height = height;
+      ctx.font = `bold ${fontSize}px Inter, Arial, sans-serif`;
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, c.width / 2, c.height / 2);
+      const tex = new THREE.CanvasTexture(c);
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.set(0.9, 0.3, 1);
+      sprite.userData = { canvas: c, ctx, texture: tex, fontSize };
+      return sprite;
+    }
+
+    function updateTextSprite(sprite, text, color = '#ffffff') {
+      const { canvas, ctx, texture, fontSize } = sprite.userData;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = `bold ${fontSize}px Inter, Arial, sans-serif`;
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+      texture.needsUpdate = true;
+    }
+
+    function makePanel() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 980;
+      canvas.height = 620;
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.98, side: THREE.DoubleSide, depthWrite: false });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(4.1, 2.6), material);
+      mesh.position.set(0, 0, 2.8);
+      mesh.userData = { canvas, ctx: canvas.getContext('2d'), texture };
+      return mesh;
+    }
+
+    function drawActivationPanel(mesh, mode, inputVals, outputVals, progress, titlePrefix = '', options = {}) {
+      const { canvas, ctx, texture } = mesh.userData;
+      const showRowHighlight = options.showRowHighlight ?? true;
+      const showFormula = options.showFormula ?? true;
+      const showMarker = options.showMarker ?? true;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(0,0,0,0.34)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 2;
+      const pad = 28, r = 26;
+      ctx.beginPath();
+      ctx.moveTo(pad + r, pad);
+      ctx.arcTo(canvas.width - pad, pad, canvas.width - pad, canvas.height - pad, r);
+      ctx.arcTo(canvas.width - pad, canvas.height - pad, pad, canvas.height - pad, r);
+      ctx.arcTo(pad, canvas.height - pad, pad, pad, r);
+      ctx.arcTo(pad, pad, canvas.width - pad, pad, r);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 34px Inter, Arial';
+      ctx.fillText(`${titlePrefix}${activationName(mode)}`, 48, 58);
+
+      const gx = 70, gy = 105, gw = 300, gh = 200;
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(gx, gy + gh / 2); ctx.lineTo(gx + gw, gy + gh / 2);
+      ctx.moveTo(gx + gw / 2, gy); ctx.lineTo(gx + gw / 2, gy + gh);
+      ctx.stroke();
+
+      const f = mode === 'relu2' ? relu2 : relu;
+      ctx.strokeStyle = mode === 'relu2' ? '#52b788' : '#ffd166';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      for (let i = 0; i <= 240; i++) {
+        const x = -1 + (i / 240) * 2;
+        const y = f(x);
+        const px = gx + (x + 1) / 2 * gw;
+        const py = gy + gh - (Math.min(1, y) * gh * 0.75 + gh * 0.125);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+
+      const currentIdx = Math.max(0, Math.min(inputVals.length - 1, Math.floor(progress * inputVals.length)));
+      const perItemT = (idx) => smoothstep01(progress * inputVals.length - idx);
+      const leftX = 460;
+      const rightX = 760;
+      const startY = 130;
+      const rowH = Math.min(42, 300 / Math.max(1, inputVals.length));
+
+      ctx.fillStyle = 'rgba(255,255,255,0.86)';
+      ctx.font = '24px Inter, Arial';
+      ctx.fillText('read coefficients', leftX, 100);
+      ctx.fillText('activated coefficients', rightX, 100);
+
+      ctx.font = 'bold 22px ui-monospace, Menlo, Consolas, monospace';
+      for (let i = 0; i < inputVals.length; i++) {
+        const y = startY + i * rowH;
+        const alphaIn = perItemT(i);
+        const alphaOut = smoothstep01(progress * inputVals.length - i - 0.35);
+        const rowActive = i === currentIdx;
+        if (showRowHighlight && rowActive) {
+          ctx.fillStyle = 'rgba(255,255,255,0.08)';
+          ctx.fillRect(leftX - 95, y - 16, 430, 28);
+        }
+        ctx.fillStyle = `rgba(199,125,255,${0.25 + 0.75 * alphaIn})`;
+        ctx.fillText(`r${i} = ${inputVals[i].toFixed(2)}`, leftX, y);
+        ctx.fillStyle = `rgba(82,183,136,${0.18 + 0.82 * alphaOut})`;
+        ctx.fillText(`a${i} = ${outputVals[i].toFixed(2)}`, rightX, y);
+      }
+
+      const activeIn = inputVals[currentIdx] ?? 0;
+      const activeOut = outputVals[currentIdx] ?? 0;
+      if (showFormula) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px Inter, Arial';
+        const formula = mode === 'relu2'
+          ? `a${currentIdx} = max(0, ${activeIn.toFixed(2)})² = ${activeOut.toFixed(2)}`
+          : `a${currentIdx} = max(0, ${activeIn.toFixed(2)}) = ${activeOut.toFixed(2)}`;
+        ctx.fillText(formula, 80, 355);
+      }
+
+      if (showMarker) {
+        const markerX = gx + ((activeIn + 1) / 2) * gw;
+        const markerY = gy + gh - (Math.min(1, Math.max(0, f(activeIn))) * gh * 0.75 + gh * 0.125);
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(markerX, markerY, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      texture.needsUpdate = true;
+    }
+
+    const canvas = document.getElementById('scene');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(BG, 1);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(BG);
+    const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
+    const INITIAL_CAMERA_POS = new THREE.Vector3(0, 4.2, 9.6);
+    camera.position.copy(INITIAL_CAMERA_POS);
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.enablePan = true;
+    controls.target.set(0, 0, 0);
+    controls.update();
+    scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+    const dir1 = new THREE.DirectionalLight(0xffffff, 1.2); dir1.position.set(4, 5, 6); scene.add(dir1);
+    const dir2 = new THREE.DirectionalLight(0xffffff, 0.45); dir2.position.set(-5, -3, -4); scene.add(dir2);
+
+    const world = new THREE.Group();
+    scene.add(world);
+
+    const sphereGeometry = new THREE.SphereGeometry(SPHERE_RADIUS, 32, 22);
+    const sphereMaterial = new THREE.MeshBasicMaterial({ color: WHITE, wireframe: true, transparent: true, opacity: 0.08, depthWrite: false });
+    const readSphere = new THREE.Mesh(sphereGeometry, sphereMaterial.clone());
+    readSphere.position.copy(READ_CENTER);
+    world.add(readSphere);
+    const writeSphere = new THREE.Mesh(sphereGeometry, sphereMaterial.clone());
+    writeSphere.position.copy(WRITE_CENTER);
+    world.add(writeSphere);
+
+    const readSphereLabel = makeTextSprite('Read Sphere', WHITE, 320, 90, 30);
+    readSphereLabel.position.copy(READ_CENTER.clone().add(new THREE.Vector3(0, 2.45, 0)));
+    world.add(readSphereLabel);
+    const writeSphereLabel = makeTextSprite('Write Sphere', WHITE, 320, 90, 30);
+    writeSphereLabel.position.copy(WRITE_CENTER.clone().add(new THREE.Vector3(0, 2.45, 0)));
+    world.add(writeSphereLabel);
+
+    function makeLocalAxes(center) {
+      const g = new THREE.Group();
+      const len = 2.45;
+      g.add(makeAxis(center.clone().add(new THREE.Vector3(-len, 0, 0)), center.clone().add(new THREE.Vector3(len, 0, 0)), GRID));
+      g.add(makeAxis(center.clone().add(new THREE.Vector3(0, -len, 0)), center.clone().add(new THREE.Vector3(0, len, 0)), GRID));
+      g.add(makeAxis(center.clone().add(new THREE.Vector3(0, 0, -len)), center.clone().add(new THREE.Vector3(0, 0, len)), GRID));
+      return g;
+    }
+
+    const readLocalAxes = makeLocalAxes(READ_CENTER);
+    const writeLocalAxes = makeLocalAxes(WRITE_CENTER);
+    world.add(readLocalAxes);
+    world.add(writeLocalAxes);
+
+    const incomingObj = new SolidAngleArrowObject(INCOMING, 1, false); world.add(incomingObj.group);
+    const incomingMovedObj = new SolidAngleArrowObject(INCOMING, 1, true); world.add(incomingMovedObj.group);
+    const sumObj = new SolidAngleArrowObject(SUM, 1, true); world.add(sumObj.group);
+    const movedSumObj = new SolidAngleArrowObject(FINALM, 1, true); world.add(movedSumObj.group);
+    const finalObj = new SolidAngleArrowObject(FINAL, 1, false); world.add(finalObj.group);
+    const movedFinalObj = new SolidAngleArrowObject(FINALM, 1, false); world.add(movedFinalObj.group);
+    const compareGhost = new SolidAngleArrowObject(FINAL, 1, false); world.add(compareGhost.group);
+
+    const normalizedLabel = makeTextSprite('continuous', FINAL, 300, 90, 30); normalizedLabel.visible = false; world.add(normalizedLabel);
+    const movedNormalizedLabel = makeTextSprite('moved', FINALM, 300, 90, 30); movedNormalizedLabel.visible = false; world.add(movedNormalizedLabel);
+    const activationPanel = makePanel(); activationPanel.visible = false; scene.add(activationPanel);
+    const movedActivationPanel = makePanel(); movedActivationPanel.visible = false; scene.add(movedActivationPanel);
+
+    const readTargetDotsGroup = new THREE.Group();
+    readTargetDotsGroup.position.copy(READ_CENTER);
+    world.add(readTargetDotsGroup);
+    const writeTargetDotsGroup = new THREE.Group();
+    writeTargetDotsGroup.position.copy(WRITE_CENTER);
+    world.add(writeTargetDotsGroup);
+
+    const state = {
+      forceOverview: true,
+      stage: 0,
+      progress: 0,
+      playing: true,
+      autoRotate: false,
+      showLabels: true,
+      showTargetDots: true,
+      activation: 'relu',
+      vectorCount: 8,
+      coneHalfAngleDeg: 10,
+      stageStartedAt: performance.now(),
+    };
+
+    let datasetSeed = 11;
+    let targetSeed = 101;
+    let data = makeDataset(datasetSeed, state.vectorCount);
+    let targets = makeRotationTargets(targetSeed, state.vectorCount);
+    let rotationExperiment = null;
+    let derived = null;
+
+    const dyn = {
+      contReadObjs: [],
+      movedReadObjs: [],
+      contWriteObjs: [],
+      movedWriteObjs: [],
+      scaledObjs: [],
+      movedScaledObjs: [],
+      chainObjs: [],
+      movedChainObjs: [],
+      dotLines: [],
+      movedDotLines: [],
+      dotLabels: [],
+      movedDotLabels: [],
+      coeffLabels: [],
+      movedCoeffLabels: [],
+      transferLines: [],
+    };
+
+    function clearGroupChildren(group) {
+      while (group.children.length) {
+        const c = group.children[group.children.length - 1];
+        group.remove(c);
+        c.geometry?.dispose?.();
+        c.material?.dispose?.();
+      }
+    }
+
+    function clearDynamicVisuals() {
+      const arrays = Object.values(dyn);
+      for (const arr of arrays) {
+        for (const item of arr) {
+          if (item.group) {
+            world.remove(item.group);
+            item.dispose?.();
+          } else {
+            world.remove(item);
+            item.geometry?.dispose?.();
+            item.material?.dispose?.();
+          }
+        }
+        arr.length = 0;
+      }
+    }
+
+    function buildDynamicVisuals() {
+      clearDynamicVisuals();
+      for (let i = 0; i < state.vectorCount; i++) {
+        const addDashed = (arr, color) => {
+          const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+          const m = new THREE.LineDashedMaterial({ color, transparent: true, opacity: 0.5, dashSize: 0.08, gapSize: 0.06 });
+          const l = new THREE.Line(g, m);
+          l.visible = false;
+          world.add(l);
+          arr.push(l);
+        };
+        addDashed(dyn.dotLines, READ);
+        addDashed(dyn.movedDotLines, MOVE);
+
+        const dotLabel = makeTextSprite('0.00', READ, 220, 84, 30); dotLabel.visible = false; dyn.dotLabels.push(dotLabel); world.add(dotLabel);
+        const movedDotLabel = makeTextSprite('0.00', MOVE, 220, 84, 30); movedDotLabel.visible = false; dyn.movedDotLabels.push(movedDotLabel); world.add(movedDotLabel);
+        const coeffLabel = makeTextSprite('0.00', WHITE, 220, 84, 30); coeffLabel.visible = false; dyn.coeffLabels.push(coeffLabel); world.add(coeffLabel);
+        const movedCoeffLabel = makeTextSprite('0.00', WHITE, 220, 84, 30); movedCoeffLabel.visible = false; dyn.movedCoeffLabels.push(movedCoeffLabel); world.add(movedCoeffLabel);
+
+        const tg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+        const tm = new THREE.LineDashedMaterial({ color: MOVE, transparent: true, opacity: 0.0, dashSize: 0.09, gapSize: 0.06 });
+        const tl = new THREE.Line(tg, tm);
+        tl.visible = false;
+        dyn.transferLines.push(tl);
+        world.add(tl);
+
+        const groups = [
+          ['contReadObjs', BASE],
+          ['movedReadObjs', MOVE],
+          ['contWriteObjs', BASE],
+          ['movedWriteObjs', MOVE],
+          ['scaledObjs', SCALED],
+          ['movedScaledObjs', MOVE],
+          ['chainObjs', SUM],
+          ['movedChainObjs', FINALM],
+        ];
+        for (const [name, color] of groups) {
+          const obj = new SolidAngleArrowObject(color, 1, false);
+          dyn[name].push(obj);
+          world.add(obj.group);
+        }
+      }
+    }
+
+    function rebuildTargetDots() {
+      clearGroupChildren(readTargetDotsGroup);
+      clearGroupChildren(writeTargetDotsGroup);
+      const dotGeom = new THREE.SphereGeometry(0.04, 10, 10);
+      for (const d of targets.readTargets) {
+        const mat = new THREE.MeshBasicMaterial({ color: MOVE, transparent: true, opacity: 0.82, depthWrite: false });
+        const m = new THREE.Mesh(dotGeom, mat);
+        m.position.copy(d.clone().multiplyScalar(SPHERE_RADIUS));
+        readTargetDotsGroup.add(m);
+      }
+      for (const d of targets.writeTargets) {
+        const mat = new THREE.MeshBasicMaterial({ color: MOVE, transparent: true, opacity: 0.82, depthWrite: false });
+        const m = new THREE.Mesh(dotGeom.clone(), mat);
+        m.position.copy(d.clone().multiplyScalar(SPHERE_RADIUS));
+        writeTargetDotsGroup.add(m);
+      }
+    }
+
+    function computeRotationExperiment() {
+      const halfAngleRad = THREE.MathUtils.degToRad(state.coneHalfAngleDeg);
+      const readSim = simulateBankRotation(data.readUnitVecs, targets.readTargets, halfAngleRad, ROTATE_STEP_COUNT);
+      const writeSim = simulateBankRotation(data.writeUnitVecs, targets.writeTargets, halfAngleRad, ROTATE_STEP_COUNT);
+      rotationExperiment = {
+        stepCount: ROTATE_STEP_COUNT,
+        readTraj: readSim.trajectory,
+        writeTraj: writeSim.trajectory,
+        readFinalDirs: readSim.finalDirs,
+        writeFinalDirs: writeSim.finalDirs,
+        readStats: bankStats(readSim.finalDirs, targets.readTargets, readSim.separationThreshold),
+        writeStats: bankStats(writeSim.finalDirs, targets.writeTargets, writeSim.separationThreshold),
+      };
+    }
+
+    function computeDerived() {
+      const movedReadUnitVecs = rotationExperiment.readFinalDirs;
+      const movedWriteUnitVecs = rotationExperiment.writeFinalDirs;
+
+      const readVec = data.readUnitVecs.map(v => data.incomingVec.clone().normalize().dot(v));
+      const postVec = readVec.map(v => applyActivation(state.activation, v));
+      const scaledVecs = data.writeUnitVecs.map((v, i) => v.clone().multiplyScalar(postVec[i] * SPHERE_RADIUS));
+      const chain = [];
+      let acc = new THREE.Vector3(0, 0, 0);
+      for (let i = 0; i < state.vectorCount; i++) {
+        const start = acc.clone();
+        const end = acc.clone().add(scaledVecs[i]);
+        chain.push({ start, end, index: i });
+        acc = end;
+      }
+      const sumVec = acc.clone();
+      const finalVec = unit(sumVec).multiplyScalar(SPHERE_RADIUS);
+
+      const movedReadVec = movedReadUnitVecs.map(v => data.incomingVec.clone().normalize().dot(v));
+      const movedPostVec = movedReadVec.map(v => applyActivation(state.activation, v));
+      const movedScaledVecs = movedWriteUnitVecs.map((v, i) => v.clone().multiplyScalar(movedPostVec[i] * SPHERE_RADIUS));
+      const movedChain = [];
+      let movedAcc = new THREE.Vector3(0, 0, 0);
+      for (let i = 0; i < state.vectorCount; i++) {
+        const start = movedAcc.clone();
+        const end = movedAcc.clone().add(movedScaledVecs[i]);
+        movedChain.push({ start, end, index: i });
+        movedAcc = end;
+      }
+      const movedSumVec = movedAcc.clone();
+      const movedFinalVec = unit(movedSumVec).multiplyScalar(SPHERE_RADIUS);
+      const cosine = finalVec.length() > 1e-9 && movedFinalVec.length() > 1e-9 ? unit(finalVec).dot(unit(movedFinalVec)) : 0;
+      const angleDeg = Math.acos(clampDot(cosine)) * 180 / Math.PI;
+
+      return {
+        movedReadUnitVecs,
+        movedWriteUnitVecs,
+        readVec,
+        postVec,
+        scaledVecs,
+        chain,
+        sumVec,
+        finalVec,
+        movedReadVec,
+        movedPostVec,
+        movedScaledVecs,
+        movedChain,
+        movedSumVec,
+        movedFinalVec,
+        cosine,
+        angleDeg,
+      };
+    }
+
+    function rebuildAll({ keepTargets = true } = {}) {
+      data = makeDataset(datasetSeed, state.vectorCount);
+      if (!keepTargets) targetSeed += 1;
+      targets = makeRotationTargets(targetSeed, state.vectorCount);
+      buildDynamicVisuals();
+      rebuildTargetDots();
+      computeRotationExperiment();
+      derived = computeDerived();
+      state.playing = false;
+      state.progress = 0;
+      state.stage = 0;
+      state.stageStartedAt = performance.now();
+      refreshUi();
+    }
+
+    buildDynamicVisuals();
+    rebuildTargetDots();
+    computeRotationExperiment();
+    derived = computeDerived();
+
+    const stageNameEl = document.getElementById('stageName');
+    const progressLabelEl = document.getElementById('progressLabel');
+    const progressSliderEl = document.getElementById('progressSlider');
+    const playPauseBtn = document.getElementById('playPause');
+    const resetStageBtn = document.getElementById('resetStage');
+    const newRandomTargetsBtn = document.getElementById('newRandomTargets');
+    const replayMoveBtn = document.getElementById('replayMove');
+    const reinitializeVectorsBtn = document.getElementById('reinitializeVectors');
+    const initialViewBtn = document.getElementById('initialView');
+    const autoRotateEl = document.getElementById('autoRotate');
+    const showLabelsEl = document.getElementById('showLabels');
+    const showTargetDotsEl = document.getElementById('showTargetDots');
+    const activationSelectEl = document.getElementById('activationSelect');
+    const vectorCountSelectEl = document.getElementById('vectorCountSelect');
+    const solidAngleSliderEl = document.getElementById('solidAngleSlider');
+    const solidAngleLabelEl = document.getElementById('solidAngleLabel');
+    const stageButtons = [...document.querySelectorAll('[data-stage]')];
+    const readVectorGrid = document.getElementById('readVectorGrid');
+    const movedReadVectorGrid = document.getElementById('movedReadVectorGrid');
+    const compareGrid = document.getElementById('compareGrid');
+
+    function populateVectorGrid(el, vals, prefix) {
+      el.innerHTML = '';
+      vals.forEach((v, i) => {
+        const item = document.createElement('div');
+        item.className = 'vector-item';
+        item.innerHTML = `<span>${prefix}${i}</span><span class="mono">${v.toFixed(4)}</span>`;
+        el.appendChild(item);
+      });
+    }
+
+    function populateCompareGrid() {
+      compareGrid.innerHTML = '';
+      const rows = [
+        ['slot transfer', 'read coefficient i → write coefficient i'],
+        ['dot product', derived.cosine.toFixed(6)],
+        ['angle (deg)', derived.angleDeg.toFixed(4)],
+        ['read target mean err', `${rotationExperiment.readStats.meanTargetErrorDeg.toFixed(2)}°`],
+        ['write target mean err', `${rotationExperiment.writeStats.meanTargetErrorDeg.toFixed(2)}°`],
+        ['read min sep', `${rotationExperiment.readStats.minPairAngleDeg.toFixed(2)}°`],
+        ['write min sep', `${rotationExperiment.writeStats.minPairAngleDeg.toFixed(2)}°`],
+        ['continuous norm dir', `[${derived.finalVec.toArray().map(x => x.toFixed(3)).join(', ')}]`],
+        ['moved norm dir', `[${derived.movedFinalVec.toArray().map(x => x.toFixed(3)).join(', ')}]`],
+      ];
+      rows.forEach(([k, v]) => {
+        const item = document.createElement('div');
+        item.className = 'vector-item';
+        item.innerHTML = `<span>${k}</span><span class="mono">${v}</span>`;
+        compareGrid.appendChild(item);
+      });
+    }
+
+    function refreshUi() {
+      stageNameEl.textContent = stageLabel(state.stage);
+      progressLabelEl.textContent = `${Math.round(state.progress * 100)}%`;
+      progressSliderEl.value = String(Math.round(state.progress * 1000));
+      playPauseBtn.textContent = state.playing ? 'Pause' : 'Play';
+      vectorCountSelectEl.value = String(state.vectorCount);
+      activationSelectEl.value = state.activation;
+      solidAngleSliderEl.value = String(state.coneHalfAngleDeg);
+      const halfAngleRad = THREE.MathUtils.degToRad(state.coneHalfAngleDeg);
+      solidAngleLabelEl.textContent = `α = ${state.coneHalfAngleDeg.toFixed(1)}° • Ω = ${steradiansForHalfAngle(halfAngleRad).toFixed(3)} sr`;
+      stageButtons.forEach(btn => btn.classList.toggle('active', Number(btn.dataset.stage) === state.stage));
+      populateVectorGrid(readVectorGrid, derived.readVec, 'r');
+      populateVectorGrid(movedReadVectorGrid, derived.movedReadVec, 'm');
+      populateCompareGrid();
+    }
+
+    function recalcRotationAndDerived() {
+      computeRotationExperiment();
+      derived = computeDerived();
+      rebuildTargetDots();
+      refreshUi();
+    }
+
+    function goToStage(next) {
+      state.forceOverview = false;
+      state.stage = Math.max(0, Math.min(13, next));
+      state.playing = true;
+      state.progress = 0;
+      state.stageStartedAt = performance.now();
+      refreshUi();
+    }
+
+    stageButtons.forEach(btn => btn.addEventListener('click', () => goToStage(Number(btn.dataset.stage))));
+    playPauseBtn.addEventListener('click', () => {
+      state.playing = !state.playing;
+      if (state.playing) state.stageStartedAt = performance.now() - state.progress * getStageDuration(state.stage) * 1000;
+      refreshUi();
+    });
+    resetStageBtn.addEventListener('click', () => { state.progress = 0; state.playing = false; refreshUi(); });
+    newRandomTargetsBtn.addEventListener('click', () => {
+      targetSeed += 1;
+      targets = makeRotationTargets(targetSeed, state.vectorCount);
+      recalcRotationAndDerived();
+      goToStage(6);
+    });
+    replayMoveBtn.addEventListener('click', () => {
+      recalcRotationAndDerived();
+      goToStage(6);
+    });
+    reinitializeVectorsBtn.addEventListener('click', () => {
+      datasetSeed += 1;
+      state.forceOverview = true;
+      rebuildAll({ keepTargets: true });
+    });
+    initialViewBtn.addEventListener('click', () => {
+      state.forceOverview = true;
+      state.stage = 0;
+      state.progress = 0;
+      state.playing = false;
+      controls.target.set(0, 0, 0);
+      camera.position.copy(INITIAL_CAMERA_POS);
+      controls.update();
+      refreshUi();
+    });
+    progressSliderEl.addEventListener('input', e => { state.progress = Number(e.target.value) / 1000; state.playing = false; refreshUi(); });
+    autoRotateEl.addEventListener('change', e => { state.autoRotate = e.target.checked; });
+    showLabelsEl.addEventListener('change', e => { state.showLabels = e.target.checked; });
+    showTargetDotsEl.addEventListener('change', e => { state.showTargetDots = e.target.checked; });
+    activationSelectEl.addEventListener('change', e => { state.activation = e.target.value; derived = computeDerived(); refreshUi(); });
+    vectorCountSelectEl.addEventListener('change', e => { state.vectorCount = Number(e.target.value); rebuildAll({ keepTargets: true }); });
+    solidAngleSliderEl.addEventListener('input', e => {
+      state.coneHalfAngleDeg = Number(e.target.value);
+      recalcRotationAndDerived();
+    });
+
+    function resize() {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+    refreshUi();
+
+    function setDashedLine(line, a, b, color, opacity) {
+      line.visible = opacity > 0.001;
+      if (!line.visible) return;
+      line.geometry.dispose();
+      line.geometry = new THREE.BufferGeometry().setFromPoints([a, b]);
+      line.computeLineDistances();
+      line.material.opacity = opacity;
+      line.material.color.set(color);
+    }
+
+    function coneHalfAngleRad() { return THREE.MathUtils.degToRad(state.coneHalfAngleDeg); }
+
+    function hideAllExtras() {
+      activationPanel.visible = false;
+      movedActivationPanel.visible = false;
+      normalizedLabel.visible = false;
+      movedNormalizedLabel.visible = false;
+      compareGhost.group.visible = false;
+      finalObj.group.visible = false;
+      movedFinalObj.group.visible = false;
+      sumObj.group.visible = false;
+      movedSumObj.group.visible = false;
+      incomingMovedObj.group.visible = false;
+      readTargetDotsGroup.visible = state.showTargetDots && state.stage >= 6;
+      writeTargetDotsGroup.visible = state.showTargetDots && state.stage >= 6;
+    }
+
+    function stageFocusCenter(stage) {
+      if (state.forceOverview) return new THREE.Vector3(0, 0, 0);
+      if (stage === 0 || stage === 1 || stage === 7 || stage === 8) return READ_CENTER;
+      if (stage === 2 || stage === 3 || stage === 4 || stage === 5 || stage === 9 || stage === 10 || stage === 11 || stage === 12 || stage === 13) return WRITE_CENTER;
+      return new THREE.Vector3(0, 0, 0);
+    }
+
+    function sideOpacities(stage) {
+      if (state.forceOverview) return { read: 1.0, write: 1.0 };
+      if (stage === 0 || stage === 1 || stage === 7 || stage === 8) return { read: 1.0, write: 0.08 };
+      if (stage === 2 || stage === 3 || stage === 4 || stage === 5 || stage === 9 || stage === 11 || stage === 12 || stage === 13) return { read: 0.08, write: 1.0 };
+      return { read: 1.0, write: 1.0 };
+    }
+
+    function setSphereSideOpacities(readOpacity, writeOpacity) {
+      readSphere.material.opacity = 0.08 * readOpacity;
+      writeSphere.material.opacity = 0.08 * writeOpacity;
+      readLocalAxes.children.forEach(c => { c.material.opacity = 0.75 * readOpacity; });
+      writeLocalAxes.children.forEach(c => { c.material.opacity = 0.75 * writeOpacity; });
+      readSphereLabel.material.opacity = readOpacity;
+      writeSphereLabel.material.opacity = writeOpacity;
+    }
+
+    function renderBaseSectors(baseOpacity, movedOpacity) {
+      const side = sideOpacities(state.stage);
+      const halfAngle = coneHalfAngleRad();
+      for (let i = 0; i < state.vectorCount; i++) {
+        const contReadEnd = READ_CENTER.clone().add(data.readUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+        const movedReadEnd = READ_CENTER.clone().add(derived.movedReadUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+        const contWriteEnd = WRITE_CENTER.clone().add(data.writeUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+        const movedWriteEnd = WRITE_CENTER.clone().add(derived.movedWriteUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+        dyn.contReadObjs[i].set(READ_CENTER, contReadEnd, BASE, baseOpacity * side.read, halfAngle);
+        dyn.movedReadObjs[i].set(READ_CENTER, movedReadEnd, MOVE, movedOpacity * side.read, halfAngle);
+        dyn.contWriteObjs[i].set(WRITE_CENTER, contWriteEnd, BASE, baseOpacity * side.write, halfAngle);
+        dyn.movedWriteObjs[i].set(WRITE_CENTER, movedWriteEnd, MOVE, movedOpacity * side.write, halfAngle);
+      }
+      setSphereSideOpacities(side.read, side.write);
+    }
+
+    function renderRandomRotateStage(t) {
+      const halfAngle = coneHalfAngleRad();
+      const readDirs = rotationExperiment.readTraj[Math.min(rotationExperiment.stepCount, Math.round(t * rotationExperiment.stepCount))];
+      const writeDirs = rotationExperiment.writeTraj[Math.min(rotationExperiment.stepCount, Math.round(t * rotationExperiment.stepCount))];
+      for (let i = 0; i < state.vectorCount; i++) {
+        const contReadEnd = READ_CENTER.clone().add(readDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+        const contWriteEnd = WRITE_CENTER.clone().add(writeDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+        const targetReadEnd = READ_CENTER.clone().add(targets.readTargets[i].clone().multiplyScalar(SPHERE_RADIUS));
+        const targetWriteEnd = WRITE_CENTER.clone().add(targets.writeTargets[i].clone().multiplyScalar(SPHERE_RADIUS));
+        dyn.contReadObjs[i].set(READ_CENTER, contReadEnd, colorLerp(BASE, MOVE, t), 1.0, halfAngle);
+        dyn.contWriteObjs[i].set(WRITE_CENTER, contWriteEnd, colorLerp(BASE, MOVE, t), 1.0, halfAngle);
+        dyn.movedReadObjs[i].set(READ_CENTER, targetReadEnd, MOVE, 0.10, halfAngle);
+        dyn.movedWriteObjs[i].set(WRITE_CENTER, targetWriteEnd, MOVE, 0.10, halfAngle);
+      }
+      setSphereSideOpacities(1.0, 1.0);
+    }
+
+    function hideDerivedArrays() {
+      for (const arr of [dyn.scaledObjs, dyn.movedScaledObjs, dyn.chainObjs, dyn.movedChainObjs]) {
+        for (const obj of arr) obj.group.visible = false;
+      }
+      for (const line of [...dyn.dotLines, ...dyn.movedDotLines, ...dyn.transferLines]) line.visible = false;
+      for (const label of [...dyn.dotLabels, ...dyn.movedDotLabels, ...dyn.coeffLabels, ...dyn.movedCoeffLabels]) label.visible = false;
+    }
+
+    function renderStage() {
+      const s = state.stage;
+      const t = state.progress;
+      const side = sideOpacities(s);
+      const halfAngle = coneHalfAngleRad();
+      hideAllExtras();
+      hideDerivedArrays();
+
+      incomingObj.set(READ_CENTER, READ_CENTER.clone().add(data.incomingVec), INCOMING, (s <= 6 ? 1 : 0.22) * side.read, halfAngle);
+
+      if (s <= 5) renderBaseSectors(1, 0);
+      else if (s === 6) renderRandomRotateStage(t);
+      else if (s === 10) renderBaseSectors(0.045, 0.045);
+      else renderBaseSectors(0.10, 1);
+
+      if (s === 0) {
+        for (let i = 0; i < state.vectorCount; i++) {
+          const end = READ_CENTER.clone().add(data.readUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+          const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+          setDashedLine(dyn.dotLines[i], READ_CENTER.clone().add(data.incomingVec), end, READ, localT * 0.55 * side.read);
+          updateTextSprite(dyn.dotLabels[i], derived.readVec[i].toFixed(2), READ);
+          dyn.dotLabels[i].position.copy(lerpVec(READ_CENTER.clone().add(data.incomingVec), end, 0.55).add(new THREE.Vector3(0.08, 0.08, 0.08)));
+          dyn.dotLabels[i].visible = state.showLabels && localT > 0.05;
+          dyn.dotLabels[i].material.opacity = localT * side.read;
+        }
+      }
+
+      if (s === 1) {
+        activationPanel.visible = true;
+        activationPanel.position.set(0, 0, 2.8);
+        drawActivationPanel(activationPanel, state.activation, derived.readVec, derived.postVec, t, 'Activation: ');
+        activationPanel.lookAt(camera.position);
+        for (let i = 0; i < state.vectorCount; i++) {
+          const end = READ_CENTER.clone().add(data.readUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+          updateTextSprite(dyn.dotLabels[i], derived.readVec[i].toFixed(2), READ);
+          dyn.dotLabels[i].position.copy(end.clone().add(new THREE.Vector3(0.1, 0.1, 0.1)));
+          dyn.dotLabels[i].visible = state.showLabels;
+          dyn.dotLabels[i].material.opacity = 0.2 + 0.8 * smoothstep01(t * state.vectorCount - i);
+        }
+      }
+
+      if (s === 2) {
+        activationPanel.visible = true;
+        activationPanel.position.set(0, 0, 2.8);
+        drawActivationPanel(activationPanel, state.activation, derived.readVec, derived.postVec, 1.0, 'Activation: ', { showRowHighlight: false, showFormula: false, showMarker: false });
+        activationPanel.lookAt(camera.position);
+        for (let i = 0; i < state.vectorCount; i++) {
+          const localT = smoothstep01(t * state.vectorCount - i);
+          const writeEnd = WRITE_CENTER.clone().add(data.writeUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+          const readEnd = READ_CENTER.clone().add(data.readUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+          dyn.contWriteObjs[i].set(WRITE_CENTER, writeEnd, BASE, side.write, halfAngle);
+          setDashedLine(dyn.transferLines[i], readEnd, writeEnd, MOVE, 0.05 + 0.22 * localT);
+          updateTextSprite(dyn.coeffLabels[i], `${i}:${derived.postVec[i].toFixed(2)}`, WHITE);
+          dyn.coeffLabels[i].position.copy(writeEnd.clone().add(new THREE.Vector3(0.14, 0.12, 0.12)));
+          dyn.coeffLabels[i].visible = state.showLabels && localT > 0.02;
+          dyn.coeffLabels[i].material.opacity = localT;
+        }
+      }
+
+      if (s === 3) {
+        for (let i = 0; i < state.vectorCount; i++) {
+          const baseVec = data.writeUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS);
+          const baseEnd = WRITE_CENTER.clone().add(baseVec);
+          const scaledEnd = WRITE_CENTER.clone().add(lerpVec(baseVec, derived.scaledVecs[i], t));
+          dyn.scaledObjs[i].set(WRITE_CENTER, scaledEnd, SCALED, side.write, halfAngle);
+          dyn.contWriteObjs[i].set(WRITE_CENTER, baseEnd, BASE, 0.12 * side.write, halfAngle);
+          updateTextSprite(dyn.coeffLabels[i], `${i}:${derived.postVec[i].toFixed(2)}`, WHITE);
+          dyn.coeffLabels[i].position.copy(WRITE_CENTER.clone().add(derived.scaledVecs[i]).add(new THREE.Vector3(0.12, 0.12, 0.12)));
+          dyn.coeffLabels[i].visible = state.showLabels;
+        }
+      }
+
+      if (s === 4 || s === 5) {
+        for (let i = 0; i < state.vectorCount; i++) {
+          dyn.scaledObjs[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.scaledVecs[i]), SCALED, side.write, halfAngle);
+          dyn.contWriteObjs[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(data.writeUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS)), BASE, 0.04 * side.write, halfAngle);
+          if (s === 4) {
+            const seg = derived.chain[i];
+            const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+            dyn.chainObjs[i].set(WRITE_CENTER.clone().add(seg.start), WRITE_CENTER.clone().add(lerpVec(seg.start, seg.end, smoothstep01(localT))), SUM, localT > 0 ? side.write : 0, halfAngle);
+          } else {
+            const seg = derived.chain[i];
+            dyn.chainObjs[i].set(WRITE_CENTER.clone().add(seg.start), WRITE_CENTER.clone().add(seg.end), SUM, side.write, halfAngle);
+          }
+        }
+        sumObj.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.sumVec), SUM, (s === 4 ? Math.max(0.18, 1 - t * 0.55) : 0.22) * side.write, halfAngle);
+      }
+
+      if (s === 5) {
+        finalObj.set(WRITE_CENTER, WRITE_CENTER.clone().add(lerpVec(derived.sumVec, derived.finalVec, smoothstep01(t))), colorLerp(SUM, FINAL, t), side.write, halfAngle);
+        normalizedLabel.position.copy(WRITE_CENTER.clone().add(derived.finalVec).add(new THREE.Vector3(0.24, 0.14, 0.12)));
+        normalizedLabel.visible = state.showLabels;
+      }
+
+      if (s === 6) {
+        // targets shown by dots + faint ghost sectors; movement itself rendered above.
+      }
+
+      if (s === 7) {
+        incomingMovedObj.set(READ_CENTER, READ_CENTER.clone().add(data.incomingVec), INCOMING, side.read, halfAngle);
+        for (let i = 0; i < state.vectorCount; i++) {
+          const end = READ_CENTER.clone().add(derived.movedReadUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+          const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+          setDashedLine(dyn.movedDotLines[i], READ_CENTER.clone().add(data.incomingVec), end, MOVE, localT * 0.55 * side.read);
+          updateTextSprite(dyn.movedDotLabels[i], derived.movedReadVec[i].toFixed(2), MOVE);
+          dyn.movedDotLabels[i].position.copy(lerpVec(READ_CENTER.clone().add(data.incomingVec), end, 0.55).add(new THREE.Vector3(0.08, 0.08, 0.08)));
+          dyn.movedDotLabels[i].visible = state.showLabels && localT > 0.05;
+          dyn.movedDotLabels[i].material.opacity = localT * side.read;
+        }
+      }
+
+      if (s === 8) {
+        incomingMovedObj.set(READ_CENTER, READ_CENTER.clone().add(data.incomingVec), INCOMING, side.read, halfAngle);
+        movedActivationPanel.visible = true;
+        movedActivationPanel.position.set(0, 0, 2.8);
+        drawActivationPanel(movedActivationPanel, state.activation, derived.movedReadVec, derived.movedPostVec, t, 'Moved activation: ');
+        movedActivationPanel.lookAt(camera.position);
+      }
+
+      if (s === 9) {
+        movedActivationPanel.visible = true;
+        movedActivationPanel.position.set(0, 0, 2.8);
+        drawActivationPanel(movedActivationPanel, state.activation, derived.movedReadVec, derived.movedPostVec, 1.0, 'Moved activation: ', { showRowHighlight: false, showFormula: false, showMarker: false });
+        movedActivationPanel.lookAt(camera.position);
+        for (let i = 0; i < state.vectorCount; i++) {
+          const localT = smoothstep01(t * state.vectorCount - i);
+          const writeEnd = WRITE_CENTER.clone().add(derived.movedWriteUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+          const readEnd = READ_CENTER.clone().add(derived.movedReadUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+          dyn.movedWriteObjs[i].set(WRITE_CENTER, writeEnd, MOVE, side.write, halfAngle);
+          setDashedLine(dyn.transferLines[i], readEnd, writeEnd, MOVE, 0.05 + 0.22 * localT);
+          updateTextSprite(dyn.movedCoeffLabels[i], `${i}:${derived.movedPostVec[i].toFixed(2)}`, WHITE);
+          dyn.movedCoeffLabels[i].position.copy(writeEnd.clone().add(new THREE.Vector3(0.14, 0.12, 0.12)));
+          dyn.movedCoeffLabels[i].visible = state.showLabels && localT > 0.02;
+          dyn.movedCoeffLabels[i].material.opacity = localT;
+        }
+      }
+
+      if (s === 13) {
+        for (let i = 0; i < state.vectorCount; i++) {
+          const baseVec = derived.movedWriteUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS);
+          const baseEnd = WRITE_CENTER.clone().add(baseVec);
+          const scaledEnd = WRITE_CENTER.clone().add(lerpVec(baseVec, derived.movedScaledVecs[i], t));
+          dyn.movedWriteObjs[i].set(WRITE_CENTER, baseEnd, MOVE, 0.12 * side.write, halfAngle);
+          dyn.movedScaledObjs[i].set(WRITE_CENTER, scaledEnd, MOVE, side.write, halfAngle);
+          updateTextSprite(dyn.movedCoeffLabels[i], `${i}:${derived.movedPostVec[i].toFixed(2)}`, WHITE);
+          dyn.movedCoeffLabels[i].position.copy(WRITE_CENTER.clone().add(derived.movedScaledVecs[i]).add(new THREE.Vector3(0.12, 0.12, 0.12)));
+          dyn.movedCoeffLabels[i].visible = state.showLabels;
+        }
+      }
+
+      if (s === 11 || s === 12) {
+        for (let i = 0; i < state.vectorCount; i++) {
+          dyn.movedScaledObjs[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.movedScaledVecs[i]), MOVE, side.write, halfAngle);
+          dyn.movedWriteObjs[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.movedWriteUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS)), MOVE, 0.04 * side.write, halfAngle);
+          if (s === 11) {
+            const seg = derived.movedChain[i];
+            const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+            dyn.movedChainObjs[i].set(WRITE_CENTER.clone().add(seg.start), WRITE_CENTER.clone().add(lerpVec(seg.start, seg.end, smoothstep01(localT))), FINALM, localT > 0 ? side.write : 0, halfAngle);
+          } else {
+            const seg = derived.movedChain[i];
+            dyn.movedChainObjs[i].set(WRITE_CENTER.clone().add(seg.start), WRITE_CENTER.clone().add(seg.end), FINALM, side.write, halfAngle);
+          }
+          updateTextSprite(dyn.movedCoeffLabels[i], `${i}:${derived.movedPostVec[i].toFixed(2)}`, WHITE);
+          dyn.movedCoeffLabels[i].position.copy(WRITE_CENTER.clone().add(derived.movedScaledVecs[i]).add(new THREE.Vector3(0.12, 0.12, 0.12)));
+          dyn.movedCoeffLabels[i].visible = state.showLabels;
+        }
+        movedSumObj.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.movedSumVec), FINALM, (s === 11 ? Math.max(0.18, 1 - t * 0.3) : 0.22) * side.write, halfAngle);
+      }
+
+      if (s === 12) {
+        movedFinalObj.set(WRITE_CENTER, WRITE_CENTER.clone().add(lerpVec(derived.movedSumVec, derived.movedFinalVec, smoothstep01(t))), FINALM, side.write, halfAngle);
+        movedNormalizedLabel.position.copy(WRITE_CENTER.clone().add(derived.movedFinalVec).add(new THREE.Vector3(0.24, -0.18, 0.12)));
+        movedNormalizedLabel.visible = state.showLabels;
+      }
+
+      if (s === 10) {
+        const fadeOpacity = 0.045;
+        incomingObj.set(READ_CENTER, READ_CENTER.clone().add(data.incomingVec), INCOMING, fadeOpacity, halfAngle);
+        incomingMovedObj.set(READ_CENTER, READ_CENTER.clone().add(data.incomingVec), INCOMING, fadeOpacity, halfAngle);
+        for (let i = 0; i < state.vectorCount; i++) {
+          dyn.scaledObjs[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.scaledVecs[i]), SCALED, fadeOpacity, halfAngle);
+          dyn.movedScaledObjs[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.movedScaledVecs[i]), MOVE, fadeOpacity, halfAngle);
+          dyn.chainObjs[i].set(WRITE_CENTER.clone().add(derived.chain[i].start), WRITE_CENTER.clone().add(derived.chain[i].end), SUM, fadeOpacity, halfAngle);
+          dyn.movedChainObjs[i].set(WRITE_CENTER.clone().add(derived.movedChain[i].start), WRITE_CENTER.clone().add(derived.movedChain[i].end), FINALM, fadeOpacity, halfAngle);
+        }
+        sumObj.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.sumVec), SUM, fadeOpacity, halfAngle);
+        movedSumObj.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.movedSumVec), FINALM, fadeOpacity, halfAngle);
+        compareGhost.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.finalVec), FINAL, 0.95, halfAngle);
+        movedFinalObj.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.movedFinalVec), FINALM, 0.95, halfAngle);
+        updateTextSprite(normalizedLabel, 'continuous', FINAL);
+        updateTextSprite(movedNormalizedLabel, 'moved', FINALM);
+        normalizedLabel.position.copy(WRITE_CENTER.clone().add(derived.finalVec).add(new THREE.Vector3(0.24, 0.14, 0.12)));
+        movedNormalizedLabel.position.copy(WRITE_CENTER.clone().add(derived.movedFinalVec).add(new THREE.Vector3(0.24, -0.18, 0.12)));
+        normalizedLabel.visible = state.showLabels;
+        movedNormalizedLabel.visible = state.showLabels;
+      }
+    }
+
+    let lastTs = performance.now();
+    function animate(ts) {
+      const dt = Math.min(0.05, (ts - lastTs) / 1000);
+      lastTs = ts;
+      if (state.playing) {
+        const elapsed = (ts - state.stageStartedAt) / 1000;
+        state.progress = clamp01(elapsed / getStageDuration(state.stage));
+        if (state.progress >= 1) state.playing = false;
+        refreshUi();
+      }
+      const targetCenter = stageFocusCenter(state.stage);
+      controls.target.lerp(targetCenter, 0.08);
+      if (state.autoRotate) {
+        const orbitPoint = controls.target.clone();
+        camera.position.sub(orbitPoint);
+        camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), dt * 0.22);
+        camera.position.add(orbitPoint);
+      }
+      controls.update();
+      renderStage();
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

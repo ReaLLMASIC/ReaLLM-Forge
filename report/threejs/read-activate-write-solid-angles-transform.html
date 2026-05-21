@@ -1,0 +1,2253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Read / Activate / Write with Solid Angles + Target Drift</title>
+  <style>
+    :root {
+      --bg: #1b1b2f;
+      --panel: rgba(255,255,255,0.06);
+      --panel-2: rgba(255,255,255,0.08);
+      --border: rgba(255,255,255,0.12);
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.72);
+      --incoming: #ff7b72;
+      --read: #c77dff;
+      --quant: #58c4dd;
+      --target: #ef4444;
+      --base: #ffd166;
+      --scaled: #f4a261;
+      --sum: #4ea8de;
+      --final: #52b788;
+      --finalq: #7dd3fc;
+      --grid: #8d99ae;
+      --sphere: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body { overflow: hidden; }
+
+    #app {
+      display: grid;
+      grid-template-columns: 1fr 460px;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    #scene-wrap { position: relative; min-width: 0; }
+    #scene { width: 100%; height: 100%; display: block; }
+
+    .overlay-top {
+      position: absolute;
+      left: 20px;
+      top: 18px;
+      right: 20px;
+      pointer-events: none;
+    }
+
+    .title-card {
+      max-width: 1080px;
+      background: rgba(0,0,0,0.18);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px 18px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .overlay-bottom {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      background: rgba(0,0,0,0.28);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 10px 12px;
+      color: rgba(255,255,255,0.85);
+      font-size: 13px;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+      max-width: 580px;
+    }
+
+    #sidebar {
+      border-left: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      overflow: auto;
+      padding: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    }
+
+    .panel h2 {
+      margin: 0 0 12px 0;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: rgba(255,255,255,0.58);
+      font-weight: 700;
+    }
+
+    .stage-name {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    button, select {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 16px;
+      padding: 11px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+      width: 100%;
+    }
+
+    button:hover, select:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.12);
+    }
+
+    button.active {
+      border-color: rgba(255,255,255,0.28);
+      background: rgba(255,255,255,0.16);
+    }
+
+    .controls-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .range-wrap { margin-top: 14px; }
+
+    .range-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #7dd3fc;
+    }
+
+    .toggle, .stack-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      font-size: 14px;
+      color: rgba(255,255,255,0.9);
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .vector-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .vector-item {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding-bottom: 4px;
+      gap: 12px;
+    }
+
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .small { font-size: 12px; color: var(--muted); }
+
+    @media (max-width: 1180px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+      #sidebar { border-left: 0; border-top: 1px solid var(--border); max-height: 50vh; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="scene-wrap">
+      <canvas id="scene"></canvas>
+      <div class="overlay-top">
+        <div class="title-card">
+          <h1>Read → Activate → Write, with Solid-Angle Sectors</h1>
+          <div class="subtitle">
+            This keeps the same two-bank read/write pipeline, second-pass bank remap, stage controls, and comparison panel.
+            Every directional vector is shown as an arrow centered inside a transparent solid-angle sector.
+            For the second pass you can snap to the nearest grid, settle toward random red targets with cone bumping, or apply a chosen transform to the incoming vector and read bank while leaving the write bank fixed.
+          </div>
+        </div>
+      </div>
+      <div class="overlay-bottom">
+        Drag to rotate • Scroll to zoom • Right-drag to pan • Coefficients transfer from read bank to write bank by shared slot index i • Set cone aperture before replaying to see how wider cones change target bumping • Lock vector positions to resize sectors without moving any directions
+      </div>
+    </div>
+
+    <aside id="sidebar">
+      <div class="panel">
+        <h2>Current stage</h2>
+        <div class="stage-name" id="stageName"></div>
+        <div class="button-grid">
+          <button data-stage="0">1. Read</button>
+          <button data-stage="1">2. Activation</button>
+          <button data-stage="2">3. Write</button>
+          <button data-stage="3">4. Scale</button>
+          <button data-stage="4">5. Sum</button>
+          <button data-stage="5">6. Normalize</button>
+          <button data-stage="6">7. Quantize Banks</button>
+          <button data-stage="7">8. Q Read</button>
+          <button data-stage="8">9. Q Activation</button>
+          <button data-stage="9">10. Q Write</button>
+          <button data-stage="13">11. Q Scale</button>
+          <button data-stage="11">12. Q Sum</button>
+          <button data-stage="12">13. Q Normalize</button>
+          <button data-stage="10">14. Compare</button>
+          <button data-stage="0">Back to Start</button>
+        </div>
+        <div class="controls-row">
+          <button id="playPause">Pause</button>
+          <button id="resetStage">Reset stage</button>
+        </div>
+        <div class="controls-row">
+          <button id="reinitializeVectors">Reinitialize vectors</button>
+          <button id="initialView">Initial view</button>
+        </div>
+        <div class="range-wrap">
+          <div class="range-row">
+            <span>Stage progress</span>
+            <span id="progressLabel">0%</span>
+          </div>
+          <input id="progressSlider" type="range" min="0" max="1000" value="0" />
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Options</h2>
+        <div class="stack">
+          <div class="stack-row">
+            <span>Activation</span>
+            <select id="activationSelect">
+              <option value="relu">ReLU</option>
+              <option value="relu2">ReLU²</option>
+            </select>
+          </div>
+          <div class="stack-row">
+            <span>Quantization</span>
+            <select id="quantSelect">
+              <option value="ternary">ternary (1.58bit) {-1, 0, +1}</option>
+              <option value="int3">int3 grid {-4,-3,-2,-1,0,1,2,3}</option>
+            </select>
+          </div>
+          <div class="stack-row" style="align-items:flex-start; flex-direction:column;">
+            <span>Second-pass remap</span>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; width:100%; margin-top:8px;">
+              <button id="modeQuantize" class="active">Nearest grid</button>
+              <button id="modeTargets">Random targets</button>
+              <button id="modeTransform">Transform</button>
+            </div>
+            <div class="small" style="margin-top:8px;">
+              Random targets depends strongly on cone aperture. Transform mode uses the target-settled state as its baseline, then applies the selected transform to the incoming vector and read bank while the write bank stays fixed.
+            </div>
+          </div>
+          <div class="stack-row">
+            <span>Read / write vector count</span>
+            <select id="vectorCountSelect">
+              <option value="4">4</option>
+              <option value="6">6</option>
+              <option value="8" selected>8</option>
+              <option value="10">10</option>
+              <option value="12">12</option>
+              <option value="16">16</option>
+            </select>
+          </div>
+          <div class="range-wrap" style="margin-top:0;">
+            <div class="range-row">
+              <span>Solid angle aperture</span>
+              <span id="solidAngleLabel">16° half-angle</span>
+            </div>
+            <input id="solidAngleSlider" type="range" min="0" max="40" value="16" />
+            <div class="small" id="solidAngleNote" style="margin-top:8px;">
+              This changes every cone aperture. When vector positions are unlocked, random-target and transform motion are recomputed at the current half-angle.
+            </div>
+          </div>
+          <label class="toggle"><span>Lock vector positions</span><input id="lockConeMotion" type="checkbox" /></label>
+          <label class="toggle"><span>Auto-rotate scene</span><input id="autoRotate" type="checkbox" /></label>
+          <label class="toggle"><span>Show coefficient labels</span><input id="showLabels" type="checkbox" checked /></label>
+          <label class="toggle"><span>Show quantization dots</span><input id="showQuantDots" type="checkbox" checked /></label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Transform controls</h2>
+        <div class="stack">
+          <div class="stack-row">
+            <span>Type</span>
+            <select id="transformTypeSelect">
+              <option value="cayley">Cayley</option>
+              <option value="gaussian">Gaussian matrix</option>
+              <option value="hadamard">Hadamard-style</option>
+            </select>
+          </div>
+          <div class="stack-row">
+            <span>Transform seed</span>
+            <input id="transformSeedInput" type="number" step="1" value="707" />
+          </div>
+          <div class="controls-row" style="margin-top:0;">
+            <button id="applyTransformSeed">Apply seed</button>
+            <button id="rerollTransform">Re-roll transform</button>
+          </div>
+          <div class="range-wrap" style="margin-top:12px;">
+            <div class="range-row">
+              <span>Transform strength</span>
+              <span id="transformStrengthLabel">0.80</span>
+            </div>
+            <input id="transformStrengthSlider" type="range" min="0" max="2.00" step="0.01" value="0.80" />
+          </div>
+          <div class="small" style="margin-top:8px;">Transform mode applies the selected transform to the incoming vector and read bank only, then recomputes write scaling, summation, and normalization with the write bank fixed.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Continuous read vector</h2>
+        <div class="vector-grid" id="readVectorGrid"></div>
+      </div>
+
+      <div class="panel">
+        <h2 id="secondaryReadTitle">Quantized read vector</h2>
+        <div class="vector-grid" id="qReadVectorGrid"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Comparison</h2>
+        <div class="vector-grid" id="compareGrid"></div>
+        <div class="small" id="compareNote" style="margin-top:10px;">The last stage shows the continuous and quantized final output directions, plus cosine similarity and angle between them.</div>
+      </div>
+    </aside>
+  </div>
+
+  <script type="module">
+import * as THREE from 'https://esm.sh/three@0.160.0';
+import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+const BG = '#1b1b2f';
+const GRID = '#8d99ae';
+const BASE = '#ffd166';
+const SCALED = '#f4a261';
+const SUM = '#4ea8de';
+const FINAL = '#52b788';
+const FINALQ = '#7dd3fc';
+const WHITE = '#ffffff';
+const INCOMING = '#ff7b72';
+const READ = '#c77dff';
+const QUANT = '#58c4dd';
+const TARGET = '#ef4444';
+const TARGET_FINAL = '#fb7185';
+const CAYLEY = '#f9a8d4';
+const CAYLEY_FINAL = '#f472b6';
+const SPHERE_RADIUS = 2;
+const STAGE_SECONDS = 1.2;
+const TARGET_STAGE_SECONDS = 2.4;
+const TRANSFORM_STAGE_SECONDS = 3.0;
+const READ_CENTER = new THREE.Vector3(-2.8, 0, 0);
+const WRITE_CENTER = new THREE.Vector3(2.8, 0, 0);
+const UP = new THREE.Vector3(0, 1, 0);
+const IDENTITY_QUAT = new THREE.Quaternion();
+
+function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+function smoothstep01(x) { const t = clamp01(x); return t * t * (3 - 2 * t); }
+function unit(v) { const n = v.length(); return n > 1e-9 ? v.clone().multiplyScalar(1 / n) : new THREE.Vector3(0, 0, 0); }
+function lerpVec(a, b, t) { return a.clone().lerp(b, t); }
+function colorLerp(c1, c2, t) { return new THREE.Color(c1).lerp(new THREE.Color(c2), clamp01(t)); }
+function angleBetween(a, b) {
+  return Math.acos(Math.max(-1, Math.min(1, unit(a).dot(unit(b)))));
+}
+function slerpUnit(a, b, t) {
+  const ua = unit(a);
+  const ub = unit(b);
+  let dot = Math.max(-1, Math.min(1, ua.dot(ub)));
+  if (dot > 0.9995) return unit(ua.clone().lerp(ub, t));
+  if (dot < -0.9995) {
+    const ortho = orthogonalUnit(ua);
+    return unit(ua.clone().multiplyScalar(Math.cos(Math.PI * t)).add(ortho.multiplyScalar(Math.sin(Math.PI * t))));
+  }
+  const omega = Math.acos(dot);
+  const so = Math.sin(omega);
+  const s1 = Math.sin((1 - t) * omega) / so;
+  const s2 = Math.sin(t * omega) / so;
+  return unit(ua.clone().multiplyScalar(s1).add(ub.clone().multiplyScalar(s2)));
+}
+function orthogonalUnit(v) {
+  const a = Math.abs(v.x) < 0.6 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+  return unit(new THREE.Vector3().crossVectors(v, a));
+}
+function tangentToward(current, target) {
+  const proj = target.clone().sub(current.clone().multiplyScalar(current.dot(target)));
+  return proj.lengthSq() > 1e-10 ? proj.normalize() : orthogonalUnit(current);
+}
+function rotateAlongTangent(current, tangent, stepAngle) {
+  if (stepAngle <= 1e-7) return unit(current);
+  const t = tangent.lengthSq() > 1e-10 ? tangent.clone().normalize() : orthogonalUnit(current);
+  return unit(current.clone().multiplyScalar(Math.cos(stepAngle)).add(t.multiplyScalar(Math.sin(stepAngle))));
+}
+function pushOutOfExclusion(current, obstacle, minSep) {
+  const ang = angleBetween(current, obstacle);
+  if (ang >= minSep) return unit(current);
+  let tangent = current.clone().multiplyScalar(current.dot(obstacle)).sub(obstacle);
+  if (tangent.lengthSq() < 1e-10) tangent = orthogonalUnit(current);
+  return rotateAlongTangent(current, tangent, (minSep - ang) + 0.0025);
+}
+function sampleTrajectory(traj, t) {
+  if (!traj || !traj.length) return new THREE.Vector3(0, 1, 0);
+  const f = clamp01(t) * (traj.length - 1);
+  const i = Math.floor(f);
+  const frac = f - i;
+  if (i >= traj.length - 1) return traj[traj.length - 1].clone();
+  return slerpUnit(traj[i], traj[i + 1], frac);
+}
+
+function seededRng(seed = 1) {
+  let s = seed >>> 0;
+  return function rand() {
+    s = (1664525 * s + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+function gaussian3(rand) {
+  const arr = [];
+  for (let i = 0; i < 3; i++) {
+    const u1 = Math.max(rand(), 1e-12);
+    const u2 = rand();
+    arr.push(Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2));
+  }
+  return new THREE.Vector3(arr[0], arr[1], arr[2]);
+}
+
+function relu(x) { return Math.max(0, x); }
+function relu2(x) { const r = Math.max(0, x); return r * r; }
+function activationName(mode) { return mode === 'relu2' ? 'ReLU²' : 'ReLU'; }
+function applyActivation(mode, x) { return mode === 'relu2' ? relu2(x) : relu(x); }
+
+function quantRange(mode) {
+  if (mode === 'int3') return [-4, -3, -2, -1, 0, 1, 2, 3];
+  return [-1, 0, 1];
+}
+
+function buildQuantDirs(mode) {
+  const values = quantRange(mode);
+  const dirs = [];
+  const seen = new Set();
+  for (const x of values) for (const y of values) for (const z of values) {
+    if (x === 0 && y === 0 && z === 0) continue;
+    const v = unit(new THREE.Vector3(x, y, z));
+    const key = `${v.x.toFixed(6)}|${v.y.toFixed(6)}|${v.z.toFixed(6)}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      dirs.push(v);
+    }
+  }
+  return dirs;
+}
+
+function nearestQuantDir(v, dirs) {
+  const u = unit(v.clone());
+  let best = dirs[0];
+  let bestDot = -Infinity;
+  for (const d of dirs) {
+    const dp = u.dot(d);
+    if (dp > bestDot) {
+      bestDot = dp;
+      best = d;
+    }
+  }
+  return best.clone();
+}
+
+function randomTargetFar(rand, awayFrom) {
+  let v = unit(gaussian3(rand));
+  let attempts = 0;
+  while (attempts < 20 && angleBetween(v, awayFrom) < THREE.MathUtils.degToRad(18)) {
+    v = unit(gaussian3(rand));
+    attempts += 1;
+  }
+  return v;
+}
+
+function makeDataset(seed = 11, count = 8) {
+  const rand = seededRng(seed);
+  const readUnitVecs = [];
+  const writeUnitVecs = [];
+  for (let i = 0; i < count; i++) readUnitVecs.push(unit(gaussian3(rand)));
+  for (let i = 0; i < count; i++) writeUnitVecs.push(unit(gaussian3(rand)));
+  const incomingVec = unit(gaussian3(rand)).multiplyScalar(SPHERE_RADIUS);
+  const targetReadDirs = readUnitVecs.map(v => randomTargetFar(rand, v));
+  const targetWriteDirs = writeUnitVecs.map(v => randomTargetFar(rand, v));
+  return { readUnitVecs, writeUnitVecs, incomingVec, targetReadDirs, targetWriteDirs };
+}
+
+function makeCayleyRotation(seed = 707, strength = 0.8) {
+  const rand = seededRng(seed);
+  const axis = unit(gaussian3(rand));
+  const s = Math.max(0, Number(strength) || 0);
+  const angle = 2 * Math.atan(s);
+  const quat = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+  return {
+    axis,
+    strength: s,
+    angleRad: angle,
+    angleDeg: angle * 180 / Math.PI,
+    quat,
+  };
+}
+
+function gaussianScalar(rand) {
+  const u1 = Math.max(rand(), 1e-12);
+  const u2 = rand();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+function shuffledIndices(rand, n) {
+  const idx = [...Array(n).keys()];
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [idx[i], idx[j]] = [idx[j], idx[i]];
+  }
+  return idx;
+}
+
+function normalizeMatrixRows(rows) {
+  let sumSq = 0;
+  for (const row of rows) for (const v of row) sumSq += v * v;
+  const scale = Math.sqrt(Math.max(1e-12, sumSq / 3));
+  return rows.map(row => row.map(v => v / scale));
+}
+
+function applyMatrixRows(rows, v) {
+  return new THREE.Vector3(
+    rows[0][0] * v.x + rows[0][1] * v.y + rows[0][2] * v.z,
+    rows[1][0] * v.x + rows[1][1] * v.y + rows[1][2] * v.z,
+    rows[2][0] * v.x + rows[2][1] * v.y + rows[2][2] * v.z,
+  );
+}
+
+function makeGaussianRows(seed = 707) {
+  const rand = seededRng(seed);
+  const rows = [
+    [gaussianScalar(rand), gaussianScalar(rand), gaussianScalar(rand)],
+    [gaussianScalar(rand), gaussianScalar(rand), gaussianScalar(rand)],
+    [gaussianScalar(rand), gaussianScalar(rand), gaussianScalar(rand)],
+  ];
+  return normalizeMatrixRows(rows);
+}
+
+function makeHadamardStyleRows(seed = 707) {
+  const rand = seededRng(seed);
+  let rows = [
+    [1, 1, 1],
+    [1, -1, 1],
+    [1, 1, -1],
+  ];
+
+  const rowPerm = shuffledIndices(rand, 3);
+  rows = rowPerm.map(i => rows[i].slice());
+
+  const colPerm = shuffledIndices(rand, 3);
+  rows = rows.map(row => colPerm.map(j => row[j]));
+
+  const rowSigns = [...Array(3)].map(() => rand() < 0.5 ? -1 : 1);
+  const colSigns = [...Array(3)].map(() => rand() < 0.5 ? -1 : 1);
+  rows = rows.map((row, i) => row.map((v, j) => v * rowSigns[i] * colSigns[j]));
+
+  return normalizeMatrixRows(rows);
+}
+
+function transformTypeLabel(type = state.transformType) {
+  if (type === 'gaussian') return 'Gaussian matrix';
+  if (type === 'hadamard') return 'Hadamard-style';
+  return 'Cayley';
+}
+
+function makeTransform(seed = 707, strength = 0.8, type = 'cayley') {
+  if (type === 'cayley') {
+    const cayley = makeCayleyRotation(seed, strength);
+    return {
+      type,
+      seed,
+      strength: cayley.strength,
+      axis: cayley.axis,
+      angleDeg: cayley.angleDeg,
+      quat: cayley.quat,
+      rows: null,
+      applyDirection(v) {
+        return unit(unit(v.clone()).applyQuaternion(cayley.quat));
+      },
+    };
+  }
+
+  const rows = type === 'hadamard' ? makeHadamardStyleRows(seed) : makeGaussianRows(seed);
+  const s = Math.max(0, Number(strength) || 0);
+  return {
+    type,
+    seed,
+    strength: s,
+    axis: null,
+    angleDeg: null,
+    quat: null,
+    rows,
+    applyDirection(v) {
+      const base = unit(v.clone());
+      const mixed = base.clone().add(applyMatrixRows(rows, base).multiplyScalar(s));
+      return mixed.lengthSq() > 1e-12 ? unit(mixed) : base;
+    },
+  };
+}
+
+function simulateTargetSettling(startDirs, targetDirs, halfAngleDeg) {
+  const steps = 220;
+  const alpha = THREE.MathUtils.degToRad(Math.max(0, halfAngleDeg));
+  const minSep = alpha <= 1e-8 ? 0 : Math.min(Math.PI - 0.04, 2 * alpha);
+  const repulsionRange = minSep <= 1e-8 ? 0 : Math.min(Math.PI - 0.04, minSep + THREE.MathUtils.degToRad(12));
+  const dirs = startDirs.map(v => unit(v));
+  const trajectories = dirs.map(v => [v.clone()]);
+
+  for (let step = 0; step < steps; step++) {
+    const proposed = dirs.map(v => v.clone());
+
+    for (let i = 0; i < dirs.length; i++) {
+      const d = dirs[i];
+      const target = targetDirs[i];
+      const targetAngle = angleBetween(d, target);
+      const baseStep = Math.min(0.06, Math.max(0.0045, targetAngle * 0.18));
+      let tangent = tangentToward(d, target).multiplyScalar(1.0);
+
+      for (let j = 0; j < dirs.length; j++) {
+        if (j === i) continue;
+        const other = dirs[j];
+        const ang = angleBetween(d, other);
+        if (repulsionRange > 0 && ang < repulsionRange) {
+          let away = d.clone().multiplyScalar(d.dot(other)).sub(other);
+          if (away.lengthSq() < 1e-10) away = orthogonalUnit(d);
+          away.normalize();
+          const nearWeight = Math.pow((repulsionRange - ang) / repulsionRange, 2);
+          const overlapWeight = minSep > 0 ? Math.max(0, minSep - ang) / Math.max(0.02, minSep) : 0;
+          const strength = (0.45 * nearWeight + 2.25 * overlapWeight) * (0.9 + alpha * 2.8);
+          tangent.add(away.multiplyScalar(strength));
+        }
+      }
+
+      let next = rotateAlongTangent(d, tangent, baseStep);
+      for (let pass = 0; pass < 4; pass++) {
+        let changed = false;
+        for (let j = 0; j < dirs.length; j++) {
+          if (j === i) continue;
+          const other = j < i ? proposed[j] : dirs[j];
+          const ang = angleBetween(next, other);
+          if (minSep > 0 && ang < minSep) {
+            next = pushOutOfExclusion(next, other, minSep);
+            changed = true;
+          }
+        }
+        if (!changed) break;
+      }
+      proposed[i] = unit(next);
+    }
+
+    for (let pass = 0; pass < 5; pass++) {
+      let any = false;
+      for (let i = 0; i < proposed.length; i++) {
+        for (let j = i + 1; j < proposed.length; j++) {
+          const ang = angleBetween(proposed[i], proposed[j]);
+          if (minSep > 0 && ang < minSep) {
+            const push = (minSep - ang) * 0.52 + 0.0015;
+            let awayI = proposed[i].clone().multiplyScalar(proposed[i].dot(proposed[j])).sub(proposed[j]);
+            let awayJ = proposed[j].clone().multiplyScalar(proposed[j].dot(proposed[i])).sub(proposed[i]);
+            if (awayI.lengthSq() < 1e-10) awayI = orthogonalUnit(proposed[i]);
+            if (awayJ.lengthSq() < 1e-10) awayJ = orthogonalUnit(proposed[j]);
+            proposed[i] = rotateAlongTangent(proposed[i], awayI, push);
+            proposed[j] = rotateAlongTangent(proposed[j], awayJ, push);
+            any = true;
+          }
+        }
+      }
+      if (!any) break;
+    }
+
+    for (let i = 0; i < dirs.length; i++) {
+      dirs[i].copy(unit(proposed[i]));
+      trajectories[i].push(dirs[i].clone());
+    }
+  }
+
+  const finalDirs = dirs.map(v => unit(v));
+  const meanMissDeg = finalDirs.length
+    ? finalDirs.reduce((acc, v, i) => acc + angleBetween(v, targetDirs[i]), 0) * 180 / Math.PI / finalDirs.length
+    : 0;
+
+  return { trajectories, finalDirs, minSep, meanMissDeg };
+}
+
+function secondaryPrefix() {
+  return state.transitionMode === 'quantize' ? 'Quantized' : state.transitionMode === 'targets' ? 'Settled' : 'Transformed';
+}
+function secondaryShortPrefix() {
+  return state.transitionMode === 'quantize' ? 'Q' : state.transitionMode === 'targets' ? 'T' : 'X';
+}
+function secondaryAccentColor() {
+  return state.transitionMode === 'quantize' ? QUANT : state.transitionMode === 'targets' ? TARGET : CAYLEY;
+}
+function secondaryFinalColor() {
+  return state.transitionMode === 'quantize' ? FINALQ : state.transitionMode === 'targets' ? TARGET_FINAL : CAYLEY_FINAL;
+}
+function comparePrimaryLabel() {
+  if (state.transitionMode === 'quantize') return 'continuous';
+  if (state.transitionMode === 'targets') return '0° half-angle';
+  return 'pre-transform target';
+}
+function compareSecondaryLabel() {
+  if (state.transitionMode === 'quantize') return 'quantized';
+  if (state.transitionMode === 'targets') return `${state.motionHalfAngleDeg.toFixed(0)}° half-angle`;
+  return 'post-transform target';
+}
+function transitionStageLabel() {
+  if (state.transitionMode === 'quantize') {
+    return `Rotate Banks to ${state.quantMode === 'ternary' ? 'TERNARY (1.58bit)' : 'INT3'} Sphere Grid`;
+  }
+  if (state.transitionMode === 'targets') {
+    return 'Gravitate to Random Targets with Cone Bumping';
+  }
+  return `Transform Input + Read (${transformTypeLabel()})`;
+}
+function secondaryReadHeading() {
+  return state.transitionMode === 'quantize' ? 'Quantized read vector' : state.transitionMode === 'targets' ? 'Settled read vector' : 'Transformed read vector';
+}
+function compareNote() {
+  if (state.transitionMode === 'quantize') {
+    return 'The last stage shows the continuous and quantized final output directions, plus cosine similarity and angle between them.';
+  }
+  if (state.transitionMode === 'targets') {
+    return 'The last stage compares the zero-half-angle target result against the current motion half-angle result, so you can see how cone width changes the final direction.';
+  }
+  return 'The last stage compares the target-settled final before transform against the post-transform target computed from the transformed input/read pipeline with the write bank held fixed.';
+}
+function stageDurationSeconds(stage = state.stage) {
+  if (stage !== 6) return STAGE_SECONDS;
+  if (state.transitionMode === 'targets') return TARGET_STAGE_SECONDS;
+  if (state.transitionMode === 'transform') return TRANSFORM_STAGE_SECONDS;
+  return STAGE_SECONDS;
+}
+function stageLabel(stage) {
+  return ({
+    0: 'Read Vectors',
+    1: `Activation (${activationName(state.activation)})`,
+    2: 'Write Vectors',
+    3: 'Scale',
+    4: 'Sum',
+    5: 'Normalize',
+    6: transitionStageLabel(),
+    7: `${secondaryPrefix()} Read Vectors`,
+    8: `${secondaryPrefix()} Activation (${activationName(state.activation)})`,
+    9: state.transitionMode === 'transform' ? 'Fixed Write Vectors' : `${secondaryPrefix()} Write Vectors`,
+    10: 'Compare Final Directions',
+    11: `${secondaryPrefix()} Sum`,
+    12: `${secondaryPrefix()} Normalize`,
+    13: `${secondaryPrefix()} Scale`,
+  })[stage] || 'Read Vectors';
+}
+
+const UNIT_CONE_GEOMETRY = (() => {
+  const g = new THREE.ConeGeometry(1, 1, 30, 1, true);
+  g.rotateZ(Math.PI);
+  g.translate(0, 0.5, 0);
+  return g;
+})();
+
+let sharedSolidAngleCapGeometry = null;
+let sharedSolidAngleRimGeometry = null;
+
+function buildSolidAngleSharedGeometries(halfAngleDeg) {
+  const oldCap = sharedSolidAngleCapGeometry;
+  const oldRim = sharedSolidAngleRimGeometry;
+  const alpha = Math.max(1e-4, THREE.MathUtils.degToRad(halfAngleDeg));
+  sharedSolidAngleCapGeometry = new THREE.SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, alpha);
+  const rimPts = [];
+  const r = Math.sin(alpha);
+  const y = Math.cos(alpha);
+  const segs = 64;
+  for (let i = 0; i <= segs; i++) {
+    const phi = (i / segs) * Math.PI * 2;
+    rimPts.push(new THREE.Vector3(Math.cos(phi) * r, y, Math.sin(phi) * r));
+  }
+  sharedSolidAngleRimGeometry = new THREE.BufferGeometry().setFromPoints(rimPts);
+  return { oldCap, oldRim };
+}
+
+class DirectionGlyph {
+  constructor(color, opacity = 1, dashed = false) {
+    this.group = new THREE.Group();
+    this.dashed = dashed;
+
+    this.sectorSideMaterial = new THREE.MeshStandardMaterial({
+      color,
+      transparent: true,
+      opacity: Math.min(0.22, opacity * 0.16),
+      metalness: 0.02,
+      roughness: 0.85,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    this.sectorSide = new THREE.Mesh(UNIT_CONE_GEOMETRY, this.sectorSideMaterial);
+    this.sectorSide.renderOrder = 0;
+    this.group.add(this.sectorSide);
+
+    this.sectorCapMaterial = new THREE.MeshStandardMaterial({
+      color,
+      transparent: true,
+      opacity: Math.min(0.16, opacity * 0.09),
+      metalness: 0.02,
+      roughness: 0.85,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    this.sectorCap = new THREE.Mesh(sharedSolidAngleCapGeometry, this.sectorCapMaterial);
+    this.sectorCap.renderOrder = 0;
+    this.group.add(this.sectorCap);
+
+    this.sectorRimMaterial = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: Math.min(0.3, opacity * 0.22),
+      depthWrite: false,
+    });
+    this.sectorRim = new THREE.Line(sharedSolidAngleRimGeometry, this.sectorRimMaterial);
+    this.sectorRim.renderOrder = 1;
+    this.group.add(this.sectorRim);
+
+    this.linePositions = new Float32Array([0, 0, 0, 0, 1, 0]);
+    this.lineGeometry = new THREE.BufferGeometry();
+    this.lineGeometry.setAttribute('position', new THREE.BufferAttribute(this.linePositions, 3));
+    this.lineMaterial = dashed
+      ? new THREE.LineDashedMaterial({ color, transparent: true, opacity, dashSize: 0.12, gapSize: 0.08 })
+      : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+    this.line = new THREE.Line(this.lineGeometry, this.lineMaterial);
+    this.line.renderOrder = 2;
+    this.group.add(this.line);
+
+    this.coneGeometry = new THREE.ConeGeometry(0.05, 0.18, 18);
+    this.coneMaterial = new THREE.MeshStandardMaterial({
+      color,
+      transparent: true,
+      opacity,
+      metalness: 0.05,
+      roughness: 0.55,
+      depthWrite: false,
+    });
+    this.cone = new THREE.Mesh(this.coneGeometry, this.coneMaterial);
+    this.cone.renderOrder = 2;
+    this.group.add(this.cone);
+  }
+
+  set(start, end, color, opacity = 1, sectorScale = 1) {
+    const dir = end.clone().sub(start);
+    const len = dir.length();
+    this.group.visible = len > 1e-6 && opacity > 0.001;
+    if (!this.group.visible) return;
+
+    this.group.position.copy(start);
+    this.group.quaternion.setFromUnitVectors(UP, dir.clone().normalize());
+
+    if (this.sectorCap.geometry !== sharedSolidAngleCapGeometry) this.sectorCap.geometry = sharedSolidAngleCapGeometry;
+    if (this.sectorRim.geometry !== sharedSolidAngleRimGeometry) this.sectorRim.geometry = sharedSolidAngleRimGeometry;
+
+    const alpha = THREE.MathUtils.degToRad(state.solidAngleDeg * sectorScale);
+    const coneHeight = Math.max(0.001, len * Math.cos(alpha));
+    const baseRadius = Math.max(0.001, len * Math.sin(alpha));
+
+    this.sectorSide.scale.set(baseRadius, coneHeight, baseRadius);
+    this.sectorCap.scale.set(len, len, len);
+    this.sectorRim.scale.set(len, len, len);
+
+    this.sectorSideMaterial.color.set(color);
+    this.sectorCapMaterial.color.set(color);
+    this.sectorRimMaterial.color.set(color);
+    this.sectorSideMaterial.opacity = opacity * 0.16;
+    this.sectorCapMaterial.opacity = opacity * 0.08;
+    this.sectorRimMaterial.opacity = opacity * 0.24;
+
+    const headLen = Math.min(0.24, Math.max(0.12, len * 0.18));
+    const shaftLen = Math.max(0.001, len - headLen);
+    const headRadius = Math.min(0.06, Math.max(0.035, len * 0.06));
+
+    this.linePositions[0] = 0;
+    this.linePositions[1] = 0;
+    this.linePositions[2] = 0;
+    this.linePositions[3] = 0;
+    this.linePositions[4] = shaftLen;
+    this.linePositions[5] = 0;
+    this.lineGeometry.attributes.position.needsUpdate = true;
+    this.lineGeometry.computeBoundingSphere();
+    if (this.dashed) this.line.computeLineDistances();
+
+    this.lineMaterial.color.set(color);
+    this.lineMaterial.opacity = opacity;
+    this.coneMaterial.color.set(color);
+    this.coneMaterial.opacity = opacity;
+    this.cone.scale.set(headRadius / 0.05, headLen / 0.18, headRadius / 0.05);
+    this.cone.position.set(0, len - headLen / 2, 0);
+    this.cone.quaternion.identity();
+  }
+
+  dispose() {
+    this.lineGeometry.dispose();
+    this.lineMaterial.dispose();
+    this.coneGeometry.dispose();
+    this.coneMaterial.dispose();
+    this.sectorSideMaterial.dispose();
+    this.sectorCapMaterial.dispose();
+    this.sectorRimMaterial.dispose();
+  }
+}
+
+function makeAxis(start, end, color) {
+  const geom = new THREE.BufferGeometry().setFromPoints([start, end]);
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.75 });
+  return new THREE.Line(geom, mat);
+}
+
+function makeTextSprite(text, color = '#ffffff', width = 256, height = 96, fontSize = 34) {
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  c.width = width;
+  c.height = height;
+  ctx.font = `bold ${fontSize}px Inter, Arial, sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, c.width / 2, c.height / 2);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(0.9, 0.3, 1);
+  sprite.renderOrder = 4;
+  sprite.userData = { canvas: c, ctx, texture: tex, fontSize };
+  return sprite;
+}
+
+function updateTextSprite(sprite, text, color = '#ffffff') {
+  const { canvas, ctx, texture, fontSize } = sprite.userData;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = `bold ${fontSize}px Inter, Arial, sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  texture.needsUpdate = true;
+}
+
+function makePanel() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 980;
+  canvas.height = 620;
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.98, side: THREE.DoubleSide, depthWrite: false });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(4.1, 2.6), material);
+  mesh.position.set(0, 0, 2.8);
+  mesh.renderOrder = 10;
+  mesh.userData = { canvas, ctx: canvas.getContext('2d'), texture };
+  return mesh;
+}
+
+function drawActivationPanel(mesh, mode, inputVals, outputVals, progress, titlePrefix = '', options = {}) {
+  const { canvas, ctx, texture } = mesh.userData;
+  const showRowHighlight = options.showRowHighlight ?? true;
+  const showFormula = options.showFormula ?? true;
+  const showMarker = options.showMarker ?? true;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(0,0,0,0.34)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 2;
+  const pad = 28;
+  const r = 26;
+  ctx.beginPath();
+  ctx.moveTo(pad + r, pad);
+  ctx.arcTo(canvas.width - pad, pad, canvas.width - pad, canvas.height - pad, r);
+  ctx.arcTo(canvas.width - pad, canvas.height - pad, pad, canvas.height - pad, r);
+  ctx.arcTo(pad, canvas.height - pad, pad, pad, r);
+  ctx.arcTo(pad, pad, canvas.width - pad, pad, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 34px Inter, Arial';
+  ctx.fillText(`${titlePrefix}${activationName(mode)}`, 48, 58);
+
+  const gx = 70, gy = 105, gw = 300, gh = 200;
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(gx, gy + gh / 2); ctx.lineTo(gx + gw, gy + gh / 2);
+  ctx.moveTo(gx + gw / 2, gy); ctx.lineTo(gx + gw / 2, gy + gh);
+  ctx.stroke();
+
+  const f = mode === 'relu2' ? relu2 : relu;
+  ctx.strokeStyle = mode === 'relu2' ? '#52b788' : '#ffd166';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  for (let i = 0; i <= 240; i++) {
+    const x = -1 + (i / 240) * 2;
+    const y = f(x);
+    const px = gx + (x + 1) / 2 * gw;
+    const py = gy + gh - (Math.min(1, y) * gh * 0.75 + gh * 0.125);
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  const currentIdx = Math.max(0, Math.min(inputVals.length - 1, Math.floor(progress * inputVals.length)));
+  const perItemT = (idx) => smoothstep01(progress * inputVals.length - idx);
+  const leftX = 460;
+  const rightX = 760;
+  const startY = 130;
+  const rowH = Math.min(42, 300 / Math.max(1, inputVals.length));
+
+  ctx.fillStyle = 'rgba(255,255,255,0.86)';
+  ctx.font = '24px Inter, Arial';
+  ctx.fillText('read coefficients', leftX, 100);
+  ctx.fillText('activated coefficients', rightX, 100);
+
+  ctx.font = 'bold 22px ui-monospace, Menlo, Consolas, monospace';
+  for (let i = 0; i < inputVals.length; i++) {
+    const y = startY + i * rowH;
+    const alphaIn = perItemT(i);
+    const alphaOut = smoothstep01(progress * inputVals.length - i - 0.35);
+    const rowActive = i === currentIdx;
+
+    if (showRowHighlight && rowActive) {
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(leftX - 95, y - 16, 430, 28);
+    }
+
+    ctx.fillStyle = `rgba(199,125,255,${0.25 + 0.75 * alphaIn})`;
+    ctx.fillText(`r${i} = ${inputVals[i].toFixed(2)}`, leftX, y);
+
+    ctx.fillStyle = `rgba(82,183,136,${0.18 + 0.82 * alphaOut})`;
+    ctx.fillText(`a${i} = ${outputVals[i].toFixed(2)}`, rightX, y);
+  }
+
+  const activeIn = inputVals[currentIdx] ?? 0;
+  const activeOut = outputVals[currentIdx] ?? 0;
+  if (showFormula) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 24px Inter, Arial';
+    const formula = mode === 'relu2'
+      ? `a${currentIdx} = max(0, ${activeIn.toFixed(2)})² = ${activeOut.toFixed(2)}`
+      : `a${currentIdx} = max(0, ${activeIn.toFixed(2)}) = ${activeOut.toFixed(2)}`;
+    ctx.fillText(formula, 80, 355);
+  }
+
+  if (showMarker) {
+    const markerX = gx + ((activeIn + 1) / 2) * gw;
+    const markerY = gy + gh - (Math.min(1, Math.max(0, f(activeIn))) * gh * 0.75 + gh * 0.125);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(markerX, markerY, 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  texture.needsUpdate = true;
+}
+
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(BG, 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(BG);
+
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
+const INITIAL_CAMERA_POS = new THREE.Vector3(0, 4.2, 9.6);
+camera.position.copy(INITIAL_CAMERA_POS);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.enablePan = true;
+controls.target.set(0, 0, 0);
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+const dir1 = new THREE.DirectionalLight(0xffffff, 1.2); dir1.position.set(4, 5, 6); scene.add(dir1);
+const dir2 = new THREE.DirectionalLight(0xffffff, 0.45); dir2.position.set(-5, -3, -4); scene.add(dir2);
+
+const world = new THREE.Group(); scene.add(world);
+
+const sphereGeometry = new THREE.SphereGeometry(SPHERE_RADIUS, 32, 22);
+const sphereMaterial = new THREE.MeshBasicMaterial({ color: WHITE, wireframe: true, transparent: true, opacity: 0.08, depthWrite: false });
+const readSphere = new THREE.Mesh(sphereGeometry, sphereMaterial.clone());
+readSphere.position.copy(READ_CENTER);
+world.add(readSphere);
+const writeSphere = new THREE.Mesh(sphereGeometry, sphereMaterial.clone());
+writeSphere.position.copy(WRITE_CENTER);
+world.add(writeSphere);
+
+const readSphereLabel = makeTextSprite('Read Sphere', WHITE, 320, 90, 30);
+readSphereLabel.position.copy(READ_CENTER.clone().add(new THREE.Vector3(0, 2.45, 0)));
+world.add(readSphereLabel);
+const writeSphereLabel = makeTextSprite('Write Sphere', WHITE, 320, 90, 30);
+writeSphereLabel.position.copy(WRITE_CENTER.clone().add(new THREE.Vector3(0, 2.45, 0)));
+world.add(writeSphereLabel);
+
+function makeLocalAxes(center) {
+  const g = new THREE.Group();
+  const len = 2.45;
+  g.add(makeAxis(center.clone().add(new THREE.Vector3(-len, 0, 0)), center.clone().add(new THREE.Vector3(len, 0, 0)), GRID));
+  g.add(makeAxis(center.clone().add(new THREE.Vector3(0, -len, 0)), center.clone().add(new THREE.Vector3(0, len, 0)), GRID));
+  g.add(makeAxis(center.clone().add(new THREE.Vector3(0, 0, -len)), center.clone().add(new THREE.Vector3(0, 0, len)), GRID));
+  return g;
+}
+
+const readLocalAxes = makeLocalAxes(READ_CENTER);
+const writeLocalAxes = makeLocalAxes(WRITE_CENTER);
+world.add(readLocalAxes);
+world.add(writeLocalAxes);
+
+const state = {
+  forceOverview: true,
+  stage: 0,
+  progress: 0,
+  playing: true,
+  autoRotate: false,
+  showLabels: true,
+  showQuantDots: true,
+  activation: 'relu',
+  quantMode: 'ternary',
+  transitionMode: 'quantize',
+  transformType: 'cayley',
+  vectorCount: 8,
+  solidAngleDeg: 16,
+  motionHalfAngleDeg: 16,
+  lockConeMotion: false,
+  cayleySeed: 707,
+  cayleyStrength: 0.80,
+  stageStartedAt: performance.now(),
+};
+
+buildSolidAngleSharedGeometries(state.solidAngleDeg);
+
+const incomingArrow = new DirectionGlyph(INCOMING, 1, false); world.add(incomingArrow.group);
+const incomingArrowQ = new DirectionGlyph(INCOMING, 1, true); world.add(incomingArrowQ.group);
+const sumArrow = new DirectionGlyph(SUM, 0.25, true); world.add(sumArrow.group);
+const qSumArrow = new DirectionGlyph(FINALQ, 0.25, true); world.add(qSumArrow.group);
+const finalArrow = new DirectionGlyph(FINAL, 1, false); world.add(finalArrow.group);
+const qFinalArrow = new DirectionGlyph(FINALQ, 1, false); world.add(qFinalArrow.group);
+const compareGhost = new DirectionGlyph(FINAL, 0.55, false); world.add(compareGhost.group);
+
+const normalizedLabel = makeTextSprite('continuous', FINAL, 300, 90, 30); normalizedLabel.visible = false; world.add(normalizedLabel);
+const qNormalizedLabel = makeTextSprite('secondary', FINALQ, 300, 90, 30); qNormalizedLabel.visible = false; world.add(qNormalizedLabel);
+const activationPanel = makePanel(); activationPanel.visible = false; scene.add(activationPanel);
+const qActivationPanel = makePanel(); qActivationPanel.visible = false; scene.add(qActivationPanel);
+const readQuantDotsGroup = new THREE.Group(); readQuantDotsGroup.position.copy(READ_CENTER); world.add(readQuantDotsGroup);
+const writeQuantDotsGroup = new THREE.Group(); writeQuantDotsGroup.position.copy(WRITE_CENTER); world.add(writeQuantDotsGroup);
+const readTargetDotsGroup = new THREE.Group(); readTargetDotsGroup.position.copy(READ_CENTER); world.add(readTargetDotsGroup);
+const writeTargetDotsGroup = new THREE.Group(); writeTargetDotsGroup.position.copy(WRITE_CENTER); world.add(writeTargetDotsGroup);
+
+let datasetSeed = 11;
+let data = makeDataset(datasetSeed, state.vectorCount);
+let derived = null;
+
+const dyn = {
+  contReadArrows: [],
+  quantReadArrows: [],
+  contWriteArrows: [],
+  quantWriteArrows: [],
+  scaledArrows: [],
+  qScaledArrows: [],
+  chainArrows: [],
+  qChainArrows: [],
+  dotLines: [],
+  qDotLines: [],
+  dotLabels: [],
+  qDotLabels: [],
+  coeffLabels: [],
+  qCoeffLabels: [],
+  transferLines: [],
+  readTargetLines: [],
+  writeTargetLines: [],
+};
+
+function syncGlyphSectorGeometry(glyph) {
+  if (!glyph) return;
+  glyph.sectorCap.geometry = sharedSolidAngleCapGeometry;
+  glyph.sectorRim.geometry = sharedSolidAngleRimGeometry;
+}
+
+function syncAllGlyphSectorGeometries() {
+  const allGlyphs = [
+    incomingArrow,
+    incomingArrowQ,
+    sumArrow,
+    qSumArrow,
+    finalArrow,
+    qFinalArrow,
+    compareGhost,
+    ...dyn.contReadArrows,
+    ...dyn.quantReadArrows,
+    ...dyn.contWriteArrows,
+    ...dyn.quantWriteArrows,
+    ...dyn.scaledArrows,
+    ...dyn.qScaledArrows,
+    ...dyn.chainArrows,
+    ...dyn.qChainArrows,
+  ];
+  allGlyphs.forEach(syncGlyphSectorGeometry);
+}
+
+function clearGroupChildren(group) {
+  while (group.children.length) {
+    const c = group.children[group.children.length - 1];
+    group.remove(c);
+    c.geometry?.dispose?.();
+    c.material?.dispose?.();
+  }
+}
+
+function clearDynamicVisuals() {
+  const arrays = Object.values(dyn);
+  for (const arr of arrays) {
+    for (const item of arr) {
+      if (item.group) {
+        world.remove(item.group);
+        item.dispose?.();
+      } else {
+        world.remove(item);
+        item.geometry?.dispose?.();
+        item.material?.dispose?.();
+      }
+    }
+    arr.length = 0;
+  }
+}
+
+function buildDynamicVisuals() {
+  clearDynamicVisuals();
+  for (let i = 0; i < state.vectorCount; i++) {
+    const addDashed = (arr, color) => {
+      const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      const m = new THREE.LineDashedMaterial({ color, transparent: true, opacity: 0.5, dashSize: 0.08, gapSize: 0.06, depthWrite: false });
+      const l = new THREE.Line(g, m);
+      l.visible = false;
+      world.add(l);
+      arr.push(l);
+    };
+    addDashed(dyn.dotLines, READ);
+    addDashed(dyn.qDotLines, QUANT);
+    addDashed(dyn.transferLines, FINAL);
+    addDashed(dyn.readTargetLines, TARGET);
+    addDashed(dyn.writeTargetLines, TARGET);
+
+    const dotLabel = makeTextSprite('0.00', READ, 220, 84, 30); dotLabel.visible = false; dyn.dotLabels.push(dotLabel); world.add(dotLabel);
+    const qDotLabel = makeTextSprite('0.00', QUANT, 220, 84, 30); qDotLabel.visible = false; dyn.qDotLabels.push(qDotLabel); world.add(qDotLabel);
+    const coeffLabel = makeTextSprite('0.00', WHITE, 220, 84, 30); coeffLabel.visible = false; dyn.coeffLabels.push(coeffLabel); world.add(coeffLabel);
+    const qCoeffLabel = makeTextSprite('0.00', WHITE, 220, 84, 30); qCoeffLabel.visible = false; dyn.qCoeffLabels.push(qCoeffLabel); world.add(qCoeffLabel);
+
+    const glyphGroups = [
+      ['contReadArrows', BASE],
+      ['quantReadArrows', QUANT],
+      ['contWriteArrows', BASE],
+      ['quantWriteArrows', QUANT],
+      ['scaledArrows', SCALED],
+      ['qScaledArrows', QUANT],
+      ['chainArrows', SUM],
+      ['qChainArrows', FINALQ],
+    ];
+    for (const [name, color] of glyphGroups) {
+      const a = new DirectionGlyph(color, 1, false);
+      dyn[name].push(a);
+      world.add(a.group);
+    }
+  }
+}
+
+function computePipeline(readDirs, writeDirs, incomingVec) {
+  const incomingUnit = unit(incomingVec.clone());
+  const readVec = readDirs.map(v => incomingUnit.dot(v));
+  const postVec = readVec.map(v => applyActivation(state.activation, v));
+  const scaledVecs = writeDirs.map((v, i) => v.clone().multiplyScalar(postVec[i] * SPHERE_RADIUS));
+  const chain = [];
+  let acc = new THREE.Vector3(0, 0, 0);
+  for (let i = 0; i < state.vectorCount; i++) {
+    const start = acc.clone();
+    const end = acc.clone().add(scaledVecs[i]);
+    chain.push({ start, end, index: i });
+    acc = end;
+  }
+  const sumVec = acc.clone();
+  const finalVec = unit(sumVec).multiplyScalar(SPHERE_RADIUS);
+  return { readVec, postVec, scaledVecs, chain, sumVec, finalVec };
+}
+
+function computeDerived() {
+  const quantDirs = buildQuantDirs(state.quantMode);
+  const quantReadVecs = data.readUnitVecs.map(v => nearestQuantDir(v, quantDirs));
+  const quantWriteVecs = data.writeUnitVecs.map(v => nearestQuantDir(v, quantDirs));
+
+  const targetReadZero = { finalDirs: data.targetReadDirs.map(v => v.clone()) };
+  const targetWriteZero = { finalDirs: data.targetWriteDirs.map(v => v.clone()) };
+  const targetReadCurrent = simulateTargetSettling(data.readUnitVecs, data.targetReadDirs, state.motionHalfAngleDeg);
+  const targetWriteCurrent = simulateTargetSettling(data.writeUnitVecs, data.targetWriteDirs, state.motionHalfAngleDeg);
+
+  const continuous = computePipeline(data.readUnitVecs, data.writeUnitVecs, data.incomingVec);
+  const quantized = computePipeline(quantReadVecs, quantWriteVecs, data.incomingVec);
+  const targetZero = computePipeline(targetReadZero.finalDirs, targetWriteZero.finalDirs, data.incomingVec);
+  const targetCurrent = computePipeline(targetReadCurrent.finalDirs, targetWriteCurrent.finalDirs, data.incomingVec);
+
+  const transformMeta = makeTransform(state.cayleySeed, state.cayleyStrength, state.transformType);
+  const transformIncomingDir = transformMeta.applyDirection(data.incomingVec);
+  const transformIncomingVec = transformIncomingDir.clone().multiplyScalar(SPHERE_RADIUS);
+  const transformReadVecs = targetReadCurrent.finalDirs.map(v => transformMeta.applyDirection(v));
+  const transformWriteVecs = targetWriteCurrent.finalDirs.map(v => v.clone());
+  const transformPipeline = computePipeline(transformReadVecs, transformWriteVecs, transformIncomingVec);
+
+  let secondaryIncomingVec = data.incomingVec.clone();
+  let secondaryReadVecs = quantReadVecs;
+  let secondaryWriteVecs = quantWriteVecs;
+  let secondary = quantized;
+  if (state.transitionMode === 'targets') {
+    secondaryIncomingVec = data.incomingVec.clone();
+    secondaryReadVecs = targetReadCurrent.finalDirs.map(v => v.clone());
+    secondaryWriteVecs = targetWriteCurrent.finalDirs.map(v => v.clone());
+    secondary = targetCurrent;
+  } else if (state.transitionMode === 'transform') {
+    secondaryIncomingVec = transformIncomingVec.clone();
+    secondaryReadVecs = transformReadVecs.map(v => v.clone());
+    secondaryWriteVecs = transformWriteVecs.map(v => v.clone());
+    secondary = transformPipeline;
+  }
+
+  let compareVecA = continuous.finalVec.clone();
+  let compareVecB = quantized.finalVec.clone();
+  if (state.transitionMode === 'targets') {
+    compareVecA = targetZero.finalVec.clone();
+    compareVecB = targetCurrent.finalVec.clone();
+  } else if (state.transitionMode === 'transform') {
+    compareVecA = targetCurrent.finalVec.clone();
+    compareVecB = transformPipeline.finalVec.clone();
+  }
+  const compareCosine = compareVecA.length() > 1e-9 && compareVecB.length() > 1e-9 ? unit(compareVecA).dot(unit(compareVecB)) : 0;
+  const compareAngleDeg = Math.acos(Math.max(-1, Math.min(1, compareCosine))) * 180 / Math.PI;
+
+  return {
+    quantDirs,
+    quantReadVecs,
+    quantWriteVecs,
+    targetReadTrajectories: targetReadCurrent.trajectories,
+    targetWriteTrajectories: targetWriteCurrent.trajectories,
+    targetReadFinalDirs: targetReadCurrent.finalDirs,
+    targetWriteFinalDirs: targetWriteCurrent.finalDirs,
+    targetReadMissDeg: targetReadCurrent.meanMissDeg,
+    targetWriteMissDeg: targetWriteCurrent.meanMissDeg,
+    targetMinSepDeg: targetReadCurrent.minSep * 180 / Math.PI,
+    targetZeroFinalVec: targetZero.finalVec,
+    targetCurrentFinalVec: targetCurrent.finalVec,
+    targetZeroReadDirs: targetReadZero.finalDirs,
+    targetZeroWriteDirs: targetWriteZero.finalDirs,
+    secondaryIncomingVec,
+    secondaryReadVecs,
+    secondaryWriteVecs,
+    readVec: continuous.readVec,
+    postVec: continuous.postVec,
+    scaledVecs: continuous.scaledVecs,
+    chain: continuous.chain,
+    sumVec: continuous.sumVec,
+    finalVec: continuous.finalVec,
+    qReadVec: secondary.readVec,
+    qPostVec: secondary.postVec,
+    qScaledVecs: secondary.scaledVecs,
+    qChain: secondary.chain,
+    qSumVec: secondary.sumVec,
+    qFinalVec: secondary.finalVec,
+    compareVecA,
+    compareVecB,
+    compareCosine,
+    compareAngleDeg,
+    transformMeta,
+    transformIncomingVec,
+    transformReadVecs,
+    transformWriteVecs,
+    transformRows: transformMeta.rows,
+    transformAxis: transformMeta.axis,
+    transformAngleDeg: transformMeta.angleDeg,
+  };
+}
+
+function rebuildQuantDots() {
+  clearGroupChildren(readQuantDotsGroup);
+  clearGroupChildren(writeQuantDotsGroup);
+  for (const d of derived.quantDirs) {
+    const mat = new THREE.MeshBasicMaterial({ color: QUANT, transparent: true, opacity: 0.72, depthWrite: false });
+    const geom = new THREE.SphereGeometry(0.03, 8, 8);
+    const m1 = new THREE.Mesh(geom, mat.clone());
+    m1.position.copy(d.clone().multiplyScalar(SPHERE_RADIUS));
+    readQuantDotsGroup.add(m1);
+    const m2 = new THREE.Mesh(geom.clone(), mat.clone());
+    m2.position.copy(d.clone().multiplyScalar(SPHERE_RADIUS));
+    writeQuantDotsGroup.add(m2);
+  }
+}
+
+function rebuildTargetDots() {
+  clearGroupChildren(readTargetDotsGroup);
+  clearGroupChildren(writeTargetDotsGroup);
+  const geom = new THREE.SphereGeometry(0.05, 10, 10);
+  const mat = new THREE.MeshBasicMaterial({ color: TARGET, transparent: true, opacity: 0.95, depthWrite: false });
+  for (const d of data.targetReadDirs) {
+    const m = new THREE.Mesh(geom, mat.clone());
+    m.position.copy(d.clone().multiplyScalar(SPHERE_RADIUS));
+    readTargetDotsGroup.add(m);
+  }
+  for (const d of data.targetWriteDirs) {
+    const m = new THREE.Mesh(geom.clone(), mat.clone());
+    m.position.copy(d.clone().multiplyScalar(SPHERE_RADIUS));
+    writeTargetDotsGroup.add(m);
+  }
+}
+
+function rebuildAll() {
+  state.motionHalfAngleDeg = state.solidAngleDeg;
+  data = makeDataset(datasetSeed, state.vectorCount);
+  buildDynamicVisuals();
+  derived = computeDerived();
+  rebuildQuantDots();
+  rebuildTargetDots();
+  state.playing = false;
+  state.progress = 0;
+  state.stage = 0;
+  state.stageStartedAt = performance.now();
+  refreshUi();
+}
+
+buildDynamicVisuals();
+derived = computeDerived();
+rebuildQuantDots();
+rebuildTargetDots();
+
+const stageNameEl = document.getElementById('stageName');
+const progressLabelEl = document.getElementById('progressLabel');
+const progressSliderEl = document.getElementById('progressSlider');
+const playPauseBtn = document.getElementById('playPause');
+const resetStageBtn = document.getElementById('resetStage');
+const reinitializeVectorsBtn = document.getElementById('reinitializeVectors');
+const initialViewBtn = document.getElementById('initialView');
+const autoRotateEl = document.getElementById('autoRotate');
+const showLabelsEl = document.getElementById('showLabels');
+const activationSelectEl = document.getElementById('activationSelect');
+const quantSelectEl = document.getElementById('quantSelect');
+const vectorCountSelectEl = document.getElementById('vectorCountSelect');
+const solidAngleSliderEl = document.getElementById('solidAngleSlider');
+const solidAngleLabelEl = document.getElementById('solidAngleLabel');
+const solidAngleNoteEl = document.getElementById('solidAngleNote');
+const lockConeMotionEl = document.getElementById('lockConeMotion');
+const showQuantDotsEl = document.getElementById('showQuantDots');
+const modeQuantizeBtn = document.getElementById('modeQuantize');
+const modeTargetsBtn = document.getElementById('modeTargets');
+const modeTransformBtn = document.getElementById('modeTransform');
+const transformTypeSelectEl = document.getElementById('transformTypeSelect');
+const transformSeedInputEl = document.getElementById('transformSeedInput');
+const applyTransformSeedBtn = document.getElementById('applyTransformSeed');
+const rerollTransformBtn = document.getElementById('rerollTransform');
+const transformStrengthSliderEl = document.getElementById('transformStrengthSlider');
+const transformStrengthLabelEl = document.getElementById('transformStrengthLabel');
+const stageButtons = [...document.querySelectorAll('[data-stage]')];
+const readVectorGrid = document.getElementById('readVectorGrid');
+const qReadVectorGrid = document.getElementById('qReadVectorGrid');
+const compareGrid = document.getElementById('compareGrid');
+const secondaryReadTitleEl = document.getElementById('secondaryReadTitle');
+const compareNoteEl = document.getElementById('compareNote');
+
+const stageButtonLabelSets = {
+  quantize: [
+    '1. Read',
+    '2. Activation',
+    '3. Write',
+    '4. Scale',
+    '5. Sum',
+    '6. Normalize',
+    '7. Quantize Banks',
+    '8. Q Read',
+    '9. Q Activation',
+    '10. Q Write',
+    '11. Q Scale',
+    '12. Q Sum',
+    '13. Q Normalize',
+    '14. Compare',
+    'Back to Start',
+  ],
+  targets: [
+    '1. Read',
+    '2. Activation',
+    '3. Write',
+    '4. Scale',
+    '5. Sum',
+    '6. Normalize',
+    '7. Target Drift',
+    '8. T Read',
+    '9. T Activation',
+    '10. T Write',
+    '11. T Scale',
+    '12. T Sum',
+    '13. T Normalize',
+    '14. Compare',
+    'Back to Start',
+  ],
+  transform: [
+    '1. Read',
+    '2. Activation',
+    '3. Write',
+    '4. Scale',
+    '5. Sum',
+    '6. Normalize',
+    '7. Transform',
+    '8. X Read',
+    '9. X Activation',
+    '10. X Write (fixed)',
+    '11. X Scale',
+    '12. X Sum',
+    '13. X Normalize',
+    '14. Compare',
+    'Back to Start',
+  ],
+};
+
+function vectorPrefixForMode() {
+  return state.transitionMode === 'quantize' ? 'q' : state.transitionMode === 'targets' ? 't' : 'x';
+}
+function vecStr(v) {
+  return `[${v.toArray().map(x => x.toFixed(3)).join(', ')}]`;
+}
+function populateVectorGrid(el, vals, prefix) {
+  el.innerHTML = '';
+  vals.forEach((v, i) => {
+    const item = document.createElement('div');
+    item.className = 'vector-item';
+    item.innerHTML = `<span>${prefix}${i}</span><span class="mono">${v.toFixed(4)}</span>`;
+    el.appendChild(item);
+  });
+}
+
+function rowStr(row) {
+  return `[${row.map(x => x.toFixed(3)).join(', ')}]`;
+}
+
+function populateCompareGrid() {
+  compareGrid.innerHTML = '';
+  let rows = [];
+  if (state.transitionMode === 'quantize') {
+    rows = [
+      ['mode', 'nearest quantized grid'],
+      ['display half-angle', `${state.solidAngleDeg.toFixed(0)}°`],
+      ['positions locked', state.lockConeMotion ? `yes (frozen at ${state.motionHalfAngleDeg.toFixed(0)}°)` : 'no'],
+      ['slot transfer', 'read coefficient i → write coefficient i'],
+      ['dot product', derived.compareCosine.toFixed(6)],
+      ['angle (deg)', derived.compareAngleDeg.toFixed(4)],
+      ['continuous norm dir', vecStr(derived.compareVecA)],
+      ['quantized norm dir', vecStr(derived.compareVecB)],
+    ];
+  } else if (state.transitionMode === 'targets') {
+    rows = [
+      ['mode', 'random red targets + cone bump'],
+      ['display half-angle', `${state.solidAngleDeg.toFixed(0)}°`],
+      ['motion half-angle', `${state.motionHalfAngleDeg.toFixed(0)}°`],
+      ['positions locked', state.lockConeMotion ? 'yes' : 'no'],
+      ['min center separation', `${derived.targetMinSepDeg.toFixed(1)}°`],
+      ['mean read target miss', `${derived.targetReadMissDeg.toFixed(2)}°`],
+      ['mean write target miss', `${derived.targetWriteMissDeg.toFixed(2)}°`],
+      ['dot product', derived.compareCosine.toFixed(6)],
+      ['angle (deg)', derived.compareAngleDeg.toFixed(4)],
+      ['0° half-angle final', vecStr(derived.compareVecA)],
+      [`${state.motionHalfAngleDeg.toFixed(0)}° half-angle final`, vecStr(derived.compareVecB)],
+    ];
+  } else {
+    rows = [
+      ['mode', `${transformTypeLabel()} transform on input + read only`],
+      ['write bank', 'fixed at target-settled positions'],
+      ['display half-angle', `${state.solidAngleDeg.toFixed(0)}°`],
+      ['motion half-angle', `${state.motionHalfAngleDeg.toFixed(0)}°`],
+      ['positions locked', state.lockConeMotion ? 'yes' : 'no'],
+      ['transform seed', String(state.cayleySeed)],
+      ['transform strength', state.cayleyStrength.toFixed(2)],
+    ];
+    if (state.transformType === 'cayley') {
+      rows.push(['cayley angle', `${derived.transformAngleDeg.toFixed(2)}°`]);
+      rows.push(['cayley axis', vecStr(derived.transformAxis)]);
+    } else if (derived.transformRows) {
+      rows.push(['matrix row 1', rowStr(derived.transformRows[0])]);
+      rows.push(['matrix row 2', rowStr(derived.transformRows[1])]);
+      rows.push(['matrix row 3', rowStr(derived.transformRows[2])]);
+    }
+    rows.push(['pre-transform target', vecStr(derived.compareVecA)]);
+    rows.push(['post-transform target', vecStr(derived.compareVecB)]);
+    rows.push(['dot product', derived.compareCosine.toFixed(6)]);
+    rows.push(['angle (deg)', derived.compareAngleDeg.toFixed(4)]);
+  }
+  rows.forEach(([k, v]) => {
+    const item = document.createElement('div');
+    item.className = 'vector-item';
+    item.innerHTML = `<span>${k}</span><span class="mono">${v}</span>`;
+    compareGrid.appendChild(item);
+  });
+}
+
+function refreshStageButtonText() {
+  const labels = stageButtonLabelSets[state.transitionMode];
+  stageButtons.forEach((btn, i) => {
+    if (labels[i]) btn.textContent = labels[i];
+  });
+}
+
+function refreshUi() {
+  stageNameEl.textContent = stageLabel(state.stage);
+  progressLabelEl.textContent = `${Math.round(state.progress * 100)}%`;
+  progressSliderEl.value = String(Math.round(state.progress * 1000));
+  playPauseBtn.textContent = state.playing ? 'Pause' : 'Play';
+  vectorCountSelectEl.value = String(state.vectorCount);
+  solidAngleSliderEl.value = String(state.solidAngleDeg);
+  solidAngleLabelEl.textContent = `${state.solidAngleDeg}° half-angle`;
+  solidAngleNoteEl.textContent = state.lockConeMotion
+    ? `Vector directions are frozen at ${state.motionHalfAngleDeg.toFixed(0)}°. Moving the slider only resizes the visible sectors.`
+    : `Changing the slider also recomputes target / transform motion at ${state.solidAngleDeg.toFixed(0)}°.`;
+  lockConeMotionEl.checked = state.lockConeMotion;
+  transformTypeSelectEl.value = state.transformType;
+  transformSeedInputEl.value = String(state.cayleySeed);
+  transformStrengthSliderEl.value = state.cayleyStrength.toFixed(2);
+  transformStrengthLabelEl.textContent = state.cayleyStrength.toFixed(2);
+  modeQuantizeBtn.classList.toggle('active', state.transitionMode === 'quantize');
+  modeTargetsBtn.classList.toggle('active', state.transitionMode === 'targets');
+  modeTransformBtn.classList.toggle('active', state.transitionMode === 'transform');
+  secondaryReadTitleEl.textContent = secondaryReadHeading();
+  compareNoteEl.textContent = compareNote();
+  refreshStageButtonText();
+  stageButtons.forEach(btn => btn.classList.toggle('active', Number(btn.dataset.stage) === state.stage));
+  populateVectorGrid(readVectorGrid, derived.readVec, 'r');
+  populateVectorGrid(qReadVectorGrid, derived.qReadVec, vectorPrefixForMode());
+  populateCompareGrid();
+}
+
+function applyCurrentApertureRecompute() {
+  state.motionHalfAngleDeg = state.solidAngleDeg;
+  derived = computeDerived();
+  rebuildQuantDots();
+  rebuildTargetDots();
+}
+
+function goToStage(next) {
+  state.forceOverview = false;
+  state.stage = Math.max(0, Math.min(13, next));
+  state.playing = true;
+  state.progress = 0;
+  state.stageStartedAt = performance.now();
+  refreshUi();
+}
+
+stageButtons.forEach(btn => btn.addEventListener('click', () => goToStage(Number(btn.dataset.stage))));
+playPauseBtn.addEventListener('click', () => {
+  state.playing = !state.playing;
+  if (state.playing) state.stageStartedAt = performance.now() - state.progress * stageDurationSeconds() * 1000;
+  refreshUi();
+});
+resetStageBtn.addEventListener('click', () => {
+  state.progress = 0;
+  state.playing = false;
+  refreshUi();
+});
+reinitializeVectorsBtn.addEventListener('click', () => {
+  datasetSeed += 1;
+  state.forceOverview = true;
+  rebuildAll();
+});
+initialViewBtn.addEventListener('click', () => {
+  state.forceOverview = true;
+  state.stage = 0;
+  state.progress = 0;
+  state.playing = false;
+  controls.target.set(0, 0, 0);
+  camera.position.copy(INITIAL_CAMERA_POS);
+  controls.update();
+  refreshUi();
+});
+progressSliderEl.addEventListener('input', e => {
+  state.progress = Number(e.target.value) / 1000;
+  state.playing = false;
+  refreshUi();
+});
+autoRotateEl.addEventListener('change', e => { state.autoRotate = e.target.checked; });
+showLabelsEl.addEventListener('change', e => { state.showLabels = e.target.checked; });
+activationSelectEl.addEventListener('change', e => {
+  state.activation = e.target.value;
+  applyCurrentApertureRecompute();
+  refreshUi();
+});
+quantSelectEl.addEventListener('change', e => {
+  state.quantMode = e.target.value;
+  applyCurrentApertureRecompute();
+  refreshUi();
+});
+vectorCountSelectEl.addEventListener('change', e => {
+  state.vectorCount = Number(e.target.value);
+  rebuildAll();
+});
+solidAngleSliderEl.addEventListener('input', e => {
+  state.solidAngleDeg = Number(e.target.value);
+  const { oldCap, oldRim } = buildSolidAngleSharedGeometries(state.solidAngleDeg);
+  syncAllGlyphSectorGeometries();
+  oldCap?.dispose();
+  oldRim?.dispose();
+  if (!state.lockConeMotion) {
+    applyCurrentApertureRecompute();
+  }
+  refreshUi();
+});
+lockConeMotionEl.addEventListener('change', e => {
+  state.lockConeMotion = e.target.checked;
+  if (!state.lockConeMotion) {
+    applyCurrentApertureRecompute();
+  }
+  refreshUi();
+});
+showQuantDotsEl.addEventListener('change', e => { state.showQuantDots = e.target.checked; refreshUi(); });
+modeQuantizeBtn.addEventListener('click', () => {
+  state.transitionMode = 'quantize';
+  applyCurrentApertureRecompute();
+  refreshUi();
+});
+modeTargetsBtn.addEventListener('click', () => {
+  state.transitionMode = 'targets';
+  applyCurrentApertureRecompute();
+  refreshUi();
+});
+modeTransformBtn.addEventListener('click', () => {
+  state.transitionMode = 'transform';
+  applyCurrentApertureRecompute();
+  refreshUi();
+});
+transformTypeSelectEl.addEventListener('change', e => {
+  state.transformType = e.target.value;
+  applyCurrentApertureRecompute();
+  refreshUi();
+});
+function applyTransformSeedFromUi() {
+  const parsed = Math.round(Number(transformSeedInputEl.value));
+  state.cayleySeed = Number.isFinite(parsed) ? parsed : 707;
+  applyCurrentApertureRecompute();
+  refreshUi();
+}
+applyTransformSeedBtn.addEventListener('click', applyTransformSeedFromUi);
+transformSeedInputEl.addEventListener('change', applyTransformSeedFromUi);
+rerollTransformBtn.addEventListener('click', () => {
+  state.cayleySeed += 1;
+  applyCurrentApertureRecompute();
+  refreshUi();
+});
+transformStrengthSliderEl.addEventListener('input', e => {
+  state.cayleyStrength = Number(e.target.value);
+  applyCurrentApertureRecompute();
+  refreshUi();
+});
+
+function resize() {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+refreshUi();
+
+function setDashedLine(line, a, b, opacity, color = null) {
+  line.visible = opacity > 0.001;
+  if (!line.visible) return;
+  line.geometry.dispose();
+  line.geometry = new THREE.BufferGeometry().setFromPoints([a, b]);
+  line.computeLineDistances();
+  line.material.opacity = opacity;
+  if (color) line.material.color.set(color);
+}
+
+function hideAllExtras() {
+  activationPanel.visible = false;
+  qActivationPanel.visible = false;
+  normalizedLabel.visible = false;
+  qNormalizedLabel.visible = false;
+  compareGhost.group.visible = false;
+  finalArrow.group.visible = false;
+  qFinalArrow.group.visible = false;
+  sumArrow.group.visible = false;
+  qSumArrow.group.visible = false;
+  incomingArrowQ.group.visible = false;
+  readQuantDotsGroup.visible = state.showQuantDots && state.transitionMode === 'quantize' && state.stage >= 6;
+  writeQuantDotsGroup.visible = state.showQuantDots && state.transitionMode === 'quantize' && state.stage >= 6;
+  readTargetDotsGroup.visible = (state.transitionMode === 'targets' || state.transitionMode === 'transform') && state.stage >= 6;
+  writeTargetDotsGroup.visible = (state.transitionMode === 'targets' || state.transitionMode === 'transform') && state.stage >= 6;
+}
+
+function stageFocusCenter(stage) {
+  if (state.forceOverview) return new THREE.Vector3(0, 0, 0);
+  if (stage === 0 || stage === 1 || stage === 7 || stage === 8) return READ_CENTER;
+  if (stage === 2 || stage === 3 || stage === 4 || stage === 5 || stage === 9 || stage === 10 || stage === 11 || stage === 12 || stage === 13) return WRITE_CENTER;
+  return new THREE.Vector3(0, 0, 0);
+}
+
+function sideOpacities(stage) {
+  if (state.forceOverview) return { read: 1.0, write: 1.0 };
+  if (stage === 0 || stage === 1 || stage === 7 || stage === 8) return { read: 1.0, write: 0.08 };
+  if (stage === 2 || stage === 3 || stage === 4 || stage === 5 || stage === 9 || stage === 10 || stage === 11 || stage === 12 || stage === 13) return { read: 0.08, write: 1.0 };
+  return { read: 1.0, write: 1.0 };
+}
+
+function comparePrimaryColor() {
+  return FINAL;
+}
+
+function compareSecondaryColor() {
+  return state.transitionMode === 'quantize' ? FINALQ : state.transitionMode === 'targets' ? TARGET_FINAL : CAYLEY_FINAL;
+}
+
+function secondaryFinalLabel() {
+  return state.transitionMode === 'quantize' ? 'quantized' : state.transitionMode === 'targets' ? 'settled' : 'transformed';
+}
+
+function renderContinuousBase(baseOpacity, secondaryOpacity = 0) {
+  const side = sideOpacities(state.stage);
+  const secColor = secondaryAccentColor();
+  for (let i = 0; i < state.vectorCount; i++) {
+    const readEnd = READ_CENTER.clone().add(data.readUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+    const secondaryReadEnd = READ_CENTER.clone().add(derived.secondaryReadVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+    const writeEnd = WRITE_CENTER.clone().add(data.writeUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+    const secondaryWriteEnd = WRITE_CENTER.clone().add(derived.secondaryWriteVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+    dyn.contReadArrows[i].set(READ_CENTER, readEnd, BASE, baseOpacity * side.read);
+    dyn.quantReadArrows[i].set(READ_CENTER, secondaryReadEnd, secColor, secondaryOpacity * side.read);
+    dyn.contWriteArrows[i].set(WRITE_CENTER, writeEnd, BASE, baseOpacity * side.write);
+    dyn.quantWriteArrows[i].set(WRITE_CENTER, secondaryWriteEnd, secColor, secondaryOpacity * side.write);
+  }
+  readSphere.material.opacity = 0.08 * side.read;
+  writeSphere.material.opacity = 0.08 * side.write;
+  readLocalAxes.children.forEach(c => { c.material.opacity = 0.75 * side.read; });
+  writeLocalAxes.children.forEach(c => { c.material.opacity = 0.75 * side.write; });
+  readSphereLabel.material.opacity = side.read;
+  writeSphereLabel.material.opacity = side.write;
+}
+
+function renderTargetTransitionStage(t) {
+  const readColor = colorLerp(BASE, TARGET, t * 0.8);
+  const writeColor = colorLerp(BASE, TARGET, t * 0.8);
+  const easedT = smoothstep01(t);
+  for (let i = 0; i < state.vectorCount; i++) {
+    const readDir = sampleTrajectory(derived.targetReadTrajectories[i], easedT);
+    const writeDir = sampleTrajectory(derived.targetWriteTrajectories[i], easedT);
+    const readEnd = READ_CENTER.clone().add(readDir.clone().multiplyScalar(SPHERE_RADIUS));
+    const writeEnd = WRITE_CENTER.clone().add(writeDir.clone().multiplyScalar(SPHERE_RADIUS));
+    dyn.contReadArrows[i].set(READ_CENTER, readEnd, readColor, 1.0);
+    dyn.contWriteArrows[i].set(WRITE_CENTER, writeEnd, writeColor, 1.0);
+    dyn.quantReadArrows[i].group.visible = false;
+    dyn.quantWriteArrows[i].group.visible = false;
+
+    const readTargetEnd = READ_CENTER.clone().add(data.targetReadDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+    const writeTargetEnd = WRITE_CENTER.clone().add(data.targetWriteDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+    setDashedLine(dyn.readTargetLines[i], readEnd, readTargetEnd, 0.22 + 0.18 * (1 - easedT), TARGET);
+    setDashedLine(dyn.writeTargetLines[i], writeEnd, writeTargetEnd, 0.22 + 0.18 * (1 - easedT), TARGET);
+  }
+  readSphere.material.opacity = 0.08;
+  writeSphere.material.opacity = 0.08;
+  readLocalAxes.children.forEach(c => { c.material.opacity = 0.75; });
+  writeLocalAxes.children.forEach(c => { c.material.opacity = 0.75; });
+  readSphereLabel.material.opacity = 1.0;
+  writeSphereLabel.material.opacity = 1.0;
+}
+
+function renderTransformTransitionStage(t) {
+  const settleT = smoothstep01(Math.min(1, t / 0.58));
+  const transformT = smoothstep01(Math.max(0, (t - 0.38) / 0.62));
+
+  let currentIncomingDir;
+  if (state.transformType === 'cayley' && derived.transformMeta.quat) {
+    const liveQuat = new THREE.Quaternion();
+    liveQuat.copy(IDENTITY_QUAT).slerp(derived.transformMeta.quat, transformT);
+    currentIncomingDir = unit(data.incomingVec.clone().applyQuaternion(liveQuat));
+  } else {
+    currentIncomingDir = slerpUnit(unit(data.incomingVec), unit(derived.transformIncomingVec), transformT);
+  }
+  const currentIncoming = currentIncomingDir.clone().multiplyScalar(SPHERE_RADIUS);
+  incomingArrow.set(READ_CENTER, READ_CENTER.clone().add(currentIncoming), INCOMING, 1.0);
+
+  for (let i = 0; i < state.vectorCount; i++) {
+    const settledRead = sampleTrajectory(derived.targetReadTrajectories[i], settleT);
+    const settledWrite = derived.targetWriteFinalDirs[i].clone();
+
+    let readDir;
+    if (state.transformType === 'cayley' && derived.transformMeta.quat) {
+      const liveQuat = new THREE.Quaternion();
+      liveQuat.copy(IDENTITY_QUAT).slerp(derived.transformMeta.quat, transformT);
+      readDir = unit(settledRead.clone().applyQuaternion(liveQuat));
+    } else {
+      readDir = slerpUnit(settledRead, derived.transformReadVecs[i], transformT);
+    }
+
+    const writeDir = settledWrite.clone();
+    const readEnd = READ_CENTER.clone().add(readDir.clone().multiplyScalar(SPHERE_RADIUS));
+    const writeEnd = WRITE_CENTER.clone().add(writeDir.clone().multiplyScalar(SPHERE_RADIUS));
+    const readTargetEnd = READ_CENTER.clone().add(data.targetReadDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+    const writeTargetEnd = WRITE_CENTER.clone().add(data.targetWriteDirs[i].clone().multiplyScalar(SPHERE_RADIUS));
+
+    dyn.contReadArrows[i].set(READ_CENTER, readEnd, colorLerp(TARGET, CAYLEY, transformT), 1.0);
+    dyn.contWriteArrows[i].set(WRITE_CENTER, writeEnd, TARGET, 1.0);
+    dyn.quantReadArrows[i].group.visible = false;
+    dyn.quantWriteArrows[i].group.visible = false;
+
+    setDashedLine(dyn.readTargetLines[i], readEnd, readTargetEnd, 0.24, TARGET);
+    setDashedLine(dyn.writeTargetLines[i], writeEnd, writeTargetEnd, 0.18, TARGET);
+  }
+  readSphere.material.opacity = 0.08;
+  writeSphere.material.opacity = 0.08;
+  readLocalAxes.children.forEach(c => { c.material.opacity = 0.75; });
+  writeLocalAxes.children.forEach(c => { c.material.opacity = 0.75; });
+  readSphereLabel.material.opacity = 1.0;
+  writeSphereLabel.material.opacity = 1.0;
+}
+
+function renderStage() {
+  const s = state.stage;
+  const t = state.progress;
+  const secColor = secondaryAccentColor();
+  const secFinalColor = secondaryFinalColor();
+  hideAllExtras();
+  const side = sideOpacities(s);
+
+  incomingArrow.set(READ_CENTER, READ_CENTER.clone().add(data.incomingVec), INCOMING, (s <= 6 ? 1 : 0.2) * side.read);
+  for (const arr of [dyn.scaledArrows, dyn.qScaledArrows, dyn.chainArrows, dyn.qChainArrows]) {
+    for (const a of arr) a.group.visible = false;
+  }
+  for (const l of [...dyn.dotLines, ...dyn.qDotLines, ...dyn.transferLines, ...dyn.readTargetLines, ...dyn.writeTargetLines]) l.visible = false;
+  for (const l of [...dyn.dotLabels, ...dyn.qDotLabels, ...dyn.coeffLabels, ...dyn.qCoeffLabels]) l.visible = false;
+
+  if (s <= 5) renderContinuousBase(1, 0);
+  else if (s === 6) {
+    if (state.transitionMode === 'quantize') {
+      for (let i = 0; i < state.vectorCount; i++) {
+        const readA = READ_CENTER.clone().add(data.readUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+        const readB = READ_CENTER.clone().add(derived.quantReadVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+        const writeA = WRITE_CENTER.clone().add(data.writeUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+        const writeB = WRITE_CENTER.clone().add(derived.quantWriteVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+        dyn.contReadArrows[i].set(READ_CENTER, lerpVec(readA, readB, smoothstep01(t)), colorLerp(BASE, QUANT, t), 1.0);
+        dyn.contWriteArrows[i].set(WRITE_CENTER, lerpVec(writeA, writeB, smoothstep01(t)), colorLerp(BASE, QUANT, t), 1.0);
+        dyn.quantReadArrows[i].group.visible = false;
+        dyn.quantWriteArrows[i].group.visible = false;
+      }
+      readSphere.material.opacity = 0.08;
+      writeSphere.material.opacity = 0.08;
+      readLocalAxes.children.forEach(c => { c.material.opacity = 0.75; });
+      writeLocalAxes.children.forEach(c => { c.material.opacity = 0.75; });
+      readSphereLabel.material.opacity = 1.0;
+      writeSphereLabel.material.opacity = 1.0;
+    } else if (state.transitionMode === 'targets') {
+      renderTargetTransitionStage(t);
+    } else {
+      renderTransformTransitionStage(t);
+    }
+  } else {
+    renderContinuousBase(0.1, 1);
+  }
+
+  if (s === 0) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      const end = READ_CENTER.clone().add(data.readUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+      setDashedLine(dyn.dotLines[i], READ_CENTER.clone().add(data.incomingVec), end, localT * 0.55 * side.read, READ);
+      updateTextSprite(dyn.dotLabels[i], derived.readVec[i].toFixed(2), READ);
+      dyn.dotLabels[i].position.copy(lerpVec(READ_CENTER.clone().add(data.incomingVec), end, 0.55).add(new THREE.Vector3(0.08, 0.08, 0.08)));
+      dyn.dotLabels[i].visible = state.showLabels && localT > 0.05;
+      dyn.dotLabels[i].material.opacity = localT * side.read;
+    }
+  }
+
+  if (s === 1) {
+    activationPanel.visible = true;
+    activationPanel.position.set(0, 0, 2.8);
+    drawActivationPanel(activationPanel, state.activation, derived.readVec, derived.postVec, t, 'Activation: ');
+    activationPanel.lookAt(camera.position);
+
+    for (let i = 0; i < state.vectorCount; i++) {
+      const end = READ_CENTER.clone().add(data.readUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      updateTextSprite(dyn.dotLabels[i], derived.readVec[i].toFixed(2), READ);
+      dyn.dotLabels[i].position.copy(end.clone().add(new THREE.Vector3(0.1, 0.1, 0.1)));
+      dyn.dotLabels[i].visible = state.showLabels;
+      dyn.dotLabels[i].material.opacity = 0.2 + 0.8 * smoothstep01(t * state.vectorCount - i);
+    }
+  }
+
+  if (s === 2) {
+    activationPanel.visible = true;
+    activationPanel.position.set(0, 0, 2.8);
+    drawActivationPanel(
+      activationPanel,
+      state.activation,
+      derived.readVec,
+      derived.postVec,
+      1.0,
+      'Activation: ',
+      { showRowHighlight: false, showFormula: false, showMarker: false }
+    );
+    activationPanel.lookAt(camera.position);
+
+    for (let i = 0; i < state.vectorCount; i++) {
+      const readEnd = READ_CENTER.clone().add(data.readUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const baseEnd = WRITE_CENTER.clone().add(data.writeUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const localT = smoothstep01(t * state.vectorCount - i);
+      dyn.contWriteArrows[i].set(WRITE_CENTER, baseEnd, BASE, side.write);
+      setDashedLine(dyn.transferLines[i], readEnd, baseEnd, 0.3 * localT, FINAL);
+      updateTextSprite(dyn.coeffLabels[i], `${i}:${derived.postVec[i].toFixed(2)}`, WHITE);
+      dyn.coeffLabels[i].position.copy(baseEnd.clone().add(new THREE.Vector3(0.14, 0.12, 0.12)));
+      dyn.coeffLabels[i].visible = state.showLabels && side.write > 0.5 && localT > 0.02;
+      dyn.coeffLabels[i].material.opacity = localT;
+    }
+  }
+
+  if (s === 3) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      const baseVec = data.writeUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS);
+      const baseEnd = WRITE_CENTER.clone().add(baseVec);
+      const scaledEnd = WRITE_CENTER.clone().add(lerpVec(baseVec, derived.scaledVecs[i], t));
+      dyn.scaledArrows[i].set(WRITE_CENTER, scaledEnd, SCALED, side.write);
+      dyn.contWriteArrows[i].set(WRITE_CENTER, baseEnd, BASE, 0.12 * side.write);
+      updateTextSprite(dyn.coeffLabels[i], `${i}:${derived.postVec[i].toFixed(2)}`, WHITE);
+      dyn.coeffLabels[i].position.copy(WRITE_CENTER.clone().add(derived.scaledVecs[i]).add(new THREE.Vector3(0.12, 0.12, 0.12)));
+      dyn.coeffLabels[i].visible = state.showLabels;
+    }
+  }
+
+  if (s === 4 || s === 5) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      dyn.scaledArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.scaledVecs[i]), SCALED, side.write);
+      dyn.contWriteArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(data.writeUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS)), BASE, 0.04 * side.write);
+      if (s === 4) {
+        const seg = derived.chain[i];
+        const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+        dyn.chainArrows[i].set(
+          WRITE_CENTER.clone().add(seg.start),
+          WRITE_CENTER.clone().add(lerpVec(seg.start, seg.end, smoothstep01(localT))),
+          SUM,
+          localT > 0 ? side.write : 0
+        );
+      } else {
+        const seg = derived.chain[i];
+        dyn.chainArrows[i].set(WRITE_CENTER.clone().add(seg.start), WRITE_CENTER.clone().add(seg.end), SUM, side.write);
+      }
+    }
+    sumArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.sumVec), SUM, (s === 4 ? Math.max(0.18, 1 - t * 0.55) : 0.22) * side.write);
+  }
+
+  if (s === 5) {
+    finalArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(lerpVec(derived.sumVec, derived.finalVec, smoothstep01(t))), colorLerp(SUM, FINAL, t), side.write);
+    normalizedLabel.position.copy(WRITE_CENTER.clone().add(derived.finalVec).add(new THREE.Vector3(0.24, 0.14, 0.12)));
+    normalizedLabel.visible = state.showLabels;
+  }
+
+  if (s === 7) {
+    const secIncomingEnd = READ_CENTER.clone().add(derived.secondaryIncomingVec.clone());
+    incomingArrowQ.set(READ_CENTER, secIncomingEnd, INCOMING, side.read);
+    for (let i = 0; i < state.vectorCount; i++) {
+      const end = READ_CENTER.clone().add(derived.secondaryReadVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+      setDashedLine(dyn.qDotLines[i], secIncomingEnd, end, localT * 0.55 * side.read, secColor);
+      updateTextSprite(dyn.qDotLabels[i], derived.qReadVec[i].toFixed(2), secColor);
+      dyn.qDotLabels[i].position.copy(lerpVec(secIncomingEnd, end, 0.55).add(new THREE.Vector3(0.08, 0.08, 0.08)));
+      dyn.qDotLabels[i].visible = state.showLabels && localT > 0.05;
+      dyn.qDotLabels[i].material.opacity = localT * side.read;
+    }
+  }
+
+  if (s === 8) {
+    qActivationPanel.visible = true;
+    qActivationPanel.position.set(0, 0, 2.8);
+    drawActivationPanel(qActivationPanel, state.activation, derived.qReadVec, derived.qPostVec, t, `${secondaryShortPrefix()} Activation: `);
+    qActivationPanel.lookAt(camera.position);
+  }
+
+  if (s === 9) {
+    qActivationPanel.visible = true;
+    qActivationPanel.position.set(0, 0, 2.8);
+    drawActivationPanel(
+      qActivationPanel,
+      state.activation,
+      derived.qReadVec,
+      derived.qPostVec,
+      1.0,
+      `${secondaryShortPrefix()} Activation: `,
+      { showRowHighlight: false, showFormula: false, showMarker: false }
+    );
+    qActivationPanel.lookAt(camera.position);
+
+    for (let i = 0; i < state.vectorCount; i++) {
+      const secondaryReadEnd = READ_CENTER.clone().add(derived.secondaryReadVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const secondaryWriteEnd = WRITE_CENTER.clone().add(derived.secondaryWriteVecs[i].clone().multiplyScalar(SPHERE_RADIUS));
+      const localT = smoothstep01(t * state.vectorCount - i);
+      dyn.quantWriteArrows[i].set(WRITE_CENTER, secondaryWriteEnd, secColor, side.write);
+      setDashedLine(dyn.transferLines[i], secondaryReadEnd, secondaryWriteEnd, 0.35 * localT, secColor);
+      updateTextSprite(dyn.qCoeffLabels[i], `${i}:${derived.qPostVec[i].toFixed(2)}`, WHITE);
+      dyn.qCoeffLabels[i].position.copy(secondaryWriteEnd.clone().add(new THREE.Vector3(0.14, 0.12, 0.12)));
+      dyn.qCoeffLabels[i].visible = state.showLabels && side.write > 0.5 && localT > 0.02;
+      dyn.qCoeffLabels[i].material.opacity = localT;
+    }
+  }
+
+  if (s === 13) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      const qBaseVec = derived.secondaryWriteVecs[i].clone().multiplyScalar(SPHERE_RADIUS);
+      const qWriteEnd = WRITE_CENTER.clone().add(qBaseVec);
+      const qScaledEnd = WRITE_CENTER.clone().add(lerpVec(qBaseVec, derived.qScaledVecs[i], t));
+      dyn.quantWriteArrows[i].set(WRITE_CENTER, qWriteEnd, secColor, 0.12 * side.write);
+      dyn.qScaledArrows[i].set(WRITE_CENTER, qScaledEnd, secColor, side.write);
+      updateTextSprite(dyn.qCoeffLabels[i], `${i}:${derived.qPostVec[i].toFixed(2)}`, WHITE);
+      dyn.qCoeffLabels[i].position.copy(WRITE_CENTER.clone().add(derived.qScaledVecs[i]).add(new THREE.Vector3(0.12, 0.12, 0.12)));
+      dyn.qCoeffLabels[i].visible = state.showLabels;
+    }
+  }
+
+  if (s === 11 || s === 12) {
+    for (let i = 0; i < state.vectorCount; i++) {
+      dyn.qScaledArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.qScaledVecs[i]), secColor, side.write);
+      dyn.quantWriteArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.secondaryWriteVecs[i].clone().multiplyScalar(SPHERE_RADIUS)), secColor, 0.04 * side.write);
+      if (s === 11) {
+        const seg = derived.qChain[i];
+        const localT = clamp01(t * (state.vectorCount + 0.2) - i);
+        const chainT = smoothstep01(Math.min(1, localT * 1.15));
+        dyn.qChainArrows[i].set(
+          WRITE_CENTER.clone().add(seg.start),
+          WRITE_CENTER.clone().add(lerpVec(seg.start, seg.end, chainT)),
+          secFinalColor,
+          localT > 0 ? side.write : 0
+        );
+      } else {
+        const seg = derived.qChain[i];
+        dyn.qChainArrows[i].set(WRITE_CENTER.clone().add(seg.start), WRITE_CENTER.clone().add(seg.end), secFinalColor, side.write);
+      }
+      updateTextSprite(dyn.qCoeffLabels[i], `${i}:${derived.qPostVec[i].toFixed(2)}`, WHITE);
+      dyn.qCoeffLabels[i].position.copy(WRITE_CENTER.clone().add(derived.qScaledVecs[i]).add(new THREE.Vector3(0.12, 0.12, 0.12)));
+      dyn.qCoeffLabels[i].visible = state.showLabels;
+    }
+    qSumArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.qSumVec), secFinalColor, (s === 11 ? Math.max(0.18, 1 - t * 0.3) : 0.22) * side.write);
+  }
+
+  if (s === 12) {
+    qFinalArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(lerpVec(derived.qSumVec, derived.qFinalVec, smoothstep01(t))), secFinalColor, side.write);
+    qNormalizedLabel.position.copy(WRITE_CENTER.clone().add(derived.qFinalVec).add(new THREE.Vector3(0.24, -0.18, 0.12)));
+    qNormalizedLabel.visible = state.showLabels;
+    updateTextSprite(qNormalizedLabel, secondaryFinalLabel(), secFinalColor);
+  }
+
+  if (s === 10) {
+    const fadeOpacity = state.transitionMode === 'transform' ? 0.015 : 0.045;
+    for (let i = 0; i < state.vectorCount; i++) {
+      dyn.contReadArrows[i].set(READ_CENTER, READ_CENTER.clone().add(data.readUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS)), BASE, fadeOpacity);
+      dyn.quantReadArrows[i].set(READ_CENTER, READ_CENTER.clone().add(derived.secondaryReadVecs[i].clone().multiplyScalar(SPHERE_RADIUS)), secColor, fadeOpacity);
+      dyn.contWriteArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(data.writeUnitVecs[i].clone().multiplyScalar(SPHERE_RADIUS)), BASE, fadeOpacity);
+      dyn.quantWriteArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.secondaryWriteVecs[i].clone().multiplyScalar(SPHERE_RADIUS)), secColor, fadeOpacity);
+      dyn.scaledArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.scaledVecs[i]), SCALED, fadeOpacity);
+      dyn.qScaledArrows[i].set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.qScaledVecs[i]), secColor, fadeOpacity);
+      dyn.chainArrows[i].set(WRITE_CENTER.clone().add(derived.chain[i].start), WRITE_CENTER.clone().add(derived.chain[i].end), SUM, fadeOpacity);
+      dyn.qChainArrows[i].set(WRITE_CENTER.clone().add(derived.qChain[i].start), WRITE_CENTER.clone().add(derived.qChain[i].end), secFinalColor, fadeOpacity);
+    }
+    incomingArrow.set(READ_CENTER, READ_CENTER.clone().add(data.incomingVec), INCOMING, fadeOpacity);
+    incomingArrowQ.set(READ_CENTER, READ_CENTER.clone().add(derived.secondaryIncomingVec.clone()), INCOMING, fadeOpacity);
+    sumArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.sumVec), SUM, fadeOpacity);
+    qSumArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.qSumVec), secFinalColor, fadeOpacity);
+    compareGhost.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.compareVecA), comparePrimaryColor(), 0.95);
+    qFinalArrow.set(WRITE_CENTER, WRITE_CENTER.clone().add(derived.compareVecB), compareSecondaryColor(), 0.95);
+    updateTextSprite(normalizedLabel, comparePrimaryLabel(), comparePrimaryColor());
+    updateTextSprite(qNormalizedLabel, compareSecondaryLabel(), compareSecondaryColor());
+    normalizedLabel.position.copy(WRITE_CENTER.clone().add(derived.compareVecA).add(new THREE.Vector3(0.24, 0.14, 0.12)));
+    qNormalizedLabel.position.copy(WRITE_CENTER.clone().add(derived.compareVecB).add(new THREE.Vector3(0.24, -0.18, 0.12)));
+    normalizedLabel.visible = state.showLabels;
+    qNormalizedLabel.visible = state.showLabels;
+  }
+}
+
+let lastTs = performance.now();
+function animate(ts) {
+  const dt = Math.min(0.05, (ts - lastTs) / 1000);
+  lastTs = ts;
+  if (state.playing) {
+    const elapsed = (ts - state.stageStartedAt) / 1000;
+    state.progress = clamp01(elapsed / stageDurationSeconds());
+    if (state.progress >= 1) state.playing = false;
+    refreshUi();
+  }
+  const targetCenter = stageFocusCenter(state.stage);
+  controls.target.lerp(targetCenter, 0.08);
+  if (state.autoRotate) {
+    const orbitPoint = controls.target.clone();
+    camera.position.sub(orbitPoint);
+    camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), dt * 0.22);
+    camera.position.add(orbitPoint);
+  }
+  controls.update();
+  renderStage();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+  </script>
+</body>
+</html>

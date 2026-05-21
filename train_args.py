@@ -1164,6 +1164,26 @@ def parse_args():
     model_group.add_argument("--rope_variant", type=str, default="rope", choices=["rope", "soap"])
     model_group.add_argument("--rope_length", type=int, default=None, help="Defaults to all embeddings (if set to None), else must be even.")
     model_group.add_argument('--use_abs_pos_embeddings', default=True, action=argparse.BooleanOptionalAction)
+    model_group.add_argument(
+        "--absolute_pos_embedding_variant",
+        type=str,
+        default="learned",
+        choices=["learned", "cyclic"],
+        help="Absolute position embedding style: standard learned table or cyclic multi-table sum.",
+    )
+    model_group.add_argument(
+        "--cyclic_abs_pos_cycle_lengths",
+        nargs="+",
+        type=int,
+        default=None,
+        help="Cycle lengths for cyclic absolute embeddings (e.g. --cyclic_abs_pos_cycle_lengths 2 3 5).",
+    )
+    model_group.add_argument(
+        "--cyclic_abs_pos_randomize_starts",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="If enabled, each cyclic embedding list starts from a random offset during training.",
+    )
     model_group.add_argument('--use_fire_embeddings', default=False, action=argparse.BooleanOptionalAction)
     model_group.add_argument('--shared_fire_embeddings', default=False, action=argparse.BooleanOptionalAction)
 
@@ -1175,6 +1195,36 @@ def parse_args():
         type=float,
         default=0.0,
         help="Scale for L2-normalized Gaussian noise added to token embeddings after lookup.",
+    )
+    model_group.add_argument(
+        "--embedding_gaussian_noise_start_iter",
+        type=int,
+        default=0,
+        help="Iteration where embedding Gaussian-noise scheduling begins.",
+    )
+    model_group.add_argument(
+        "--embedding_gaussian_noise_end_iter",
+        type=int,
+        default=None,
+        help="Iteration where embedding Gaussian-noise scheduling reaches its end magnitude.",
+    )
+    model_group.add_argument(
+        "--embedding_gaussian_noise_start_std",
+        type=float,
+        default=None,
+        help="Noise magnitude at --embedding_gaussian_noise_start_iter (defaults to --embedding_gaussian_noise_std).",
+    )
+    model_group.add_argument(
+        "--embedding_gaussian_noise_end_std",
+        type=float,
+        default=None,
+        help="Noise magnitude at --embedding_gaussian_noise_end_iter (defaults to --embedding_gaussian_noise_std).",
+    )
+    model_group.add_argument(
+        "--embedding_gaussian_noise_in_eval",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Allow embedding Gaussian-noise injection during model.eval() (disabled by default).",
     )
 
     ## FIRE Options (Functional Interpolation for Relative Positional Encoding)
@@ -1206,8 +1256,8 @@ def parse_args():
         "squareplus",
         "softshrink",
         "gelumax",
-        "exppolymax",
         "pfla_softmax",
+        "ste_argmax_softmax",
         ]
 
     ## Selection of softmax variation for attention and output layers
@@ -1363,7 +1413,7 @@ def parse_args():
     training_group.add_argument('--gradient_accumulation_steps', default=1, type=int)
 
     # System args
-    training_group.add_argument('--device', default='cuda', type=str)
+    training_group.add_argument('--device', default='cuda:0', type=str)
     training_group.add_argument("--dtype", type=str, default="float16", choices=["bfloat16", "float16", "float32"], help="torch data type for inference, e.g. 'int8'")
     training_group.add_argument('--compile', default=False, action=argparse.BooleanOptionalAction)
 

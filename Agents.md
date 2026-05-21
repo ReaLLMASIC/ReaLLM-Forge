@@ -47,7 +47,9 @@ This file gives coding agents the minimum repository-specific rules needed to co
   new dataset folder describing the dataset, a link to the original source, as
   well the license of the original dataset.`
 - `data/template/...`: `This will have any tokenizer related changes.
-  data/template/tokenizers.py will have tokenizer definitions,
+  data/template/nanogpt_tokenizers.py will have tokenizer definitions
+  (the file is intentionally NOT named tokenizers.py so it does not shadow
+  the third-party HuggingFace tokenizers package on sys.path),
   data/template/prepare.py will be how one calls the tokenizer and selects
   argparse settings, and data/template/tests.py has tests for each of the
   tokenizer definitions. When adding new features to the tokenizer, or new

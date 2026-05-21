@@ -1,0 +1,110 @@
+---
+# Compare standard learned absolute embeddings, cyclic absolute embeddings, and RoPE.
+# Includes with/without norm_variant_abs for absolute variants, and with/without rotary.
+
+named_static_groups:
+  # Positional embedding strategy
+  - named_group: "abs_learned"
+    use_abs_pos_embeddings: [true]
+    absolute_pos_embedding_variant: ["learned"]
+
+  - named_group: "abs_cyclic_235"
+    use_abs_pos_embeddings: [true]
+    absolute_pos_embedding_variant: ["cyclic"]
+    cyclic_abs_pos_cycle_lengths:
+      - [2, 3, 5]
+  - named_group: "abs_cyclic_2357"
+    use_abs_pos_embeddings: [true]
+    absolute_pos_embedding_variant: ["cyclic"]
+    cyclic_abs_pos_cycle_lengths:
+      - [2, 3, 5, 7]
+  - named_group: "abs_cyclic_235711"
+    use_abs_pos_embeddings: [true]
+    absolute_pos_embedding_variant: ["cyclic"]
+    cyclic_abs_pos_cycle_lengths:
+      - [2, 3, 5, 7, 11]
+  - named_group: "abs_cyclic_23571113"
+    use_abs_pos_embeddings: [true]
+    absolute_pos_embedding_variant: ["cyclic"]
+    cyclic_abs_pos_cycle_lengths:
+      - [2, 3, 5, 7, 11, 13]
+
+  - named_group: "rope_only"
+    use_abs_pos_embeddings: [false]
+    use_rotary_embeddings: [true]
+    rope_variant: ["rope"]
+
+  - named_group: "fire_only"
+    use_abs_pos_embeddings: [false]
+    use_fire_embeddings: [true]
+    shared_fire_embeddings: [true]
+
+  - named_group: "fire_on"
+    use_fire_embeddings: [true]
+    shared_fire_embeddings: [true]
+
+  - named_group: "fire_off"
+    use_fire_embeddings: [false]
+    shared_fire_embeddings: [false]
+
+  # Rotary toggle for absolute-embedding runs
+  - named_group: "rotary_off"
+    use_rotary_embeddings: [false]
+  - named_group: "rotary_on"
+    use_rotary_embeddings: [true]
+    rope_variant: ["rope"]
+
+  - named_group: "abs_norm_on"
+    norm_variant_abs: ["hyperspherenorm"]
+    norm_abs_radius_learning: [true]
+    norm_abs_radius: ["20.0"]
+    norm_abs_scale: ["1.0"]
+    norm_abs_gain: [false]
+
+named_variation_groups:
+  - named_group: "abs_variant"
+    named_group_alternates:
+      - "abs_learned"
+      - "abs_cyclic_235711"
+      - "abs_cyclic_23571113"
+    cyclic_abs_pos_randomize_starts: [true, false]
+  - named_group: "rotary_toggle"
+    named_group_alternates: ["rotary_off", "rotary_on"]
+  - named_group: "fire_toggle"
+    named_group_alternates: ["fire_off", "fire_on"]
+
+common_group:
+  dataset: ["minipile"]
+  max_iters: [20000]
+  eval_interval: [2000]
+  n_layer: [6]
+  n_head: [6]
+  n_embd: [384]
+  block_size: [256]
+  batch_size: [64]
+  device: ["cuda"]
+  dtype: ["bfloat16"]
+  compile: [true]
+  never_save_checkpoint: [false]
+  use_qk_norm: [true]
+  use_qk_norm_scale: [true]
+  use_peri_ln: [true]
+
+parameter_groups:
+  - named_group_static: ["abs_norm_on"]
+    named_group_variations: ["abs_variant", "rotary_toggle"]
+
+  - named_group_static: ["rope_only"]
+    norm_variant_wte: ["hyperspherenorm"]
+    norm_wte_radius_learning: [true]
+
+  - named_group_static: ["rope_only"]
+
+  - named_group_static: ["fire_only"]
+    norm_variant_wte: ["hyperspherenorm"]
+    norm_wte_radius_learning: [true]
+
+  - named_group_static: ["fire_only"]
+
+  - named_group_static: ["abs_norm_on"]
+    named_group_variations: ["abs_variant", "fire_toggle"]
