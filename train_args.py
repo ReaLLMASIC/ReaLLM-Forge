@@ -80,6 +80,20 @@ def parse_args():
     training_group.add_argument('--log_interval', default=10, type=int)
     training_group.add_argument('--eval_iters', default=200, type=int)
     training_group.add_argument('--eval_only', default=False, action=argparse.BooleanOptionalAction)
+
+    # Validation-time LM-head minimum-angle graph export args
+    training_group.add_argument('--export_min_angle_graph_dir', default=None, type=str,
+                                help='Optional directory for per-validation LM-head minimum-angle graph exports.')
+    training_group.add_argument('--export_min_angle_graph_each_eval', default=False,
+                                action=argparse.BooleanOptionalAction,
+                                help='Export the LM-head minimum-angle graph after every validation loss.')
+    training_group.add_argument('--export_min_angle_graph_block_size', default=2048, type=int,
+                                help='Row/column block size used when exporting the minimum-angle graph.')
+    training_group.add_argument('--export_min_angle_graph_device', default='auto', type=str,
+                                help="Compute device for minimum-angle graph export: 'auto', 'cpu', or a CUDA device such as 'cuda:0'.")
+    training_group.add_argument('--export_min_angle_graph_label', default=None, type=str,
+                                help='Optional label inserted into minimum-angle graph export filenames.')
+
     training_group.add_argument(
         '--mezo_epsilon',
         type=float,
