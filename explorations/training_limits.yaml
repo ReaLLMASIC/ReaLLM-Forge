@@ -1,0 +1,45 @@
+# training_limits.yaml demonstrating token/epoch limits, eval intervals, and final evals
+---
+named_static_groups:
+  - named_group: "token_limited_eval"
+    max_tokens: [50000]
+    eval_interval_tokens: [10000.0]
+    final_eval: [true]
+    final_eval_save_checkpoint: [true]
+  - named_group: "epoch_limited_eval"
+    max_epochs: [1.5]
+    eval_interval_epochs: [0.25]
+    final_eval: [true]
+  - named_group: "epoch_limited_eval_1p0"
+    max_epochs: [1.0]
+    eval_interval_epochs: [0.25]
+    final_eval: [true]
+  - named_group: "multidataset_main_tokens"
+    training_mode: ["multidataset"]
+    dataset_list: ["shakespeare_char conala"]
+    max_tokens: [30000]
+    eval_interval_tokens: [7500.0]
+  - named_group: "multidataset_main_tokens_1t2"
+    training_mode: ["multidataset"]
+    dataset_list: ["shakespeare_char conala"]
+    max_tokens: [30000]
+    dataset_sampling_probs:
+      - [1, 2]
+    eval_interval_tokens: [7500.0]
+
+common_group:
+  dataset: ["shakespeare_char"]
+  n_layer: ["2"]
+  n_head: ["2"]
+  n_embd: ["128"]
+  block_size: ["64"]
+  batch_size: ["8"]
+  dtype: ["bfloat16"]
+  device: ["cuda"]
+
+parameter_groups:
+  - named_group_static: ["token_limited_eval"]
+  - named_group_static: ["epoch_limited_eval"]
+  - named_group_static: ["multidataset_main_tokens"]
+  - named_group_static: ["multidataset_main_tokens_1t2"]
+  - named_group_static: ["epoch_limited_eval_1p0"]

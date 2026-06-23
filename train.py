@@ -125,6 +125,13 @@ class Trainer:
         self.evaluations_remaining: int = 0 # will be updated after the current iter is loaded
         self.formatted_completion_eta: str = "waiting for calculation"
         self.iter_latency_avg: float = 0.0  # running mean ms / iteration
+        self.eval_interval_tokens = None
+        self.eval_interval_iters = self.args.eval_interval
+        self.next_eval_tokens = None
+        self.max_tokens_target = None
+        self.main_dataset = None
+        self.main_dataset_size_tokens = None
+        self.last_eval_iter = -1
 
         # track latest evaluation metrics for progress bar
         self.latest_top1_prob = float('nan')
@@ -498,6 +505,7 @@ class Trainer:
             import wandb
             self.args.csv_name = wandb_run_name
             wandb.init(project=self.args.wandb_project, name=self.args.wandb_run_name, config=self.args)
+        self._configure_training_limits()
         self.load_tokenizer()
 
 
@@ -1783,6 +1791,76 @@ class Trainer:
         abbr = ''.join([part[0] for part in parts])
         return abbr
 
+    def _get_main_dataset_key(self) -> str:
+        if self.args.dataset_list:
+            return self.args.dataset
+        if self.args.training_mode == 'multicontext' and self.args.multicontext_datasets:
+            return self.args.multicontext_datasets[0]
+        return self.args.dataset
+
+    def _get_main_dataset_size_tokens(self) -> int:
+        if isinstance(self.dataset_size_tokens, dict):
+            dataset_key = self._get_main_dataset_key()
+            return int(self.dataset_size_tokens.get(dataset_key, next(iter(self.dataset_size_tokens.values()))))
+        return int(self.dataset_size_tokens)
+
+    def _get_main_tokens_trained(self) -> int:
+        if self.args.dataset_list:
+            return int(self.tokens_trained_dict.get(self._get_main_dataset_key(), 0))
+        return int(self.tokens_trained)
+
+    def _configure_training_limits(self) -> None:
+        self.main_dataset = self._get_main_dataset_key()
+        self.main_dataset_size_tokens = self._get_main_dataset_size_tokens()
+
+        max_tokens_targets = []
+        if self.args.max_tokens is not None:
+            max_tokens_targets.append(int(self.args.max_tokens))
+        if self.args.max_epochs is not None:
+            max_tokens_targets.append(int(self.args.max_epochs * self.main_dataset_size_tokens))
+
+        if max_tokens_targets:
+            positive_targets = [token for token in max_tokens_targets if token > 0]
+            if positive_targets:
+                self.max_tokens_target = min(positive_targets)
+                derived_max_iters = max(1, math.ceil(self.max_tokens_target / self.tokens_per_iter))
+                self.args.max_iters = derived_max_iters
+                if self.args.lr_decay_match_max_iters:
+                    self.args.lr_decay_iters = self.args.max_iters
+
+        interval_tokens = None
+        if self.args.eval_interval_tokens is not None:
+            interval_tokens = max(1, int(self.args.eval_interval_tokens))
+        elif self.args.eval_interval_epochs is not None:
+            interval_tokens = max(1, int(self.args.eval_interval_epochs * self.main_dataset_size_tokens))
+
+        if interval_tokens is not None:
+            self.eval_interval_tokens = interval_tokens
+            self.eval_interval_iters = max(1, int(interval_tokens / self.tokens_per_iter))
+            self.args.eval_interval = self.eval_interval_iters
+            self.model_args['eval_interval'] = self.eval_interval_iters
+        else:
+            self.eval_interval_tokens = None
+            self.eval_interval_iters = self.args.eval_interval
+
+    def _should_run_eval(self) -> bool:
+        if self.eval_interval_tokens is None:
+            return self.iter_num % self.args.eval_interval == 0
+        return self._get_main_tokens_trained() >= (self.next_eval_tokens or 0)
+
+    def _update_next_eval_tokens(self) -> None:
+        if self.eval_interval_tokens is None:
+            return
+        if self.next_eval_tokens is None:
+            self.next_eval_tokens = 0
+        while self.next_eval_tokens <= self._get_main_tokens_trained():
+            self.next_eval_tokens += self.eval_interval_tokens
+
+    def _reached_training_limit(self) -> bool:
+        if self.max_tokens_target is not None:
+            return self._get_main_tokens_trained() >= self.max_tokens_target
+        return self.iter_num >= self.args.max_iters
+
     def save_checkpoint(self, filename):
         if self.args.never_save_checkpoint:
             return
@@ -2064,7 +2142,13 @@ class Trainer:
         local_iter_num = 0
         running_mfu = -1.0
         current_epoch = 0.0
-        self.evaluations_remaining = (self.args.max_iters - self.iter_num) // self.args.eval_interval + 1
+        if self.eval_interval_tokens is not None:
+            self.next_eval_tokens = 0
+        if self.eval_interval_tokens is not None and self.max_tokens_target is not None:
+            remaining_tokens = max(self.max_tokens_target - self._get_main_tokens_trained(), 0)
+            self.evaluations_remaining = remaining_tokens // self.eval_interval_tokens + 1
+        else:
+            self.evaluations_remaining = (self.args.max_iters - self.iter_num) // self.args.eval_interval + 1
         self.eta = build_eta_estimator(self.args, t_start, self.evaluations_remaining, self.formatted_completion_eta)
         num_steps_with_worse_loss = 0
         losses = {"val": float("inf")}
@@ -2116,11 +2200,15 @@ class Trainer:
                 for param_group in self.optimizer.param_groups:
                     param_group['lr'] = self.lr
 
-                if self.iter_num % self.args.eval_interval == 0 and self.master_process:
+                is_eval_boundary = self._should_run_eval()
+
+                if is_eval_boundary and self.master_process:
 
                     losses, num_steps_with_worse_loss = self.run_validation_step(
                         running_mfu, current_epoch, current_dataset, num_steps_with_worse_loss, live
                     )
+                    self.last_eval_iter = self.iter_num
+                    self._update_next_eval_tokens()
 
                     if self.args.patience is not None and num_steps_with_worse_loss >= self.args.patience:
                         print(f"Early Stopping: loss has not decreased in {self.args.patience + 1} steps")
@@ -2269,7 +2357,7 @@ class Trainer:
                         iter_num=self.iter_num,
                         now=t1,
                         dt=dt,
-                        is_eval_boundary=(self.iter_num % self.args.eval_interval == 0),
+                        is_eval_boundary=is_eval_boundary,
                         )
 
                 progress_advance = eta_update.progress_advance
@@ -2306,7 +2394,7 @@ class Trainer:
                 live.update(Group(progress.get_renderable(), cli_text))
 
                 # End of training actions
-                if self.iter_num > self.args.max_iters:
+                if self._reached_training_limit():
                     print(self.best_val_loss, self.best_iter, self.best_tokens)
                     if self.args.only_save_checkpoint_at_end:
                         if not self.args.never_save_checkpoint:
@@ -2319,6 +2407,15 @@ class Trainer:
                             self.sample_and_print()
                             live.start()
                     break
+
+            if self.args.final_eval and self.master_process and self.last_eval_iter != self.iter_num:
+                losses, num_steps_with_worse_loss = self.run_validation_step(
+                    running_mfu, current_epoch, current_dataset, num_steps_with_worse_loss, live
+                )
+                self.last_eval_iter = self.iter_num
+                if self.args.final_eval_save_checkpoint and not self.args.never_save_checkpoint:
+                    self.save_checkpoint('ckpt.pt')
+                    print(f"Saved checkpoint to {self.args.out_dir}")
 
             if self.args.plot_statistics:
                 plot_statistics(self.args, self.stats, graph_y_labels)

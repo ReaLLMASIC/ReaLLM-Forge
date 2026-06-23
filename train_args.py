@@ -77,6 +77,18 @@ def parse_args():
     # I/O args
     training_group.add_argument('--out_dir', default='out', type=str)
     training_group.add_argument('--eval_interval', default=250, type=int)
+    training_group.add_argument(
+        '--eval_interval_tokens',
+        default=None,
+        type=float,
+        help='Evaluate every N tokens (float accepted, cast to int). Overrides eval_interval.',
+    )
+    training_group.add_argument(
+        '--eval_interval_epochs',
+        default=None,
+        type=float,
+        help='Evaluate every N epochs on the main dataset (float accepted, cast to int tokens). Overrides eval_interval.',
+    )
     training_group.add_argument('--log_interval', default=10, type=int)
     training_group.add_argument('--eval_iters', default=200, type=int)
     training_group.add_argument('--eval_only', default=False, action=argparse.BooleanOptionalAction)
@@ -239,6 +251,8 @@ def parse_args():
     training_group.add_argument('--only_save_checkpoint_at_end', default=False, action=argparse.BooleanOptionalAction)
     training_group.add_argument('--always_save_checkpoint', default=False, action=argparse.BooleanOptionalAction)
     training_group.add_argument('--never_save_checkpoint', default=False, action=argparse.BooleanOptionalAction, help="If set, disables saving of all checkpoints.")
+    training_group.add_argument('--final_eval', default=True, action=argparse.BooleanOptionalAction, help="Run one final validation pass at the end of training.")
+    training_group.add_argument('--final_eval_save_checkpoint', default=False, action=argparse.BooleanOptionalAction, help="If set with --final_eval, save a checkpoint after the final validation.")
     training_group.add_argument('--patience', default=None, type=int, help="if set, will stop training if the number of evaluations since val loss was seen to decrease exceeds 'patience' setting.")
     training_group.add_argument('--init_from', default='scratch', choices=['scratch', 'prev_run', 'resume', 'gpt2'], type=str)
     training_group.add_argument('--gpt2_type', default='gpt2', type=str)
@@ -1423,6 +1437,8 @@ def parse_args():
 
     # Optimizer args
     training_group.add_argument('--max_iters', default=3500, type=int)
+    training_group.add_argument('--max_tokens', default=None, type=int, help="Stop after N tokens on the main dataset.")
+    training_group.add_argument('--max_epochs', default=None, type=float, help="Stop after N epochs on the main dataset.")
     training_group.add_argument('--weight_decay', default=1e-1, type=float)
     training_group.add_argument('--beta1', default=0.9, type=float)
     training_group.add_argument('--beta2', default=0.99, type=float)
