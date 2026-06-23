@@ -258,6 +258,52 @@ python3 view_model_stats.py run1_stats.csv run2_stats.csv
 See [documentation/Model_Stats_Table.md](documentation/Model_Stats_Table.md)
 for more details.
 
+## LM-head minimum-angle graph exports
+
+`train.py` can optionally export the same closest-neighbor graph used by the
+LM-head angle explorer's minimum-angular-distance view after each validation
+loss. The export treats each LM-head row as a token vector, streams
+row/column blocks through the selected compute device, excludes each token's
+self-distance, and records the closest non-self token by signed `0°–180°`
+angular distance. The full `vocab_size × vocab_size` angle matrix is never
+materialized.
+
+Enable the export by choosing a labelled output directory and turning on the
+per-eval flag:
+
+```bash
+python3 train.py \
+  --export_min_angle_graph_dir out/min_angle_graphs \
+  --export_min_angle_graph_each_eval \
+  --export_min_angle_graph_label shakespeare_char_baseline
+```
+
+Each validation step writes a labelled CSV and JSON sidecar whose filename
+includes the label, iteration, and validation loss:
+
+```text
+out/min_angle_graphs/shakespeare_char_baseline_iter_00000250_val_1.234567.csv
+out/min_angle_graphs/shakespeare_char_baseline_iter_00000250_val_1.234567.json
+```
+
+The CSV is an edge list with one directed nearest-neighbor edge per token:
+
+```text
+token_id,nearest_token_id,min_angle_deg,cosine,token_vector_length,nearest_token_vector_length,min_angle_rank
+```
+
+Use `--export_min_angle_graph_block_size` to tune temporary matrix multiply
+size, and `--export_min_angle_graph_device` to choose `auto`, `cpu`, or a CUDA
+device such as `cuda:0`. In `auto` mode, the export uses the LM-head tensor's
+current CUDA device when possible, otherwise streams blocks to `cuda:0` if CUDA
+is available, and falls back to CPU.
+
+To review a sequence of exports visually, open
+`analysis/min_angle_graph_plotly_viewer.html` in a browser and select the CSV
+files from one export directory. The page sorts snapshots by the iteration in
+their filenames and provides previous/next/play controls plus a slider to step
+from the first validation export to the last.
+
 ## TODO Section:
 
 TODO: Add links and descriptions to other Readme's and Demos.
