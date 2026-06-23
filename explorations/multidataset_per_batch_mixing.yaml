@@ -1,0 +1,30 @@
+# multidataset_per_batch_mixing.yaml
+---
+# Demonstrates scheduled per-batch dataset mixing with two corpora.
+training_mode: ["multidataset"]
+dataset_list:
+  - "shakespeare_char minipile"
+# Start with a 75/25 split and linearly transition to 25/75.
+dataset_sampling_probs:
+  - "3 1"
+dataset_sampling_probs_final:
+  - "1 3"
+dataset_sampling_probs_transition_method: ["linear"]
+dataset_mixing_per_batch: [true]
+# Lightweight model + optimizer settings suitable for quick exploration runs.
+block_size: [128]
+batch_size: [8]
+max_iters: [2000]
+eval_interval: [200]
+eval_iters: [50]
+learning_rate: [3e-4]
+weight_decay: [0.1]
+optimizer: ["adamw"]
+n_layer: [4]
+n_head: [4]
+n_embd: [256]
+# Enable rotary embeddings and torch.compile for parity with other demos.
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+compile: [true]
+seed: [1337]

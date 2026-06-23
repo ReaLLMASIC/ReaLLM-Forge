@@ -348,6 +348,8 @@ def parse_args():
     training_group.add_argument('--dataset_sampling_probs', action=FlattenListAction, default=None, nargs='+', help="Sampling proportions for each dataset in dataset_list. Probabilities normally but proportions in dataset_interleaving")
     training_group.add_argument('--dataset_sampling_probs_final', action=FlattenListAction,default=None, nargs='+', help="If, set final sampling probabilities for each dataset in dataset_list.")
     training_group.add_argument('--dataset_sampling_probs_transition_method', default=None, type=str, choices=["linear", "cosine", "exponential"])
+    training_group.add_argument('--dataset_mixing_per_batch', default=False, action=argparse.BooleanOptionalAction,
+                                help="When enabled in multidataset mode, draw each batch using the per-dataset sampling probabilities instead of sampling a single dataset per iteration.")
 
     # Add GNS settings
     training_group.add_argument('--gns_type', type=str, default=None, choices=['sogns', 'exact'], help='Type of gradient norm scaling to use (default: None)')

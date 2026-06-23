@@ -1,5 +1,6 @@
 # train.py
 from contextlib import nullcontext
+from typing import Dict, Optional
 import csv
 import json
 import math
@@ -154,6 +155,9 @@ class Trainer:
             'min': 0.0,
             'abs_max': 0.0,
         }
+
+        # Track how many samples from each dataset were used in the latest batch
+        self.current_batch_dataset_counts: Optional[Dict[str, int]] = None
 
         # whether to show all model stats
         self.compute_model_stats = self.args.compute_model_stats
@@ -830,6 +834,7 @@ class Trainer:
     def get_batch(self, split, target_dataset=None):
         dataset = None
         data = None
+        self.current_batch_dataset_counts = None
         def interpolate_probs(initial_probs, final_probs, method, step_ratio):
             if method == 'linear':
                 return initial_probs + step_ratio * (final_probs - initial_probs)
@@ -880,10 +885,125 @@ class Trainer:
             return x_dict, y_dict, list(self.args.multicontext_datasets)
 
         elif self.args.training_mode == "multidataset":
+            def sample_indices_from_dataset(dataset_name, count, data_array):
+                available = len(data_array) - self.args.block_size
+                if self.args.sampling_method == "random":
+                    return torch.randint(available, (count,))
+                elif self.args.sampling_method == "sequential":
+                    if self.dataset_ptr[dataset_name] + count > available:
+                        self.dataset_ptr[dataset_name] = 0
+                    start = self.dataset_ptr[dataset_name]
+                    end = start + count
+                    indices = self.dataset_perm[dataset_name][start:end]
+                    self.dataset_ptr[dataset_name] = end
+                    return torch.tensor(indices)
+                elif self.args.sampling_method == "without_replacement":
+                    if self.dataset_ptr[dataset_name] + count > available:
+                        self.dataset_perm[dataset_name] = np.random.permutation(available)
+                        self.dataset_ptr[dataset_name] = 0
+                    start = self.dataset_ptr[dataset_name]
+                    end = start + count
+                    indices = self.dataset_perm[dataset_name][start:end]
+                    self.dataset_ptr[dataset_name] = end
+                    return torch.tensor(indices)
+                else:
+                    return torch.randint(available, (count,))
+
+            def build_tensors(data_array, indices):
+                x_local = torch.stack([
+                    torch.from_numpy(data_array[i:i+self.args.block_size].astype(np.int64))
+                    for i in indices
+                ])
+                y_local = torch.stack([
+                    torch.from_numpy(data_array[i+1:i+1+self.args.block_size].astype(np.int64))
+                    for i in indices
+                ])
+                return x_local, y_local
+
             # If multi-dataset sampling is enabled, pick a dataset using sampling probabilities
             if target_dataset:
                 dataset = target_dataset
                 data = self.train_data_dict[dataset] if split == 'train' else self.val_data_dict[dataset]
+            elif (
+                self.args.dataset_mixing_per_batch
+                and not self.args.dataset_interleaving
+                and target_dataset is None
+            ):
+                if self.args.multidataset_wte:
+                    raise ValueError("Per-batch dataset mixing is currently incompatible with --multidataset_wte")
+
+                if self.args.dataset_sampling_probs:
+                    transitioned_probs = get_transitioned_probs()
+                else:
+                    transitioned_probs = np.ones(len(self.args.dataset_list), dtype=float)
+
+                transitioned_probs = np.asarray(transitioned_probs, dtype=float)
+                total_prob = transitioned_probs.sum()
+                if total_prob <= 0:
+                    transitioned_probs = np.ones_like(transitioned_probs)
+                    total_prob = transitioned_probs.sum()
+                normalized_probs = transitioned_probs / total_prob
+
+                ideal_counts = normalized_probs * self.args.batch_size
+                base_counts = np.floor(ideal_counts).astype(int)
+                remainders = ideal_counts - base_counts
+                remaining = self.args.batch_size - base_counts.sum()
+
+                if remaining > 0:
+                    order = np.argsort(-remainders)
+                    for idx in order[:remaining]:
+                        base_counts[idx] += 1
+                elif remaining < 0:
+                    order = np.argsort(remainders)
+                    for idx in order[: -remaining]:
+                        if base_counts[idx] > 0:
+                            base_counts[idx] -= 1
+
+                counts = base_counts
+                if counts.sum() == 0:
+                    counts[np.argmax(normalized_probs)] = self.args.batch_size
+
+                x_parts = []
+                y_parts = []
+                dataset_counts = {}
+                for ds_name, count in zip(self.args.dataset_list, counts):
+                    if count <= 0:
+                        continue
+                    data_array = (
+                        self.train_data_dict[ds_name]
+                        if split == 'train'
+                        else self.val_data_dict[ds_name]
+                    )
+                    indices = sample_indices_from_dataset(ds_name, count, data_array)
+                    x_local, y_local = build_tensors(data_array, indices)
+                    x_parts.append(x_local)
+                    y_parts.append(y_local)
+                    dataset_counts[ds_name] = count
+
+                if not x_parts:
+                    dataset = np.random.choice(self.args.dataset_list)
+                    data = (
+                        self.train_data_dict[dataset]
+                        if split == 'train'
+                        else self.val_data_dict[dataset]
+                    )
+                else:
+                    x = torch.cat(x_parts, dim=0) if len(x_parts) > 1 else x_parts[0]
+                    y = torch.cat(y_parts, dim=0) if len(y_parts) > 1 else y_parts[0]
+                    if x.size(0) > 1:
+                        permutation = torch.randperm(x.size(0))
+                        x = x[permutation]
+                        y = y[permutation]
+                    self.current_batch_dataset_counts = dataset_counts
+                    dataset = max(dataset_counts, key=dataset_counts.get)
+                    if self.args.use_lsv:
+                        self.model.set_lsv_index(self.args.dataset_list.index(dataset))
+                    if self.device_type == 'cuda':
+                        x = x.pin_memory().to(self.device, non_blocking=True)
+                        y = y.pin_memory().to(self.device, non_blocking=True)
+                    else:
+                        x, y = x.to(self.device), y.to(self.device)
+                    return x, y, dataset
             elif self.args.dataset_interleaving:
                 # print("using interleaving")
                 if self.args.dataset_sampling_probs is not None:
@@ -2203,18 +2323,31 @@ class Trainer:
                     prior_dataset = current_dataset
                     tokens_trained_this_batch = self.args.batch_size * self.args.block_size
                     if self.args.dataset_list:
-                        # Update per–dataset count
-                        self.tokens_trained_dict[current_dataset] += tokens_trained_this_batch
-                        self.tokens_trained = self.tokens_trained_dict[current_dataset]
+                        batch_counts = self.current_batch_dataset_counts
+                        if batch_counts:
+                            for ds_name, sample_count in batch_counts.items():
+                                tokens = sample_count * self.args.block_size
+                                self.tokens_trained_dict[ds_name] += tokens
+                                self.epochs_trained_dict[ds_name] = (
+                                    self.tokens_trained_dict[ds_name] / self.dataset_size_tokens[ds_name]
+                                )
+                            dominant_dataset = max(batch_counts, key=batch_counts.get)
+                            self.tokens_trained = self.tokens_trained_dict[dominant_dataset]
+                            current_epoch = self.epochs_trained_dict[dominant_dataset]
+                        else:
+                            # Update per–dataset count
+                            self.tokens_trained_dict[current_dataset] += tokens_trained_this_batch
+                            self.tokens_trained = self.tokens_trained_dict[current_dataset]
                     else:
                         self.tokens_trained += tokens_trained_this_batch
 
                     # Compute epoch for logging:
-                        if self.args.dataset_list:
+                    if self.args.dataset_list:
+                        if not batch_counts:
                             current_epoch = self.tokens_trained_dict[current_dataset] / self.dataset_size_tokens[current_dataset]
                             self.epochs_trained_dict[current_dataset] = current_epoch
-                        else:
-                            current_epoch = self.tokens_trained / self.dataset_size_tokens
+                    else:
+                        current_epoch = self.tokens_trained / self.dataset_size_tokens
 
                     self.scaler.scale(loss).backward()
 
