@@ -1479,6 +1479,10 @@ def parse_args():
     logging_group.add_argument('--log_all_metrics', default=False, action=argparse.BooleanOptionalAction, help='Enable logging of all metrics including gns')
     logging_group.add_argument('--log_rankme', default=True, action=argparse.BooleanOptionalAction, help='Log RankMe representation metric during validation')
     logging_group.add_argument('--log_areq', default=True, action=argparse.BooleanOptionalAction, help='Log aReQ representation metric during validation')
+    logging_group.add_argument('--log_lm_head_vocab_hist', default=False, action=argparse.BooleanOptionalAction, help='Log TensorBoard histogram of per-token lm_head vector magnitudes over training')
+    logging_group.add_argument('--log_lm_head_vocab_hist_interval', default=100, type=int, help='Training-step interval for logging lm_head vocab magnitude histogram')
+    logging_group.add_argument('--export_lm_head_vocab_hist_html', default=False, action=argparse.BooleanOptionalAction, help='Export an interactive HTML report of final lm_head vocab-vector magnitudes')
+    logging_group.add_argument('--lm_head_vocab_hist_html_path', type=str, default=None, help='Optional output path for lm_head vocab histogram HTML (default: <out_dir>/lm_head_vocab_histogram.html)')
 
     # Turn activation/weight statistics off to save CPU RAM and wall time.
     training_group.add_argument(

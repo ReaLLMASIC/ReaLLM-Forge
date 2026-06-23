@@ -110,6 +110,7 @@ class Trainer:
         self.peak_torch_allocated = 0.0
         self.peak_torch_reserved = 0.0
         self.peak_process_gpu_usage = 0.0
+        self.lm_head_hist_snapshots = []
         self.zeus_monitor = None
         self.zeus_enabled = False
         self.zeus_total_energy_j = 0.0
@@ -1401,6 +1402,151 @@ class Trainer:
             return 0.0
         return vocab_size / math.exp(loss_value)
 
+    def _log_lm_head_vocab_magnitude_histogram(self, target_dataset: str) -> None:
+        if (
+            not self.args.tensorboard_log
+            or self.writer is None
+            or not self.args.log_lm_head_vocab_hist
+            or self.iter_num % self.args.log_lm_head_vocab_hist_interval != 0
+        ):
+            return
+
+        lm_head = getattr(self.model, "lm_head", None)
+        if self.args.training_mode == "multicontext" and hasattr(self.model, "transformer"):
+            try:
+                dataset_idx = self.args.multicontext_datasets.index(target_dataset)
+            except ValueError:
+                dataset_idx = 0
+            lm_head = self.model.transformer.get(f"lm_head_{dataset_idx}", lm_head)
+
+        if lm_head is None or not hasattr(lm_head, "weight"):
+            return
+
+        with torch.no_grad():
+            magnitudes = lm_head.weight.detach().norm(dim=1).float().cpu()
+        self.writer.add_histogram(
+            f"{target_dataset}/lm_head_vocab_vector_magnitude",
+            magnitudes,
+            self.iter_num,
+        )
+
+    def _get_vocab_label_parts(self, token_id: int) -> tuple[str, str]:
+        token_text = None
+        if hasattr(self, "itos") and self.itos is not None and token_id < len(self.itos):
+            token_text = self.itos[token_id]
+        elif hasattr(self, "decode") and callable(self.decode):
+            try:
+                token_text = self.decode([int(token_id)])
+            except Exception:
+                token_text = None
+        if token_text is None:
+            token_text = f"<id:{token_id}>"
+        raw = str(token_text)
+        human = raw.encode("unicode_escape").decode("utf-8")
+        return raw, human
+
+    def _export_lm_head_vocab_histogram_html(self) -> None:
+        if not self.args.export_lm_head_vocab_hist_html:
+            return
+        if len(self.lm_head_hist_snapshots) == 0:
+            print("Skipping lm_head vocab histogram HTML export: no snapshots captured.")
+            return
+        out_path = self.args.lm_head_vocab_hist_html_path or os.path.join(
+            self.args.out_dir, "lm_head_vocab_histogram.html"
+        )
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        payload = json.dumps(self.lm_head_hist_snapshots)
+        html_text = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>lm_head vocab histogram</title></head>
+<body>
+<h2>lm_head vocabulary vector magnitudes over time</h2>
+<label for="sortBy">Sort by:</label>
+<select id="sortBy">
+  <option value="id_asc">Vocab ID (low to high)</option>
+  <option value="id_desc">Vocab ID (high to low)</option>
+  <option value="mag_desc">Magnitude (high to low)</option>
+  <option value="mag_asc">Magnitude (low to high)</option>
+</select>
+<button id="prevFrame" type="button">◀ Prev</button>
+<button id="nextFrame" type="button">Next ▶</button>
+<span id="frameInfo" style="margin-left:8px;"></span>
+<div style="margin-top:8px;">X-axis is token symbol; hover shows token id + symbol.</div>
+<div id="plot" style="width:100%;height:85vh;"></div>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+const snapshots = {payload};
+let frameIndex = snapshots.length - 1;
+function sortedData(mode, frame) {{
+  const d = [...frame.vocab];
+  if (mode === 'id_asc') d.sort((a,b)=>a.id-b.id);
+  if (mode === 'id_desc') d.sort((a,b)=>b.id-a.id);
+  if (mode === 'mag_desc') d.sort((a,b)=>b.magnitude-a.magnitude || a.id-b.id);
+  if (mode === 'mag_asc') d.sort((a,b)=>a.magnitude-b.magnitude || a.id-b.id);
+  return d;
+}}
+function render(mode) {{
+  const frame = snapshots[frameIndex];
+  const d = sortedData(mode, frame);
+  const trace = {{
+    type: 'bar',
+    x: d.map(v => v.token_display),
+    y: d.map(v => v.magnitude),
+    customdata: d.map(v => [v.id, v.token_display]),
+    hovertemplate: 'id=%{{customdata[0]}}<br>token=%{{customdata[1]}}<br>Magnitude=%{{y:.6f}}<extra></extra>'
+  }};
+  Plotly.react('plot', [trace], {{
+    xaxis: {{title: 'Token symbol'}},
+    yaxis: {{title: 'Vector magnitude (L2 norm)'}},
+    margin: {{t: 20, l: 60, r: 20, b: 60}}
+  }}, {{responsive: true}});
+  document.getElementById('frameInfo').textContent =
+    `Frame ${{frameIndex + 1}}/${{snapshots.length}} | iter=${{frame.iter_num}} | tokens=${{frame.tokens_trained}}`;
+}}
+const select = document.getElementById('sortBy');
+select.onchange = function() {{ render(this.value); }};
+document.getElementById('prevFrame').onclick = function() {{
+  frameIndex = Math.max(0, frameIndex - 1);
+  render(select.value);
+}};
+document.getElementById('nextFrame').onclick = function() {{
+  frameIndex = Math.min(snapshots.length - 1, frameIndex + 1);
+  render(select.value);
+}};
+document.addEventListener('keydown', function(e) {{
+  if (e.key === 'ArrowLeft') document.getElementById('prevFrame').click();
+  if (e.key === 'ArrowRight') document.getElementById('nextFrame').click();
+}});
+render('id_asc');
+</script></body></html>"""
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(html_text)
+        print(f"Exported lm_head vocab histogram HTML: {out_path}")
+
+    def _capture_lm_head_hist_snapshot(self, target_dataset: str, tokens_trained: float) -> None:
+        if not self.args.export_lm_head_vocab_hist_html:
+            return
+        lm_head = getattr(self.model, "lm_head", None)
+        if self.args.training_mode == "multicontext" and hasattr(self.model, "transformer"):
+            try:
+                dataset_idx = self.args.multicontext_datasets.index(target_dataset)
+            except ValueError:
+                dataset_idx = 0
+            lm_head = self.model.transformer.get(f"lm_head_{dataset_idx}", lm_head)
+        if lm_head is None or not hasattr(lm_head, "weight"):
+            return
+        with torch.no_grad():
+            magnitudes = lm_head.weight.detach().norm(dim=1).float().cpu().tolist()
+        vocab_data = []
+        for i, m in enumerate(magnitudes):
+            token_raw, token_display = self._get_vocab_label_parts(i)
+            vocab_data.append({"id": i, "magnitude": float(m), "token_raw": token_raw, "token_display": token_display})
+        self.lm_head_hist_snapshots.append({
+            "iter_num": int(self.iter_num),
+            "tokens_trained": float(tokens_trained),
+            "dataset": target_dataset,
+            "vocab": vocab_data,
+        })
+
     def log_metrics(self, losses, running_mfu, epoch, tokens_trained, target_dataset, val_better_than_chance):
         compute_rankme = self.args.log_rankme or self.args.log_areq
 
@@ -1501,6 +1647,8 @@ class Trainer:
 
             self._log_zeus_tensorboard(target_dataset, tokens_trained)
             self._log_bit_metrics(target_dataset, tokens_trained)
+            self._log_lm_head_vocab_magnitude_histogram(target_dataset)
+            self._capture_lm_head_hist_snapshot(target_dataset, tokens_trained)
 
 
         if self.args.csv_log:
@@ -1602,6 +1750,7 @@ class Trainer:
 
             self._log_zeus_tensorboard(target_dataset, tokens_trained)
             self._log_bit_metrics(target_dataset, tokens_trained)
+            self._log_lm_head_vocab_magnitude_histogram(target_dataset)
 
     def write_to_csv(self, *args, prefix=""):
         args = list(args)
@@ -2307,6 +2456,7 @@ class Trainer:
 
                 # End of training actions
                 if self.iter_num > self.args.max_iters:
+                    self._export_lm_head_vocab_histogram_html()
                     print(self.best_val_loss, self.best_iter, self.best_tokens)
                     if self.args.only_save_checkpoint_at_end:
                         if not self.args.never_save_checkpoint:
