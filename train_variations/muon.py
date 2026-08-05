@@ -69,7 +69,13 @@ class Muon(torch.optim.Optimizer):
                     state = self.state[p]
                     if not state:
                         state["momentum_buffer"] = torch.zeros_like(p)
-                    upd = muon_update(p.grad, state["momentum_buffer"], beta=group["momentum"])
+                    upd = muon_update(
+                        p.grad,
+                        state["momentum_buffer"],
+                        beta=group["momentum"],
+                        ns_steps=group.get("ns_steps", 5),
+                        nesterov=group.get("nesterov", True),
+                    )
                     p.mul_(1 - group["lr"] * group["weight_decay"])
                     p.add_(upd.reshape(p.shape), alpha=-group["lr"])
                 dist.all_gather(pad[base:base + dist.get_world_size()], pad[base + dist.get_rank()])
@@ -95,7 +101,13 @@ class SingleDeviceMuon(torch.optim.Optimizer):
                 state = self.state[p]
                 if not state:
                     state["momentum_buffer"] = torch.zeros_like(p)
-                upd = muon_update(p.grad, state["momentum_buffer"], beta=group["momentum"])
+                upd = muon_update(
+                    p.grad,
+                    state["momentum_buffer"],
+                    beta=group["momentum"],
+                    ns_steps=group.get("ns_steps", 5),
+                    nesterov=group.get("nesterov", True),
+                )
                 p.mul_(1 - group["lr"] * group["weight_decay"])
                 p.add_(upd.reshape(p.shape), alpha=-group["lr"])
         return loss
@@ -145,7 +157,13 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                         state = self.state[p]
                         if not state:
                             state["momentum_buffer"] = torch.zeros_like(p)
-                        upd = muon_update(p.grad, state["momentum_buffer"], beta=group["momentum"])
+                        upd = muon_update(
+                            p.grad,
+                            state["momentum_buffer"],
+                            beta=group["momentum"],
+                            ns_steps=group.get("ns_steps", 5),
+                            nesterov=group.get("nesterov", True),
+                        )
                         p.mul_(1 - group["lr"] * group["weight_decay"])
                         p.add_(upd.reshape(p.shape), alpha=-group["lr"])
                     dist.all_gather(pad[base:base + dist.get_world_size()], pad[base + dist.get_rank()])
@@ -195,7 +213,13 @@ class SingleDeviceMuonWithAuxAdam(torch.optim.Optimizer):
                     state = self.state[p]
                     if not state:
                         state["momentum_buffer"] = torch.zeros_like(p)
-                    upd = muon_update(p.grad, state["momentum_buffer"], beta=group["momentum"])
+                    upd = muon_update(
+                        p.grad,
+                        state["momentum_buffer"],
+                        beta=group["momentum"],
+                        ns_steps=group.get("ns_steps", 5),
+                        nesterov=group.get("nesterov", True),
+                    )
                     p.mul_(1 - group["lr"] * group["weight_decay"])
                     p.add_(upd.reshape(p.shape), alpha=-group["lr"])
             else:

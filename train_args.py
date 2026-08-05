@@ -2,6 +2,8 @@
 import argparse
 import math
 import re
+import json
+
 
 from train_variations.loss_variants import LOSS_VARIANTS
 from train_variations.distillation_loss_variants import (
@@ -20,6 +22,13 @@ def parse_args():
     model_group = parser.add_argument_group('model_group')
     training_group = parser.add_argument_group('training_group')
     logging_group = parser.add_argument_group('logging_group')
+
+    model_group.add_argument(
+        '--attention_residual_variant', default='standard', choices=['standard', 'full'],
+        help='Residual stream implementation: ordinary addition or full depth-wise attention.',
+    )
+    model_group.add_argument('--attention_residual_eps', default=1e-6, type=float,
+                             help='RMSNorm epsilon used for Full Attention Residual routing keys.')
 
     # MLP Bias Configuration
     model_group.add_argument('--mlp_up_bias', default=None, action=argparse.BooleanOptionalAction, help='Whether to use bias in MLP up projections. If None, uses global bias setting.')
@@ -80,6 +89,20 @@ def parse_args():
     training_group.add_argument('--log_interval', default=10, type=int)
     training_group.add_argument('--eval_iters', default=200, type=int)
     training_group.add_argument('--eval_only', default=False, action=argparse.BooleanOptionalAction)
+
+    # Validation-time LM-head minimum-angle graph export args
+    training_group.add_argument('--export_min_angle_graph_dir', default=None, type=str,
+                                help='Optional directory for per-validation LM-head minimum-angle graph exports.')
+    training_group.add_argument('--export_min_angle_graph_each_eval', default=False,
+                                action=argparse.BooleanOptionalAction,
+                                help='Export the LM-head minimum-angle graph after every validation loss.')
+    training_group.add_argument('--export_min_angle_graph_block_size', default=2048, type=int,
+                                help='Row/column block size used when exporting the minimum-angle graph.')
+    training_group.add_argument('--export_min_angle_graph_device', default='auto', type=str,
+                                help="Compute device for minimum-angle graph export: 'auto', 'cpu', or a CUDA device such as 'cuda:0'.")
+    training_group.add_argument('--export_min_angle_graph_label', default=None, type=str,
+                                help='Optional label inserted into minimum-angle graph export filenames.')
+
     training_group.add_argument(
         '--mezo_epsilon',
         type=float,
@@ -225,6 +248,24 @@ def parse_args():
         default=1e-8,
         help='Numerical stability epsilon for distillation losses.',
     )
+    training_group.add_argument(
+        '--passive_distillation_loss_log',
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help=(
+            'Compute and log the selected distillation loss without adding it to '
+            'the training objective. Requires --distillation_teacher_ckpt and --distillation_loss.'
+        ),
+    )
+    training_group.add_argument(
+        '--log_ntp_val_loss_during_distillation',
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help=(
+            'When distillation is configured, also log next-token prediction validation '
+            'loss as a baseline metric.'
+        ),
+    )
 
     # Sample args
     training_group.add_argument('--max_sample_tokens', default=None, type=int, help="If set, maximum number of tokens to sample and print after each validation loss")
@@ -307,10 +348,19 @@ def parse_args():
         help="Coefficient for cosine loss term when --numerical_loss_use_cosine is enabled.",
     )
     model_group.add_argument(
-        '--norm_channel_variant',
+        "--norm_channel_variant",
         type=str,
         default=None,
-        choices=['krmsnorm', 'prmsnorm', 'rmsnorm', 'layernorm', 'hyperspherenorm', 'dact', 'identity'],
+        choices=[
+            "krmsnorm",
+            "prmsnorm",
+            "rmsnorm",
+            "layernorm",
+            "hyperspherenorm",
+            "dact",
+            "cappedhyperspherenorm",
+            "identity",
+        ],
         help="Optional post-mapping normalization applied to numerical embedding channels.",
     )
     model_group.add_argument('--norm_channel_radius', type=float, default=None)
@@ -406,6 +456,18 @@ def parse_args():
     # --------  MUON --------------------------------------------------
     training_group.add_argument("--muon_momentum", type=float, default=0.95,
                                 help="Momentum for the Muon optimizer.")
+    training_group.add_argument("--muon_ns_steps", type=int, default=5,
+                                help="Newton-Schulz iteration steps for Muon orthogonalization.")
+    training_group.add_argument("--muon_nesterov", type=bool, default=True, action=argparse.BooleanOptionalAction,
+                                help="Use Nesterov momentum in Muon update.")
+    training_group.add_argument("--muon_include_all_weights", type=bool, default=False, action=argparse.BooleanOptionalAction,
+                                help="If enabled, route all parameters to Muon (instead of the default hidden-layer-only routing).")
+    training_group.add_argument("--muon_min_ndim", type=int, default=2,
+                                help="Minimum tensor ndim eligible for Muon routing (default preserves current behavior).")
+    training_group.add_argument("--muon_exclude_substrings", type=str, nargs="*", default=["embed", "wte", "wpe", "lm_head"],
+                                help="Parameter-name substrings excluded from Muon routing unless force-included.")
+    training_group.add_argument("--muon_force_include_substrings", type=str, nargs="*", default=[],
+                                help="Parameter-name substrings force-included into Muon routing, even if excluded.")
     # --------  ADAMW --------------------------------------------------
     training_group.add_argument("--adamw_betas", type=float, nargs=2, default=[0.9, 0.999], help="Betas for AdamW optimizer.")
     training_group.add_argument("--adamw_eps", type=float, default=1e-8, help="Epsilon for AdamW optimizer.")
@@ -767,6 +829,7 @@ def parse_args():
             "hyperspherenorm",
             "dact",
             "identity",
+            "cappedhyperspherenorm",
             ]
 
     model_group.add_argument("--norm_variant_attn", type=str, default="rmsnorm", choices=norm_variations)
@@ -776,6 +839,7 @@ def parse_args():
     ### WTE and Abs Pos Embedding Post Norms (optional, and default None)
     model_group.add_argument("--norm_variant_wte", type=str, default=None, choices=norm_variations)
     model_group.add_argument("--norm_variant_abs", type=str, default=None, choices=norm_variations)
+    model_group.add_argument("--norm_variant_lm_head", type=str, default=None, choices=norm_variations)
 
     model_group.add_argument("--norm_wte_radius", type=float, default=None)
     model_group.add_argument("--norm_wte_scale", type=float, default=None)
@@ -786,6 +850,11 @@ def parse_args():
     model_group.add_argument("--norm_abs_scale", type=float, default=None)
     model_group.add_argument("--norm_abs_gain", type=bool, default=None, action=argparse.BooleanOptionalAction)
     model_group.add_argument("--norm_abs_radius_learning", type=bool, default=None, action=argparse.BooleanOptionalAction)
+
+    model_group.add_argument("--norm_lm_head_radius", type=float, default=None)
+    model_group.add_argument("--norm_lm_head_scale", type=float, default=None)
+    model_group.add_argument("--norm_lm_head_gain", type=bool, default=None, action=argparse.BooleanOptionalAction)
+    model_group.add_argument("--norm_lm_head_radius_learning", type=bool, default=None, action=argparse.BooleanOptionalAction)
 
     ## Layernorm
     model_group.add_argument('--bias', default=False, action=argparse.BooleanOptionalAction, help="only used for layernorm variation option")
@@ -1395,6 +1464,16 @@ def parse_args():
 
     # Optimizer args
     training_group.add_argument('--max_iters', default=3500, type=int)
+    training_group.add_argument('--max_epochs', default=None, type=float, help='Optional epoch limit. Active only when selected by --training_limiters.')
+    training_group.add_argument('--max_seconds', default=None, type=float, help='Optional wall-clock training time limit in seconds. Active only when selected by --training_limiters.')
+    training_group.add_argument('--max_tokens', default=None, type=int, help='Optional trained-token limit. Active only when selected by --training_limiters.')
+    training_group.add_argument(
+        '--training_limiters',
+        nargs='+',
+        default=['max_iters'],
+        choices=['max_iters', 'max_epochs', 'max_seconds', 'max_tokens'],
+        help='One or more stopping limiters to enforce. Defaults to only max_iters for backward compatibility.',
+    )
     training_group.add_argument('--weight_decay', default=1e-1, type=float)
     training_group.add_argument('--beta1', default=0.9, type=float)
     training_group.add_argument('--beta2', default=0.99, type=float)
@@ -1446,6 +1525,7 @@ def parse_args():
     # Metric logging toggles
     logging_group.add_argument('--log_btc_train', default=False, action=argparse.BooleanOptionalAction, help='Log better-than-chance training metrics')
     logging_group.add_argument('--log_btc_per_param', default=False, action=argparse.BooleanOptionalAction, help='Log better-than-chance-per-parameter metrics')
+    logging_group.add_argument('--log_bits_per_byte', default=True, action=argparse.BooleanOptionalAction, help='Log validation loss converted to bits per original UTF-8 byte when dataset metadata includes byte counts')
     logging_group.add_argument('--log_grad_norm', default=False, action=argparse.BooleanOptionalAction, help='Log gradient norm metrics')
     logging_group.add_argument('--log_grad_std', default=False, action=argparse.BooleanOptionalAction, help='Log gradient std metrics')
     logging_group.add_argument('--log_all_metrics', default=False, action=argparse.BooleanOptionalAction, help='Enable logging of all metrics including gns')

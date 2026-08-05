@@ -310,6 +310,39 @@ class TestTokenizers(unittest.TestCase):
         if os.path.exists(reuse_meta_path):
             os.remove(reuse_meta_path)
 
+
+    def test_char_bpe_incomplete_coverage_uses_byte_fallback(self):
+        corpus = "aaaaabbbbcccdde🙂🙃"
+        args = Namespace(vocab_size=260, track_token_counts=True)
+        tokenizer = CharBPETokenizerWithByteFallback(args, corpus, None)
+
+        self.assertEqual(tokenizer.vocab_size, 260)
+        self.assertEqual(len(tokenizer.char_tokens), 4)
+        self.assertEqual(tokenizer.char_tokens, ["a", "b", "c", "d"])
+
+        ids = tokenizer.tokenize(corpus)
+        detokenized = tokenizer.detokenize(ids)
+        self.assertEqual(corpus, detokenized)
+        self.assertTrue(any(token_id < 256 for token_id in ids))
+
+        with open("meta.pkl", "rb") as f:
+            meta = pickle.load(f)
+        self.assertTrue(meta["incomplete_coverage"])
+        self.assertTrue(meta["incomplete_coverage_uses_bpe"])
+        self.assertEqual(meta["vocab_size"], 260)
+        self.assertEqual(meta["unique_char_count"], len(set(corpus)))
+
+    def test_char_bpe_incomplete_coverage_can_require_complete_coverage(self):
+        corpus = "abcde"
+        args = Namespace(
+            vocab_size=260,
+            track_token_counts=False,
+            char_bpe_incomplete_coverage_uses_bpe=False,
+        )
+
+        with self.assertRaisesRegex(ValueError, "complete character coverage"):
+            CharBPETokenizerWithByteFallback(args, corpus, None)
+
     def test_custom_char_tokenizer_with_byte_fallback(self):
         args = Namespace(custom_chars_file="custom_chars.txt")
         # Create a custom characters file for testing

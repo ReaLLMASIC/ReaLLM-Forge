@@ -1,0 +1,35 @@
+# Compare tokenizer choices on one prepared FLORES-200 language using
+# validation bits-per-byte. Prepare the datasets first with:
+#   cd data/flores200-res
+#   ./demo_bits_per_byte_tokenizers.sh eng_Latn
+#
+# This file assumes the default eng_Latn output directory names. If you pass a
+# different language code to the demo script, update the dataset entries below.
+---
+common_group:
+  training_limiters: [["max_epochs"]]
+  log_bits_per_byte: [true]
+  tensorboard_log: [true]
+  tensorboard_log_dir: ["logs/flores200_bpb"]
+  never_save_checkpoint: [true]
+  always_save_checkpoint: [false]
+  only_save_checkpoint_at_end: [false]
+  compile: [false]
+  n_layer: [4]
+  n_head: [4]
+  n_embd: [128]
+  block_size: [128]
+  batch_size: [32]
+  learning_rate: [0.001]
+  decay_lr: [false]
+
+parameter_groups:
+  - dataset: ["flores200-res/tiktoken_eng_Latn"]
+    eval_interval: [10]
+    max_epochs: [30]
+  - dataset: ["flores200-res/byte_eng_Latn"]
+    eval_interval: [50]
+    max_epochs: [60]
+  - dataset: ["flores200-res/custom_char_byte_fallback_ipa_eng_Latn"]
+    eval_interval: [50]
+    max_epochs: [60]

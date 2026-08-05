@@ -9,7 +9,11 @@ def test_search_buttons_are_rendered_for_all_token_pickers() -> None:
     assert 'id="tokenASearch"' in html
     assert 'id="tokenBSearch"' in html
     assert 'id="anchorSearch"' in html
-    assert html.count('type="button">Search</button>') == 3
+    assert 'id="groupSeedSearch"' in html
+    assert 'id="transformSourceSearch"' in html
+    assert 'id="transformTargetSearch"' in html
+    assert 'id="transformInputSearch"' in html
+    assert html.count('type="button">Search</button>') == 7
 
 
 def test_search_is_explicit_button_or_enter_not_keypress_debounce() -> None:

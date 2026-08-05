@@ -18,6 +18,7 @@ Interactive keybindings:
   E     - export CSV with prompt for custom name
   s     - save current layout
   p     - shows help menu
+  I     - view the associated exploration YAML file
   g     - graphs first two rows
   L     - graph & connect points sharing the 3rd column value
   1–9   - graph & connect points sharing merged columns 3..(2+N)
@@ -25,6 +26,7 @@ Interactive keybindings:
   z # # - Δ-bar chart (trim baseline) – e.g. ‘z 3 2’
   r–y   - barcharts with labels merged (r=1, y=3)
   c     - cycle colour-map for current column (high→low, low→high, off)
+  D     - remove colour-maps from all columns
   C # # - correlation + scatter for columns (1-based indexes, e.g. C 1 2)
   w     - toggle column width to fit largest visible cell
   u     - unsort / remove current column from the sort stack
@@ -46,8 +48,8 @@ from typing import Dict, List, Optional
 import yaml
 import math
 from textual.app import App, ComposeResult
-from textual.containers import Container
-from textual.widgets import DataTable, Footer, Header, Input, Label, Button
+from textual.containers import Container, VerticalScroll
+from textual.widgets import DataTable, Footer, Header, Input, Label, Button, Static
 from textual import events, on, work
 from textual.screen import Screen
 
@@ -84,12 +86,14 @@ HOTKEYS_TEXT = (
     "g: graph first two columns (matplotlib)\n"
     "g: graph first two columns (opens a Plotly window)\n"
     "p: shows help menu\n"
+    "I: view the associated exploration YAML file\n"
     "L: graph & connect points sharing the 3rd column value\n"
     "1–9: graph & connect points sharing merged columns 3..(2+N)\n"
     "q # #: multibarcharts - `q [1-9] [1-9]` - e.g. 'q 3 2' will create bar charts for columns 1 2 and 3, the next two columns (column 4 and column 5) as merged labels\n"
     "z # #: Δ-bar chart (trim baseline) – e.g. ‘z 3 2’\n"
     "r–y: barcharts with labels merged (r=1, y=3)\n"
     "c: cycle colour-map for current column (high→low, low→high, off)\n"
+    "D: remove colour-maps from all columns\n"
     "C # #: correlation + scatter (1-based indexes, e.g. C 1 2)\n"
     "w: toggle column width to fit largest visible cell\n"
     "u: unsort / remove current column from the sort stack\n"
@@ -126,10 +130,46 @@ class FileNameScreen(Screen[str | None]):
         self.dismiss(None)
 
 
+class ExplorationConfigScreen(Screen):
+    """Read-only view of the YAML configuration associated with a run log."""
+
+    BINDINGS = [("escape", "dismiss", "Close")]
+
+    def __init__(self, config_file: Path) -> None:
+        super().__init__()
+        self.config_file = config_file
+
+    def compose(self) -> ComposeResult:
+        yield Label(f"Exploration YAML: {self.config_file}", id="config-title")
+        if self.config_file.exists():
+            contents = self.config_file.read_text()
+        else:
+            contents = "Associated exploration YAML file was not found."
+        with VerticalScroll(id="config-scroll"):
+            yield Static(contents, id="config-contents", markup=False)
+        yield Button("Close", id="close-config")
+
+    def action_dismiss(self) -> None:
+        self.dismiss()
+
+    @on(Button.Pressed, "#close-config")
+    def _close(self) -> None:
+        self.dismiss()
+
+
 class MonitorApp(App):
     CSS = """
     Screen { align: center middle; }
     Container { height: 1fr; }
+    #config-title { width: 90%; height: 1; text-style: bold; }
+    #config-scroll {
+        width: 90%;
+        height: 1fr;
+        border: round $accent;
+        padding: 1;
+    }
+    #config-contents { width: auto; }
+    #close-config { margin-top: 1; }
     DataTable#table {
         height: 1fr;
         width: 1fr;
@@ -141,6 +181,11 @@ class MonitorApp(App):
     def __init__(self, log_file: Path, interval: float, csv_dir: str) -> None:
         super().__init__()
         self.log_file = log_file
+        self.title = log_file.name
+        self.sub_title = str(log_file)
+        self.exploration_config_file = (
+            Path(__file__).resolve().parent / "explorations" / log_file.name
+        )
         self.interval = interval
         # Use JSON config file with same base name as YAML log file
         self.config_file = log_file.parent / f"{log_file.name}_monitor.json"
@@ -184,8 +229,9 @@ class MonitorApp(App):
         # Base columns: metrics + parameters
         base_cols = [
             "best_val_loss",
+            "best_val_bits_per_byte",
             "best_val_iter",
-            "best_val_tokens",
+            "best_tokens",
             "num_params",
             "peak_torch_allocated_mb",
             "peak_torch_reserved_mb",
@@ -203,11 +249,15 @@ class MonitorApp(App):
             "ln_f_cosine_95",
             "rankme",
             "areq",
+            "distillation_val_loss",
+            "ntp_val_loss",
             "zeus_total_energy_j",
             "zeus_total_time_s",
             "zeus_avg_power_w",
             "zeus_train_step_energy_j",
             "zeus_energy_per_token_j",
+            "run_total_time_s",
+            "run_completed_at",
         ] + self.param_keys
         self.all_columns = base_cols.copy()
         self.columns = base_cols.copy()
@@ -289,50 +339,50 @@ class MonitorApp(App):
         edge_name = self.columns[0] if move_left else self.columns[-1]
         if col_name == edge_name:
             return
+        previous_columns = self.columns.copy()
         updated = [col for col in self.all_columns if col != col_name]
         edge_index = updated.index(edge_name)
         insert_index = edge_index if move_left else edge_index + 1
         updated.insert(insert_index, col_name)
         self.all_columns = updated
         self.columns = [col for col in self.all_columns if col not in self.hidden_cols]
+        self._remap_indexed_column_settings(previous_columns)
         new_cursor = self.columns.index(col_name) if move_cursor else col_index
         self.refresh_table(new_cursor=new_cursor)
 
+    def _remap_indexed_column_settings(self, previous_columns: List[str]) -> None:
+        """Keep colour and sort settings attached to columns after reordering."""
+        colour_by_name = {
+            previous_columns[index]: mode
+            for index, mode in self.colour_columns.items()
+            if 0 <= index < len(previous_columns)
+        }
+        sort_by_name = [
+            (previous_columns[index], ascending)
+            for index, ascending in self.sort_stack
+            if 0 <= index < len(previous_columns)
+        ]
+        new_indices = {name: index for index, name in enumerate(self.columns)}
+        self.colour_columns = {
+            new_indices[name]: mode
+            for name, mode in colour_by_name.items()
+            if name in new_indices
+        }
+        self.sort_stack = [
+            (new_indices[name], ascending)
+            for name, ascending in sort_by_name
+            if name in new_indices
+        ]
+
     def get_cell(self, entry: Dict, col_name: str):
         """Retrieve the value for a given column in an entry."""
-        if col_name in (
-            "best_val_loss",
-            "best_val_iter",
-            "best_val_tokens",
-            "num_params",
-            "peak_torch_allocated_mb",
-            "peak_torch_reserved_mb",
-            "peak_process_gpu_mb",
-            "iter_latency_avg",
-            "zeus_best_train_step_energy_j",
-            "avg_top1_prob",
-            "avg_top1_correct",
-            "avg_target_rank",
-            "avg_target_left_prob",
-            "avg_target_prob",
-            "target_rank_95",
-            "left_prob_95",
-            "avg_ln_f_cosine",
-            "ln_f_cosine_95",
-            "rankme",
-            "areq",
-            "zeus_total_energy_j",
-            "zeus_total_time_s",
-            "zeus_avg_power_w",
-            "zeus_train_step_energy_j",
-            "zeus_energy_per_token_j",
-        ):
+        if col_name in entry:
             return entry.get(col_name)
         return entry.get("config", {}).get(col_name)
 
     def _resolve_column_index(self, index: int) -> str:
         if index < 1 or index > len(self.columns):
-            raise ValueError(f"Column index {index} out of range")
+            raise ValueError(f"Column index {index} out of range ")
         return self.columns[index - 1]
 
     @staticmethod
@@ -612,7 +662,7 @@ class MonitorApp(App):
                 row: List[str] = []
                 for col in self.columns:
                     val = self.get_cell(entry, col)
-                    if col == "best_val_loss" and isinstance(val, float):
+                    if col in {"best_val_loss", "best_val_bits_per_byte"} and isinstance(val, float):
                         row.append(f"{val:.6f}")
                     else:
                         row.append(str(val))
@@ -800,6 +850,7 @@ class MonitorApp(App):
             # Move column
             t = c - 1 if key == "h" else c + 1
             if 0 <= t < len(self.columns):
+                previous_columns = self.columns.copy()
                 n1, n2 = self.columns[c], self.columns[t]
                 i1, i2 = self.all_columns.index(n1), self.all_columns.index(n2)
                 self.all_columns[i1], self.all_columns[i2] = (
@@ -809,6 +860,7 @@ class MonitorApp(App):
                 self.columns = [
                     col for col in self.all_columns if col not in self.hidden_cols
                 ]
+                self._remap_indexed_column_settings(previous_columns)
                 self.refresh_table(new_cursor=t)
         elif key in ("k", "j", "v", "m"):
             maxr = len(self.current_entries) - 1
@@ -877,6 +929,8 @@ class MonitorApp(App):
             self.refresh_table(new_cursor=0)
         elif key == "p":
             self._msg(HOTKEYS_TEXT, timeout=10.0)
+        elif key == "I":
+            self.push_screen(ExplorationConfigScreen(self.exploration_config_file))
         elif key == "g":
             # ── Graph using first two visible columns: col[0] ⇒ Y, col[1] ⇒ X ──
             try:
@@ -912,6 +966,13 @@ class MonitorApp(App):
                 self.colour_columns.pop(cur, None)
                 self._msg(f"Colour OFF for {self.columns[cur]}")
             self.refresh_table()
+        elif key == "D":
+            if self.colour_columns:
+                self.colour_columns.clear()
+                self.refresh_table(new_cursor=c)
+                self._msg("All column colours removed")
+            else:
+                self._msg("No active column colours")
         elif key == "w":
             col = self.columns[c]
             if col in self.auto_fit_columns:

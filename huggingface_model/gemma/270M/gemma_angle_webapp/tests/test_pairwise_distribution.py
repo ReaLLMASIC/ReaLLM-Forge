@@ -19,7 +19,7 @@ if "transformers" not in sys.modules:
     fake_transformers.PreTrainedTokenizerBase = object
     sys.modules["transformers"] = fake_transformers
 
-from app.model_service import TokenInfo, common_close_tokens, minimum_angular_distances, pairwise_angle_distribution, vector_magnitudes  # noqa: E402
+from app.model_service import TokenInfo, common_close_tokens, linear_transform_neighbors, minimum_angular_distances, pairwise_angle_distribution, vector_magnitudes  # noqa: E402
 
 
 @dataclass
@@ -123,3 +123,100 @@ def test_minimum_angular_distances_excludes_self_and_tracks_nearest_other_token(
     assert [row["min_angle_deg"] for row in rows] == pytest.approx([45.0, 45.0, 45.0, 90.0])
     assert rows[0]["magnitude"] == pytest.approx(1.0)
     assert rows[0]["other_magnitude"] == pytest.approx(torch.sqrt(torch.tensor(2.0)).item())
+
+
+def test_linear_transform_neighbors_rank_one_maps_source_to_target() -> None:
+    assets = TinyAssets(torch.tensor([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0]]))
+
+    data = linear_transform_neighbors(assets, 0, 2, 0, limit=4, transform_type="rank_one")
+
+    assert data["transform_type"] == "rank_one"
+    assert data["coefficient"] == pytest.approx(1.0)
+    assert data["source_to_target_angle_deg"] == pytest.approx(45.0)
+    assert data["transformed_vector_magnitude"] == pytest.approx(torch.sqrt(torch.tensor(2.0)).item())
+    assert [row["token_id"] for row in data["rows"]] == [2, 0, 1, 3]
+    assert data["rows"][0]["angle_deg"] == pytest.approx(0.0)
+
+
+def test_linear_transform_neighbors_closest_identity_mode_is_available() -> None:
+    assets = TinyAssets(torch.tensor([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0]]))
+
+    data = linear_transform_neighbors(assets, 0, 2, 0, limit=2, transform_type="closest-to-identity")
+
+    assert data["transform_type"] == "closest_identity"
+    assert data["coefficient"] == pytest.approx(1.0)
+    assert data["transform_parameter_label"] == "Projection coefficient"
+    assert data["rows"][0]["token_id"] == 2
+
+
+def test_linear_transform_neighbors_closest_identity_alias_is_available() -> None:
+    assets = TinyAssets(torch.tensor([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0]]))
+
+    data = linear_transform_neighbors(assets, 0, 2, 0, limit=2, transform_type="closest_identity")
+
+    assert data["transform_type"] == "closest_identity"
+    assert data["coefficient"] == pytest.approx(1.0)
+    assert data["transform_parameter_label"] == "Projection coefficient"
+    assert [row["token_id"] for row in data["rows"]] == [2, 0]
+    assert data["rows"][0]["angle_deg"] == pytest.approx(0.0)
+
+
+def test_linear_transform_neighbors_orthogonal_mode_rotates_direction_preserves_length() -> None:
+    assets = TinyAssets(torch.tensor([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0]]))
+
+    data = linear_transform_neighbors(assets, 0, 1, 0, limit=4, transform_type="orthonormal")
+
+    assert data["transform_type"] == "orthogonal"
+    assert data["coefficient"] == pytest.approx(90.0)
+    assert data["transform_parameter_label"] == "Direction rotation/reflection angle °"
+    assert data["transformed_vector_magnitude"] == pytest.approx(1.0)
+    assert [row["token_id"] for row in data["rows"]] == [1, 2, 0, 3]
+    assert data["rows"][0]["angle_deg"] == pytest.approx(0.0)
+
+
+def test_linear_transform_scale_zero_keeps_original_input_vector() -> None:
+    assets = TinyAssets(torch.tensor([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0]]))
+
+    data = linear_transform_neighbors(
+        assets,
+        0,
+        2,
+        0,
+        limit=3,
+        transform_type="closest_identity",
+        transform_scale=0.0,
+    )
+
+    assert data["transform_scale"] == pytest.approx(0.0)
+    assert data["input_to_transformed_angle_deg"] == pytest.approx(0.0)
+    assert data["transformed_vector_magnitude"] == pytest.approx(1.0)
+    assert [row["token_id"] for row in data["rows"]] == [0, 2, 1]
+
+
+def test_linear_transform_scale_extrapolates_fitted_effect() -> None:
+    assets = TinyAssets(torch.tensor([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0]]))
+
+    data = linear_transform_neighbors(
+        assets,
+        0,
+        2,
+        0,
+        limit=2,
+        transform_type="closest_identity",
+        transform_scale=2.0,
+    )
+
+    assert data["transform_scale"] == pytest.approx(2.0)
+    assert data["transformed_vector_magnitude"] == pytest.approx(torch.sqrt(torch.tensor(5.0)).item())
+    assert data["input_to_transformed_angle_deg"] == pytest.approx(63.434948, abs=1e-5)
+
+
+def test_linear_transform_neighbors_offset_mode_is_available() -> None:
+    assets = TinyAssets(torch.tensor([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [-1.0, 0.0]]))
+
+    data = linear_transform_neighbors(assets, 0, 2, 1, limit=2, transform_type="offset")
+
+    assert data["transform_type"] == "offset"
+    assert data["coefficient"] == pytest.approx(1.0)
+    assert [row["token_id"] for row in data["rows"]] == [1, 2]
+    assert data["rows"][0]["angle_deg"] == pytest.approx(0.0)

@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LM-head Minimum-Angle Graph Viewer</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #111827;
+      --panel: #1f2937;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #60a5fa;
+      --border: #374151;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header, main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+    header h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.6rem;
+    }
+    header p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0.75rem;
+      align-items: end;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    input, button, select {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 0.45rem;
+      border: 1px solid var(--border);
+      padding: 0.55rem 0.65rem;
+      background: #0f172a;
+      color: var(--text);
+    }
+    input[type="range"] {
+      padding: 0;
+      accent-color: var(--accent);
+    }
+    input[type="checkbox"] {
+      width: auto;
+      accent-color: var(--accent);
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-height: 2.4rem;
+    }
+    button {
+      cursor: pointer;
+      background: #2563eb;
+      border-color: #2563eb;
+      font-weight: 650;
+    }
+    button.secondary {
+      background: #374151;
+      border-color: #4b5563;
+    }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+    .step-row {
+      display: grid;
+      grid-template-columns: auto auto 1fr auto;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.85rem;
+    }
+    .status {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 0.75rem;
+      height: 1.25rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .plots {
+      display: grid;
+      grid-template-columns: 1.25fr 0.75fr;
+      gap: 1rem;
+    }
+    .plot {
+      min-height: 420px;
+    }
+    .wide {
+      grid-column: 1 / -1;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 0.45rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    th {
+      color: var(--muted);
+      position: sticky;
+      top: 0;
+      background: var(--panel);
+    }
+    .table-wrap {
+      max-height: 360px;
+      overflow: auto;
+    }
+    @media (max-width: 900px) {
+      .plots, .step-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LM-head Minimum-Angle Graph Viewer</h1>
+    <p>
+      Load one or more CSV exports from <code>--export_min_angle_graph_dir</code>.
+      The viewer sorts snapshots by iteration and lets you step from the first
+      validation export to the last without uploading data anywhere.
+    </p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="controls">
+        <div>
+          <label for="csvFiles">Minimum-angle graph CSV files</label>
+          <input id="csvFiles" type="file" multiple accept=".csv,text/csv">
+        </div>
+        <div>
+          <label for="maxRows">Table rows</label>
+          <input id="maxRows" type="number" min="10" max="10000" step="10" value="250">
+        </div>
+        <div>
+          <label for="showMagnitudePlot">Optional plots</label>
+          <div class="checkbox-row">
+            <input id="showMagnitudePlot" type="checkbox">
+            <span>Show magnitude-by-rank plot</span>
+          </div>
+        </div>
+        <div>
+          <label for="angleCap">Highlight angle cap (degrees)</label>
+          <input id="angleCap" type="number" min="0" max="180" step="0.1" value="10">
+        </div>
+        <div>
+          <label for="sortMode">Table sort</label>
+          <select id="sortMode">
+            <option value="rank">Minimum-angle rank</option>
+            <option value="token">Token ID</option>
+            <option value="angle_desc">Largest angle</option>
+          </select>
+        </div>
+      </div>
+      <div class="step-row">
+        <button id="prevBtn" class="secondary" disabled>Previous</button>
+        <button id="playBtn" disabled>Play</button>
+        <input id="snapshotSlider" type="range" min="0" max="0" value="0" disabled>
+        <button id="nextBtn" class="secondary" disabled>Next</button>
+      </div>
+      <div id="status" class="status">Choose CSV files to begin.</div>
+    </section>
+
+    <section class="plots">
+      <div class="panel plot" id="angleScatter"></div>
+      <div class="panel plot" id="angleHistogram"></div>
+      <div class="panel plot" id="magnitudeByRank" style="display: none;"></div>
+      <div class="panel plot wide" id="edgeMap"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Snapshot rows</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>rank</th>
+              <th>token_id</th>
+              <th>token_text_escaped</th>
+              <th>nearest_token_id</th>
+              <th>nearest_token_text_escaped</th>
+              <th>min_angle_deg / magnitudes</th>
+              <th>cosine</th>
+              <th>token_vector_length</th>
+              <th>nearest_token_vector_length</th>
+            </tr>
+          </thead>
+          <tbody id="rowsBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      snapshots: [],
+      currentIndex: 0,
+      playTimer: null,
+    };
+
+    const csvInput = document.getElementById("csvFiles");
+    const maxRowsInput = document.getElementById("maxRows");
+    const showMagnitudePlotInput = document.getElementById("showMagnitudePlot");
+    const angleCapInput = document.getElementById("angleCap");
+    const sortModeInput = document.getElementById("sortMode");
+    const slider = document.getElementById("snapshotSlider");
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const playBtn = document.getElementById("playBtn");
+    const statusBox = document.getElementById("status");
+    const rowsBody = document.getElementById("rowsBody");
+
+    function parseSnapshotName(name) {
+      const iterMatch = name.match(/(?:^|_)iter_(\d+)/);
+      const valMatch = name.match(/(?:^|_)val_([0-9.]+)/);
+      return {
+        name,
+        iter: iterMatch ? Number(iterMatch[1]) : Number.NaN,
+        valLoss: valMatch ? Number.parseFloat(valMatch[1]) : Number.NaN,
+      };
+    }
+
+    function parseCsvLine(line) {
+      const values = [];
+      let value = "";
+      let inQuotes = false;
+      for (let index = 0; index < line.length; index += 1) {
+        const char = line[index];
+        const nextChar = line[index + 1];
+        if (char === '"' && inQuotes && nextChar === '"') {
+          value += '"';
+          index += 1;
+        } else if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === "," && !inQuotes) {
+          values.push(value);
+          value = "";
+        } else {
+          value += char;
+        }
+      }
+      values.push(value);
+      return values;
+    }
+
+    function parseCsv(text) {
+      const lines = text.trim().split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) {
+        return [];
+      }
+      const headers = parseCsvLine(lines[0]).map((h) => h.trim());
+      return lines.slice(1).map((line) => {
+        const values = parseCsvLine(line);
+        const row = {};
+        headers.forEach((header, index) => {
+          const raw = values[index] ?? "";
+          const numberValue = Number(raw);
+          row[header] = raw === "" || Number.isNaN(numberValue) ? raw : numberValue;
+        });
+        return row;
+      });
+    }
+
+    function escapedCell(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function tokenTextOrMissing(row, textKey) {
+      const value = row[textKey];
+      if (value === undefined || value === null || value === "") {
+        return "[token text missing: regenerate CSV exports]";
+      }
+      return value;
+    }
+
+    function snapshotFromFile(file) {
+      return {
+        ...parseSnapshotName(file.name),
+        file,
+        rows: null,
+      };
+    }
+
+    function readSnapshotRows(snapshot) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          snapshot.rows = parseCsv(String(reader.result));
+          resolve(snapshot.rows);
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(snapshot.file);
+      });
+    }
+
+    async function ensureSnapshotRows(snapshot) {
+      if (snapshot.rows !== null) {
+        return snapshot.rows;
+      }
+      statusBox.textContent = `Parsing ${snapshot.name}...`;
+      return readSnapshotRows(snapshot);
+    }
+
+    function enableControls(enabled) {
+      slider.disabled = !enabled;
+      prevBtn.disabled = !enabled;
+      nextBtn.disabled = !enabled;
+      playBtn.disabled = !enabled;
+    }
+
+    function snapshotLabel(snapshot, index) {
+      const iter = Number.isFinite(snapshot.iter) ? snapshot.iter : "unknown";
+      const valLoss = Number.isFinite(snapshot.valLoss) ? snapshot.valLoss.toFixed(6) : "unknown";
+      const rows = snapshot.rows || [];
+      const hasTokenText = rows.some((row) => row.token_text_escaped || row.nearest_token_text_escaped);
+      const tokenTextNote = hasTokenText
+        ? ""
+        : " | Token text columns are empty/missing; regenerate CSV exports with the latest exporter to show actual token strings.";
+      return `Snapshot ${index + 1}/${state.snapshots.length}: ${snapshot.name} | iteration=${iter}, val_loss=${valLoss}, rows=${rows.length}${tokenTextNote}`;
+    }
+
+    function currentRowsForTable(snapshot) {
+      const rows = [...snapshot.rows];
+      const sortMode = sortModeInput.value;
+      if (sortMode === "token") {
+        rows.sort((a, b) => a.token_id - b.token_id);
+      } else if (sortMode === "angle_desc") {
+        rows.sort((a, b) => b.min_angle_deg - a.min_angle_deg);
+      } else {
+        rows.sort((a, b) => a.min_angle_rank - b.min_angle_rank);
+      }
+      return rows.slice(0, Number(maxRowsInput.value || 250));
+    }
+
+    function formatNumber(value, digits = 6) {
+      const numberValue = Number(value);
+      return Number.isFinite(numberValue) ? numberValue.toFixed(digits) : "";
+    }
+
+    function formatRowHover(row, rankLabel) {
+      const tokenText = escapedCell(tokenTextOrMissing(row, "token_text_escaped"));
+      const nearestText = escapedCell(tokenTextOrMissing(row, "nearest_token_text_escaped"));
+      return [
+        `${rankLabel}=${escapedCell(row.min_angle_rank)}`,
+        `angle=${formatNumber(row.min_angle_deg)}°`,
+        `token=${escapedCell(row.token_id)} (${tokenText})`,
+        `nearest=${escapedCell(row.nearest_token_id)} (${nearestText})`,
+        `magnitudes=${formatNumber(row.token_vector_length)} → ${formatNumber(row.nearest_token_vector_length)}`,
+        `cosine=${formatNumber(row.cosine)}`,
+      ].join("<br>");
+    }
+
+    async function plotSnapshot() {
+      if (!state.snapshots.length) {
+        return;
+      }
+      const snapshot = state.snapshots[state.currentIndex];
+      const rows = await ensureSnapshotRows(snapshot);
+      const cap = Number(angleCapInput.value || 10);
+      const colors = rows.map((row) => row.min_angle_deg <= cap ? "#f97316" : "#60a5fa");
+      const commonLayout = {
+        paper_bgcolor: "#1f2937",
+        plot_bgcolor: "#111827",
+        font: {color: "#e5e7eb"},
+        margin: {l: 60, r: 20, t: 45, b: 55},
+      };
+
+      Plotly.react("angleScatter", [{
+        type: "scattergl",
+        mode: "markers",
+        x: rows.map((row) => row.min_angle_rank),
+        y: rows.map((row) => row.min_angle_deg),
+        marker: {size: 5, color: colors, opacity: 0.75},
+        text: rows.map((row) => formatRowHover(row, "rank")),
+        hovertemplate: "%{text}<extra></extra>",
+      }], {
+        ...commonLayout,
+        title: "Minimum angle by sorted rank",
+        xaxis: {title: "minimum-angle rank"},
+        yaxis: {title: "minimum angle (degrees)"},
+      }, {responsive: true});
+
+      Plotly.react("angleHistogram", [{
+        type: "histogram",
+        x: rows.map((row) => row.min_angle_deg),
+        nbinsx: 60,
+        marker: {color: "#34d399"},
+        hovertemplate: "angle bin=%{x}<br>count=%{y}<extra></extra>",
+      }], {
+        ...commonLayout,
+        title: "Minimum-angle distribution",
+        xaxis: {title: "minimum angle (degrees)"},
+        yaxis: {title: "token count", type: "log", autorange: true},
+      }, {responsive: true});
+
+      const magnitudePlot = document.getElementById("magnitudeByRank");
+      if (showMagnitudePlotInput.checked) {
+        magnitudePlot.style.display = "";
+        Plotly.react("magnitudeByRank", [{
+          type: "bar",
+          x: rows.map((row) => row.min_angle_rank),
+          y: rows.map((row) => row.token_vector_length),
+          marker: {
+            color: rows.map((row) => row.min_angle_deg),
+            colorscale: "Viridis",
+            colorbar: {title: "angle°"},
+          },
+          text: rows.map((row) => formatRowHover(row, "rank")),
+          hovertemplate: "%{text}<extra></extra>",
+        }], {
+          ...commonLayout,
+          title: "Token magnitude by minimum-angle rank",
+          xaxis: {title: "minimum-angle rank"},
+          yaxis: {title: "token vector magnitude"},
+        }, {responsive: true});
+      } else {
+        magnitudePlot.style.display = "none";
+        Plotly.purge("magnitudeByRank");
+      }
+
+      Plotly.react("edgeMap", [{
+        type: "scattergl",
+        mode: "markers",
+        x: rows.map((row) => row.token_id),
+        y: rows.map((row) => row.nearest_token_id),
+        marker: {
+          size: 5,
+          color: rows.map((row) => row.min_angle_deg),
+          colorscale: "Viridis",
+          colorbar: {title: "angle°"},
+          opacity: 0.75,
+        },
+        text: rows.map((row) => formatRowHover(row, "rank")),
+        hovertemplate: "%{text}<extra></extra>",
+      }], {
+        ...commonLayout,
+        title: "Nearest-neighbor edge map",
+        xaxis: {title: "token_id"},
+        yaxis: {title: "nearest_token_id"},
+      }, {responsive: true});
+
+      rowsBody.innerHTML = currentRowsForTable(snapshot).map((row) => `
+        <tr>
+          <td>${row.min_angle_rank}</td>
+          <td>${row.token_id}</td>
+          <td>${escapedCell(tokenTextOrMissing(row, "token_text_escaped"))}</td>
+          <td>${row.nearest_token_id}</td>
+          <td>${escapedCell(tokenTextOrMissing(row, "nearest_token_text_escaped"))}</td>
+          <td>${Number(row.min_angle_deg).toFixed(6)}° / ${Number(row.token_vector_length).toFixed(6)} → ${Number(row.nearest_token_vector_length).toFixed(6)}</td>
+          <td>${Number(row.cosine).toFixed(6)}</td>
+          <td>${Number(row.token_vector_length).toFixed(6)}</td>
+          <td>${Number(row.nearest_token_vector_length).toFixed(6)}</td>
+        </tr>
+      `).join("");
+
+      slider.value = state.currentIndex;
+      statusBox.textContent = snapshotLabel(snapshot, state.currentIndex);
+    }
+
+    async function loadSnapshots(files) {
+      if (!files.length) {
+        return;
+      }
+      stopPlayback();
+      statusBox.textContent = "Registering CSV snapshots...";
+      const snapshots = [...files].map(snapshotFromFile);
+      snapshots.sort((a, b) => {
+        const iterA = Number.isFinite(a.iter) ? a.iter : Number.MAX_SAFE_INTEGER;
+        const iterB = Number.isFinite(b.iter) ? b.iter : Number.MAX_SAFE_INTEGER;
+        return iterA - iterB || a.name.localeCompare(b.name);
+      });
+      state.snapshots = snapshots;
+      state.currentIndex = 0;
+      slider.max = Math.max(0, snapshots.length - 1);
+      enableControls(snapshots.length > 0);
+      await plotSnapshot();
+    }
+
+    async function step(delta) {
+      if (!state.snapshots.length) {
+        return;
+      }
+      state.currentIndex = Math.max(0, Math.min(state.snapshots.length - 1, state.currentIndex + delta));
+      await plotSnapshot();
+    }
+
+    function stopPlayback() {
+      if (state.playTimer) {
+        clearInterval(state.playTimer);
+        state.playTimer = null;
+      }
+      playBtn.textContent = "Play";
+    }
+
+    async function togglePlayback() {
+      if (state.playTimer) {
+        stopPlayback();
+        return;
+      }
+      if (!state.snapshots.length) {
+        return;
+      }
+      if (state.currentIndex >= state.snapshots.length - 1) {
+        state.currentIndex = 0;
+        await plotSnapshot();
+      }
+      if (state.snapshots.length === 1) {
+        return;
+      }
+      playBtn.textContent = "Pause";
+      state.playTimer = setInterval(() => {
+        if (state.currentIndex >= state.snapshots.length - 1) {
+          stopPlayback();
+          return;
+        }
+        step(1);
+      }, 900);
+    }
+
+    csvInput.addEventListener("change", (event) => loadSnapshots(event.target.files).catch((error) => {
+      console.error(error);
+      statusBox.textContent = `Failed to load snapshots: ${error}`;
+      enableControls(false);
+    }));
+    prevBtn.addEventListener("click", () => step(-1));
+    nextBtn.addEventListener("click", () => step(1));
+    playBtn.addEventListener("click", togglePlayback);
+    slider.addEventListener("input", () => {
+      state.currentIndex = Number(slider.value);
+      plotSnapshot();
+    });
+    maxRowsInput.addEventListener("input", plotSnapshot);
+    showMagnitudePlotInput.addEventListener("change", plotSnapshot);
+    angleCapInput.addEventListener("input", plotSnapshot);
+    sortModeInput.addEventListener("change", plotSnapshot);
+  </script>
+</body>
+</html>

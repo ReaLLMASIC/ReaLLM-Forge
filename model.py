@@ -47,6 +47,7 @@ from initializations.initialization_variations import init_dictionary
 
 from shared_param_utils import SharedParamGroupCreator
 from variations.block_variations import Block
+from variations.attention_residual_variations import FullAttentionResidual
 
 class GPT(nn.Module):
 
@@ -143,6 +144,13 @@ class GPT(nn.Module):
 
         self.transformer['drop'] = nn.Dropout(config.dropout)
         self.transformer['h'] = nn.ModuleList([Block(config, mlp=shared_mlp_array[i], attn=shared_attn_array[i]) for i in range(config.n_layer)])
+        self.attention_residual_variant = config.attention_residual_variant
+        if self.attention_residual_variant == "full":
+            self.attention_residual = FullAttentionResidual(
+                2 * config.n_layer + 1, config.n_embd, config.attention_residual_eps
+            )
+        elif self.attention_residual_variant != "standard":
+            raise ValueError(f"unknown attention_residual_variant: {self.attention_residual_variant}")
         self.transformer['ln_f'] = norm_dictionary[config.norm_variant_output](config)
 
         # Optional post-embedding normalizations
@@ -150,6 +158,8 @@ class GPT(nn.Module):
             self.transformer['post_embedding_norm'] = self.build_norm_from_variant(config, "norm_variant_wte", "norm_wte")
         if self.config.norm_variant_abs is not None:
             self.transformer['post_abs_norm'] = self.build_norm_from_variant(config, "norm_variant_abs", "norm_abs")
+        if self.config.norm_variant_lm_head is not None:
+            self.transformer['lm_head_norm'] = self.build_norm_from_variant(config, "norm_variant_lm_head", "norm_lm_head")
 
         if self.config.use_abs_pos_embeddings:
             self.transformer['wpe'] = absolute_position_embedding_dict[config.absolute_pos_embedding_variant](config)
@@ -244,6 +254,28 @@ class GPT(nn.Module):
             if getattr(norm_config, src, None) is not None:
                 setattr(norm_config, f"hsnorm_{attr}", getattr(norm_config, src))
         return norm_dictionary[getattr(config, variant_key)](norm_config)
+
+    def apply_lm_head_norm(self, lm_head_weight):
+        if self.config.norm_variant_lm_head is None:
+            return lm_head_weight
+        return self.transformer.lm_head_norm(lm_head_weight)
+
+    def compute_lm_head_logits(self, x, lm_head_module):
+        weight = self.apply_lm_head_norm(lm_head_module.weight)
+        return F.linear(x, weight, lm_head_module.bias)
+
+    def _forward_full_attention_residual(self, x, iter_num):
+        """Run blocks while retaining each sublayer output as a depth source."""
+        sources = [x]
+        destination = 0
+        for block in self.transformer.h:
+            attn_input = self.attention_residual(sources, destination)
+            sources.append(block.attention_residual_attn(attn_input, iter_num))
+            destination += 1
+            mlp_input = self.attention_residual(sources, destination)
+            sources.append(block.attention_residual_mlp(mlp_input, iter_num))
+            destination += 1
+        return self.attention_residual(sources, destination)
 
     def _init_weights(self, module):
         """
@@ -430,7 +462,11 @@ class GPT(nn.Module):
                 layer_outputs = [x]
 
             layer_idx = 1
-            for block in self.transformer.h:
+            blocks = self.transformer.h
+            if self.attention_residual_variant == "full":
+                x = self._forward_full_attention_residual(x, iter_num)
+                blocks = ()
+            for block in blocks:
                 x = block(x, iter_num)
 
                 # Steering logic
@@ -500,7 +536,7 @@ class GPT(nn.Module):
                     logits = [pred[:, [-1], :] for pred in logits]
                     losses = None
             else:
-                logits = [self.transformer[f'lm_head_{i}'](x) for i in range(len(token_list))]
+                logits = [self.compute_lm_head_logits(x, self.transformer[f'lm_head_{i}']) for i in range(len(token_list))]
 
                 # Soft‑cap **each** logits tensor (training & inference)
                 if self.config.final_logit_softcapping is not None:
@@ -573,7 +609,11 @@ class GPT(nn.Module):
                 layer_outputs = [x]
 
             layer_idx = 1
-            for block in self.transformer.h:
+            blocks = self.transformer.h
+            if self.attention_residual_variant == "full":
+                x = self._forward_full_attention_residual(x, iter_num)
+                blocks = ()
+            for block in blocks:
                 # Propagate tokens through layers
                 x = block(x, iter_num)
 
@@ -606,9 +646,9 @@ class GPT(nn.Module):
             if targets is not None:
                 # if we are given some desired targets also calculate the loss
                 if self.config.multidataset_wte and dataset_idx is not None:
-                    logits = self.transformer[f'lm_head_{dataset_idx}'](x)
+                    logits = self.compute_lm_head_logits(x, self.transformer[f'lm_head_{dataset_idx}'])
                 else:
-                    logits = self.lm_head(x)
+                    logits = self.compute_lm_head_logits(x, self.lm_head)
 
                 if self.config.final_logit_softcapping is not None:
                     logits = logits / self.config.final_logit_softcapping
@@ -622,9 +662,9 @@ class GPT(nn.Module):
             else:
                 # inference-time mini-optimization: only forward the lm_head on the very last position
                 if self.config.multidataset_wte and dataset_idx is not None:
-                    logits = self.transformer[f'lm_head_{dataset_idx}'](x[:, [-1], :])
+                    logits = self.compute_lm_head_logits(x[:, [-1], :], self.transformer[f'lm_head_{dataset_idx}'])
                 else:
-                    logits = self.lm_head(x[:, [-1], :]) # note: using list [-1] to preserve the time dim
+                    logits = self.compute_lm_head_logits(x[:, [-1], :], self.lm_head) # note: using list [-1] to preserve the time dim
 
                 if self.config.final_logit_softcapping is not None:
                     logits = logits / self.config.final_logit_softcapping
@@ -707,9 +747,9 @@ class GPT(nn.Module):
             x = F.linear(x, self.transformer.scale_down.weight.t())
 
         if self.config.multidataset_wte and dataset_idx is not None:
-            logits = self.transformer[f'lm_head_{dataset_idx}'](x)
+            logits = self.compute_lm_head_logits(x, self.transformer[f'lm_head_{dataset_idx}'])
         else:
-            logits = self.lm_head(x)
+            logits = self.compute_lm_head_logits(x, self.lm_head)
         if self.final_logit_softcapping is not None:
             logits = torch.tanh(logits / self.final_logit_softcapping) \
                      * self.final_logit_softcapping

@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """Evaluate validation loss vs. block size for all ckpt.pt files under a directory.
 
@@ -10,7 +11,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -25,6 +26,10 @@ if str(REPO_ROOT) not in sys.path:
 
 from gpt_conf import GPTConfig
 from model import GPT
+
+
+ResultRow = Dict[str, object]
+ValidationCache = Dict[Tuple[str, str], np.memmap]
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,8 +47,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--eval_dataset",
         type=str,
-        default="minipile",
-        help="Dataset under data/<dataset>/val.bin to evaluate on (default: minipile).",
+        default=None,
+        help=(
+            "Dataset under data/<dataset>/val.bin to evaluate on. If omitted, each "
+            "checkpoint uses its saved training dataset when available, then falls "
+            "back to minipile."
+        ),
     )
     parser.add_argument(
         "--block_sizes",
@@ -109,11 +118,28 @@ def find_checkpoints(search_dir: Path) -> List[Path]:
     return ckpts
 
 
-def load_validation_data(dataset: str) -> np.memmap:
+def validation_dtype_for_vocab(vocab_size: int) -> np.dtype:
+    # Mirrors train.py: cl100k_base-size datasets are stored as uint32; most others
+    # are stored as uint16.
+    return np.dtype(np.uint32 if vocab_size == 100277 else np.uint16)
+
+
+def load_validation_data(
+    dataset: str,
+    vocab_size: int,
+    val_data_cache: ValidationCache,
+) -> np.memmap:
+    dtype = validation_dtype_for_vocab(vocab_size)
+    cache_key = (dataset, dtype.name)
+    if cache_key in val_data_cache:
+        return val_data_cache[cache_key]
+
     val_path = REPO_ROOT / "data" / dataset / "val.bin"
     if not val_path.exists():
         raise FileNotFoundError(f"Validation data file not found: {val_path}")
-    return np.memmap(val_path, dtype=np.uint16, mode="r")
+    val_data = np.memmap(val_path, dtype=dtype, mode="r")
+    val_data_cache[cache_key] = val_data
+    return val_data
 
 
 def get_batch(
@@ -144,6 +170,7 @@ def calculate_validation_loss(
     batch_size: int,
     device: str,
     ptdtype: torch.dtype,
+    dataset_idx: Optional[int] = None,
 ) -> Dict[str, float]:
     model.eval()
     losses: List[float] = []
@@ -160,7 +187,7 @@ def calculate_validation_loss(
         with amp_context:
             for _ in range(eval_iters):
                 x, y = get_batch(val_data, block_size, batch_size, device)
-                _, loss = model(x, y)
+                _, loss = model(x, y, dataset_idx=dataset_idx)
                 losses.append(float(loss.item()))
 
     elapsed = time.perf_counter() - start
@@ -174,12 +201,13 @@ def calculate_validation_loss(
     }
 
 
-def load_model_from_ckpt(ckpt_path: Path, device: str) -> GPT:
+def load_model_from_ckpt(ckpt_path: Path, device: str) -> Tuple[GPT, Dict[str, object]]:
     checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
-    model_args = checkpoint.get("model_args")
-    if model_args is None:
+    raw_model_args = checkpoint.get("model_args")
+    if raw_model_args is None:
         raise KeyError(f"Checkpoint missing model_args: {ckpt_path}")
 
+    model_args = dict(raw_model_args)
     model_args["dropout"] = 0.0
     gptconf = GPTConfig(**model_args)
     model = GPT(gptconf)
@@ -193,22 +221,107 @@ def load_model_from_ckpt(ckpt_path: Path, device: str) -> GPT:
     model.load_state_dict(state_dict, strict=False)
     model.to(device)
     model.eval()
-    return model
+    return model, dict(checkpoint.get("config", {}))
+
+
+def select_eval_dataset(
+    requested_dataset: Optional[str],
+    checkpoint_config: Dict[str, object],
+) -> str:
+    if requested_dataset:
+        return requested_dataset
+
+    checkpoint_dataset = checkpoint_config.get("dataset")
+    if checkpoint_dataset:
+        return str(checkpoint_dataset)
+
+    return "minipile"
+
+
+def get_dataset_list(checkpoint_config: Dict[str, object]) -> List[str]:
+    raw_dataset_list = checkpoint_config.get("dataset_list") or []
+    dataset_list: List[str] = []
+    if isinstance(raw_dataset_list, (list, tuple)):
+        for entry in raw_dataset_list:
+            if isinstance(entry, (list, tuple)):
+                dataset_list.extend(str(item) for item in entry)
+            elif entry is not None:
+                dataset_list.append(str(entry))
+    return dataset_list
+
+
+def select_dataset_idx(
+    model: GPT,
+    checkpoint_config: Dict[str, object],
+    eval_dataset: str,
+) -> Optional[int]:
+    if not getattr(model.config, "multidataset_wte", False):
+        return None
+
+    dataset_list = get_dataset_list(checkpoint_config)
+    if eval_dataset in dataset_list:
+        return dataset_list.index(eval_dataset)
+
+    if len(dataset_list) == 1:
+        return 0
+
+    raise ValueError(
+        "Checkpoint uses multidataset_wte, but the eval dataset could not be "
+        f"mapped to a dataset index. eval_dataset={eval_dataset!r}, "
+        f"dataset_list={dataset_list!r}"
+    )
+
+
+def get_model_vocab_size(model: GPT, dataset_idx: Optional[int]) -> int:
+    if (
+        dataset_idx is not None
+        and getattr(model.config, "multidataset_wte", False)
+        and getattr(model.config, "vocab_sizes", None)
+    ):
+        return int(model.config.vocab_sizes[dataset_idx])
+    return int(model.config.vocab_size)
+
+
+def validate_token_range(
+    val_data: np.memmap,
+    dataset: str,
+    vocab_size: int,
+    ckpt_path: Path,
+) -> int:
+    if len(val_data) == 0:
+        raise ValueError(f"Validation dataset is empty: data/{dataset}/val.bin")
+
+    max_token = int(np.max(val_data))
+    if max_token >= vocab_size:
+        raise ValueError(
+            f"Dataset {dataset!r} contains token id {max_token}, but checkpoint "
+            f"{ckpt_path} has vocab_size={vocab_size}. This would trigger a CUDA "
+            "embedding/gather index-out-of-bounds assert. Pass --eval_dataset with "
+            "a dataset tokenized for this checkpoint, or omit --eval_dataset to use "
+            "the checkpoint's saved training dataset when available."
+        )
+    return max_token
 
 
 def evaluate_ckpt_over_block_sizes(
     ckpt_path: Path,
     block_sizes: Iterable[int],
-    val_data: np.memmap,
+    requested_eval_dataset: Optional[str],
+    val_data_cache: ValidationCache,
     eval_iters: int,
     batch_size: int,
     device: str,
     ptdtype: torch.dtype,
-) -> List[Dict[str, float]]:
-    model = load_model_from_ckpt(ckpt_path, device)
+) -> List[ResultRow]:
+    model, checkpoint_config = load_model_from_ckpt(ckpt_path, device)
+    eval_dataset = select_eval_dataset(requested_eval_dataset, checkpoint_config)
+    dataset_idx = select_dataset_idx(model, checkpoint_config, eval_dataset)
+    vocab_size = get_model_vocab_size(model, dataset_idx)
+    val_data = load_validation_data(eval_dataset, vocab_size, val_data_cache)
+    max_token = validate_token_range(val_data, eval_dataset, vocab_size, ckpt_path)
     base_block_size = int(model.config.block_size)
 
-    results: List[Dict[str, float]] = []
+    results: List[ResultRow] = []
     for requested_block_size in block_sizes:
         if requested_block_size <= 0:
             raise ValueError(f"Invalid block size: {requested_block_size}")
@@ -227,6 +340,7 @@ def evaluate_ckpt_over_block_sizes(
             batch_size=batch_size,
             device=device,
             ptdtype=ptdtype,
+            dataset_idx=dataset_idx,
         )
         results.append(
             {
@@ -235,6 +349,10 @@ def evaluate_ckpt_over_block_sizes(
                 "val_std": float(metrics["val_std"]),
                 "elapsed_time_s": float(metrics["elapsed_time_s"]),
                 "base_block_size": float(base_block_size),
+                "dataset": eval_dataset,
+                "dataset_idx": dataset_idx,
+                "vocab_size": vocab_size,
+                "max_token": max_token,
             }
         )
 
@@ -246,17 +364,34 @@ def evaluate_ckpt_over_block_sizes(
 
 
 def build_plotly_report(
-    results_by_ckpt: Dict[str, List[Dict[str, float]]],
-    dataset: str,
+    results_by_ckpt: Dict[str, List[ResultRow]],
     output_html: Path,
     dark_mode: bool,
 ) -> None:
     fig = make_subplots(rows=1, cols=1)
 
+    datasets = sorted(
+        {
+            str(row["dataset"])
+            for rows_data in results_by_ckpt.values()
+            for row in rows_data
+        }
+    )
+    dataset_title = datasets[0] if len(datasets) == 1 else "mixed datasets"
+
     for ckpt_label, rows_data in results_by_ckpt.items():
-        x = [r["block_size"] for r in rows_data]
-        y = [r["val_loss"] for r in rows_data]
-        err = [r["val_std"] for r in rows_data]
+        x = [float(r["block_size"]) for r in rows_data]
+        y = [float(r["val_loss"]) for r in rows_data]
+        err = [float(r["val_std"]) for r in rows_data]
+        hover_text = [
+            (
+                f"ckpt={ckpt_label}<br>"
+                f"dataset={r['dataset']}<br>"
+                f"vocab_size={r['vocab_size']}<br>"
+                f"max_token={r['max_token']}"
+            )
+            for r in rows_data
+        ]
 
         fig.add_trace(
             go.Scatter(
@@ -267,11 +402,11 @@ def build_plotly_report(
                 showlegend=True,
                 error_y=dict(type="data", array=err, visible=True),
                 hovertemplate=(
-                    "ckpt=%{text}<br>"
+                    "%{text}<br>"
                     "block_size=%{x}<br>"
                     "val_loss=%{y:.6f}<extra></extra>"
                 ),
-                text=[ckpt_label] * len(x),
+                text=hover_text,
             ),
             row=1,
             col=1,
@@ -280,7 +415,7 @@ def build_plotly_report(
     fig.update_xaxes(title_text="Block size", row=1, col=1)
 
     fig.update_layout(
-        title=f"Validation Loss vs Block Size (dataset={dataset})",
+        title=f"Validation Loss vs Block Size (dataset={dataset_title})",
         template="plotly_dark" if dark_mode else "plotly_white",
         height=700,
         legend_title_text="Checkpoint",
@@ -307,10 +442,10 @@ def main() -> None:
         raise FileNotFoundError(f"No ckpt.pt files found under: {args.search_dir}")
 
     block_sizes = list(dict.fromkeys(args.block_sizes))
-    val_data = load_validation_data(args.eval_dataset)
 
-    results_by_ckpt: Dict[str, List[Dict[str, float]]] = {}
+    results_by_ckpt: Dict[str, List[ResultRow]] = {}
     failed_ckpts: List[Tuple[str, str]] = []
+    val_data_cache: ValidationCache = {}
 
     print(f"Found {len(ckpts)} checkpoint(s).")
     search_dir_resolved = args.search_dir.resolve()
@@ -325,7 +460,8 @@ def main() -> None:
             ckpt_results = evaluate_ckpt_over_block_sizes(
                 ckpt_path=ckpt_path,
                 block_sizes=block_sizes,
-                val_data=val_data,
+                requested_eval_dataset=args.eval_dataset,
+                val_data_cache=val_data_cache,
                 eval_iters=args.eval_iters,
                 batch_size=args.batch_size,
                 device=args.device,
@@ -349,7 +485,6 @@ def main() -> None:
 
     build_plotly_report(
         results_by_ckpt,
-        args.eval_dataset,
         args.output_html,
         dark_mode=args.dark_mode,
     )

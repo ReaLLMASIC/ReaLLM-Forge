@@ -1,0 +1,39 @@
+# Smoke-test the optional LM-head minimum-angle graph export on a tiny
+# validation cadence for both a character-tokenized and GPT-style dataset.
+#
+# Run with:
+#   python3 optimization_and_search/run_experiments.py \
+#     --config explorations/min_angle_graph_export.yaml \
+#     --config_format yaml \
+#     --prefix min_angle_export_
+#
+# The minipile run has a much larger vocabulary than shakespeare_char, so the
+# default smoke settings use CUDA/float16 and a GPU-friendly export block size.
+---
+
+common_group:
+  n_layer: [3]
+  n_head: [3]
+  n_embd: [150]
+  block_size: [64]
+  batch_size: [4]
+  max_iters: [2000]
+  eval_interval: [20]
+  eval_iters: [20]
+  device: ["cuda:0"]
+  dtype: ["float16"]
+  compile: [true]
+  never_save_checkpoint: [true]
+  export_min_angle_graph_each_eval: [true]
+  export_min_angle_graph_device: ["cuda:0"]
+
+parameter_groups:
+  - dataset: ["shakespeare_char"]
+    export_min_angle_graph_block_size: [512]
+    export_min_angle_graph_label: ["${RUN_NAME}"]
+    export_min_angle_graph_dir: ["out/min_angle_graph_exports/${RUN_NAME}"]
+
+  - dataset: ["minipile"]
+    export_min_angle_graph_block_size: [2048]
+    export_min_angle_graph_label: ["${RUN_NAME}"]
+    export_min_angle_graph_dir: ["out/min_angle_graph_exports/${RUN_NAME}"]

@@ -62,14 +62,7 @@ def emit_json_contents(json_path, output_text_file):
 
 def main(output_text_file):
     parquet_files = {
-        "train-00000-of-00008": "https://huggingface.co/datasets/MarkrAI/KoCommercial-Dataset/resolve/main/data/train-00000-of-00008-262a4650cba7cd42.parquet?download=true",
-        "train-00001-of-00008": "https://huggingface.co/datasets/MarkrAI/KoCommercial-Dataset/resolve/main/data/train-00001-of-00008-911ee3e75f35d481.parquet?download=true",
-        "train-00002-of-00008": "https://huggingface.co/datasets/MarkrAI/KoCommercial-Dataset/resolve/main/data/train-00002-of-00008-4f4791330d9553d5.parquet?download=true",
-        "train-00003-of-00008": "https://huggingface.co/datasets/MarkrAI/KoCommercial-Dataset/resolve/main/data/train-00003-of-00008-9f822b7fe3799cd3.parquet?download=true",
-        "train-00004-of-00008": "https://huggingface.co/datasets/MarkrAI/KoCommercial-Dataset/resolve/main/data/train-00004-of-00008-8daf63b596c127d7.parquet?download=true",
-        "train-00005-of-00008": "https://huggingface.co/datasets/MarkrAI/KoCommercial-Dataset/resolve/main/data/train-00005-of-00008-68cf9afac57baa1c.parquet?download=true",
-        "train-00006-of-00008": "https://huggingface.co/datasets/MarkrAI/KoCommercial-Dataset/resolve/main/data/train-00006-of-00008-275cbee982d3460c.parquet?download=true",
-        "train-00007-of-00008": "https://huggingface.co/datasets/MarkrAI/KoCommercial-Dataset/resolve/main/data/train-00007-of-00008-e63b716fb34017d5.parquet?download=true",
+        "train-00000-of-00001": "https://huggingface.co/datasets/MarkrAI/KoCommercial-Dataset/resolve/main/data/train-00000-of-00001-1ae224438dce829b.parquet?download=true"
     }
     download_dir = "./downloaded_parquets"
     json_dir = "./json_output"

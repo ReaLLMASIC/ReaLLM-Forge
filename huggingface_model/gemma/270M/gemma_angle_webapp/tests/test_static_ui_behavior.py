@@ -7,7 +7,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def test_search_buttons_exist_for_each_picker() -> None:
     html = (PROJECT_ROOT / "app" / "templates" / "index.html").read_text()
-    for prefix in ["tokenA", "tokenB", "anchor"]:
+    for prefix in ["tokenA", "tokenB", "anchor", "groupSeed", "transformSource", "transformTarget", "transformInput"]:
         assert f'id="{prefix}Search"' in html
         assert f'id="{prefix}Query"' in html
         assert f'id="{prefix}Results"' in html
@@ -140,6 +140,7 @@ def test_export_buttons_exist_for_tables_and_graphs() -> None:
         "exportPairwiseBinTokensCsv",
         "exportMinDistancePlotPng",
         "exportMinDistancesCsv",
+        "exportMinDistanceHighlightCsv",
     ]:
         assert f'id="{export_id}"' in html
         assert export_id in js
@@ -158,12 +159,164 @@ def test_minimum_angular_distance_ui_exists() -> None:
     assert 'id="minDistanceBlockSize"' in html
     assert 'id="minDistanceComputeDevice"' in html
     assert 'id="minDistanceSort"' in html
+    assert 'id="minDistanceHighlightStart"' in html
+    assert 'id="minDistanceHighlightEnd"' in html
+    assert 'id="minDistanceHighlightIds"' in html
+    assert 'id="clearMinDistanceHighlight"' in html
+    assert 'id="exportMinDistanceHighlightCsv"' in html
     assert 'id="minDistancePlot"' in html
     assert 'id="minDistancesTable"' in html
     assert "Closest non-self token for every token" in html
     assert "fetchJson(`/api/min-angular-distances?" in js
     assert "computeMinAngularDistances" in js
     assert "drawMinDistancePlot" in js
+    assert "getMinDistanceHighlightSpec" in js
+    assert "exportHighlightedMinDistanceRowsCsv" in js
     assert "renderMinDistanceTable" in js
     assert "resetMinDistancesOutput" in js
     assert "min-distance-scroll" in css
+
+
+def test_recursive_angle_group_ui_and_exports_exist() -> None:
+    html = (PROJECT_ROOT / "app" / "templates" / "index.html").read_text()
+    js = (PROJECT_ROOT / "app" / "static" / "app.js").read_text()
+    css = (PROJECT_ROOT / "app" / "static" / "styles.css").read_text()
+
+    for element_id in [
+        "groupSeedSearch",
+        "groupSeedResults",
+        "groupSeedUseId",
+        "recursiveGroupButton",
+        "recursiveGroupLimit",
+        "recursiveGroupMaxAngle",
+        "recursiveGroupBlockSize",
+        "recursiveGroupComputeDevice",
+        "recursiveGroupHighlightMinEdges",
+        "recursiveGroupGraph",
+        "recursiveGroupTable",
+        "exportRecursiveGroupGraphSvg",
+        "exportRecursiveGroupGraphPng",
+        "exportRecursiveGroupAdjacencyCsv",
+        "exportRecursiveGroupDictionaryJson",
+        "exportRecursiveGroupListCsv",
+    ]:
+        assert f'id="{element_id}"' in html
+
+    for js_name in [
+        "groupSeed",
+        "recursiveGroupButton",
+        "recursiveGroupLimit",
+        "recursiveGroupMaxAngle",
+        "recursiveGroupBlockSize",
+        "recursiveGroupComputeDevice",
+        "recursiveGroupHighlightMinEdges",
+        "recursiveGroupGraph",
+        "recursiveGroupTable",
+        "exportRecursiveGroupGraphSvg",
+        "exportRecursiveGroupGraphPng",
+        "exportRecursiveGroupAdjacencyCsv",
+        "exportRecursiveGroupDictionaryJson",
+        "exportRecursiveGroupListCsv",
+    ]:
+        assert js_name in js
+
+    assert "fetchJson(`/api/recursive-angle-group?" in js
+    assert "computeRecursiveAngleGroup" in js
+    assert "renderRecursiveGroupGraph" in js
+    assert "renderRecursiveGroupInteractiveGraph" in js
+    assert "attachRecursiveGraphInteractions" in js
+    assert "forceRecursiveGraphPositions" in js
+    assert "pointerdown" in js
+    assert "pointermove" in js
+    assert "wheel" in js
+    assert "local-svg-drag" in js
+    assert "getRecursiveMinEdgeKeys" in js
+    assert "applyRecursiveGraphMinEdgeHighlight" in js
+    assert "refreshRecursiveGroupMinEdgeHighlight" in js
+    assert "graph-edge-min" in js
+    assert "new window.vis.Network" not in js
+    assert "vis-network@" not in html
+    assert "renderRecursiveGroupTable" in js
+    assert "exportRecursiveGroupAdjacencyCsv" in js
+    assert "exportRecursiveGroupDictionaryJson" in js
+    assert "recursive-group-scroll" in css
+    assert "graph-edge-label" in css
+    assert "graph-edge-min" in css
+    assert "graph-edge-label-min" in css
+    assert "graph-options" in css
+    assert "recursive-graph-svg-local" in css
+    assert "overflow: hidden" in css
+
+
+def test_recursive_angle_group_can_use_manual_seed_id_directly() -> None:
+    js = (PROJECT_ROOT / "app" / "static" / "app.js").read_text()
+
+    assert "function getPickerTokenId(prefix, key)" in js
+    assert "getPickerTokenId('groupSeed', 'groupSeed')" in js
+    assert "seed_id: String(seedId)" in js
+    assert "seed.token_id" not in js
+    assert "Manual ID input intentionally takes" in js
+    assert "idInput.addEventListener('keydown'" in js
+    assert "selectFromId(prefix, key)" in js
+    assert "rawSelectedId !== ''" in js
+
+
+def test_recursive_graph_min_angle_highlight_option_exists() -> None:
+    html = (PROJECT_ROOT / "app" / "templates" / "index.html").read_text()
+    js = (PROJECT_ROOT / "app" / "static" / "app.js").read_text()
+    css = (PROJECT_ROOT / "app" / "static" / "styles.css").read_text()
+
+    assert 'id="recursiveGroupHighlightMinEdges"' in html
+    assert "Highlight lowest-angle edge from each node" in html
+    assert "recursiveGroupHighlightMinEdges" in js
+    assert "getRecursiveMinEdgeKeys" in js
+    assert "applyRecursiveGraphMinEdgeHighlight" in js
+    assert "highlightMinEdges: isRecursiveMinEdgeHighlightEnabled()" in js
+    assert "graph-edge-min" in css
+    assert "graph-edge-label-min" in css
+
+
+def test_linear_transform_ui_exists() -> None:
+    html = (PROJECT_ROOT / "app" / "templates" / "index.html").read_text()
+    js = (PROJECT_ROOT / "app" / "static" / "app.js").read_text()
+    css = (PROJECT_ROOT / "app" / "static" / "styles.css").read_text()
+
+    for element_id in [
+        "transformSourceSearch",
+        "transformSourceResults",
+        "transformSourceUseId",
+        "transformTargetSearch",
+        "transformTargetResults",
+        "transformTargetUseId",
+        "transformInputSearch",
+        "transformInputResults",
+        "transformInputUseId",
+        "linearTransformButton",
+        "linearTransformType",
+        "linearTransformScale",
+        "linearTransformLimit",
+        "linearTransformOutput",
+        "linearTransformTable",
+        "exportLinearTransformCsv",
+    ]:
+        assert f'id="{element_id}"' in html
+
+    assert "Linear token transform" in html
+    assert "Closest-to-identity" in html
+    assert "minimum-change linear map" in html
+    assert "Orthogonal-only direction map" in html
+    assert "Analogy offset" in html
+    assert "Transform scale" in html
+    assert "2.5 extrapolates" in html
+    assert "transform_scale: transformScale" in js
+    assert "Enter a finite transform scale" in js
+    assert "Transform scale" in js
+    assert "linearTransformScale" in js
+    assert "fetchJson(`/api/linear-transform-neighbors?" in js
+    assert "computeLinearTransformNeighbors" in js
+    assert "renderLinearTransformTable" in js
+    assert "resetLinearTransformOutput" in js
+    assert "setupPicker('transformSource', 'transformSource')" in js
+    assert "setupPicker('transformTarget', 'transformTarget')" in js
+    assert "setupPicker('transformInput', 'transformInput')" in js
+    assert "linear-transform-scroll" in css

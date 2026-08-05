@@ -107,6 +107,10 @@ class GPTConfig:
     ln_f_input_mixer_variant: str = "linear"
     ln_f_mixer_top_k: int = 2
 
+    # Depth-wise residual routing. "full" stores every attention/MLP output.
+    attention_residual_variant: str = "standard"
+    attention_residual_eps: float = 1e-6
+
     # Attention Variation Specific
 
     ## Flash Lobo
@@ -405,6 +409,12 @@ class GPTConfig:
     norm_abs_scale: float | None = None
     norm_abs_gain: bool | None = None
     norm_abs_radius_learning: bool | None = None
+
+    norm_variant_lm_head: str | None = None
+    norm_lm_head_radius: float | None = None
+    norm_lm_head_scale: float | None = None
+    norm_lm_head_gain: bool | None = None
+    norm_lm_head_radius_learning: bool | None = None
 
     bias: bool = False # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
     prmsnorm_pct: float = 0.0625

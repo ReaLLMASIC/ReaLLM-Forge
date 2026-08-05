@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -50,8 +51,135 @@ def fnum(val: Any, spec: str) -> str:
     return spec.format(val) if isinstance(val, (int, float)) else str(val)
 
 
+def human_duration(seconds: Any) -> str:
+    if not isinstance(seconds, (int, float)) or seconds < 0:
+        return "-"
+    seconds = int(round(seconds))
+    hours, rem = divmod(seconds, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m"
+    if minutes:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
+
+
+def hms_duration(seconds: Any) -> str:
+    if not isinstance(seconds, (int, float)) or seconds < 0:
+        return "-"
+    seconds = int(round(seconds))
+    hours, rem = divmod(seconds, 3600)
+    minutes, secs = divmod(rem, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+def parse_iso_time(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def short_time(value: Any) -> str:
+    dt = parse_iso_time(value)
+    return dt.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z") if dt else "-"
+
+
+def elapsed_since(value: Any) -> float | None:
+    dt = parse_iso_time(value)
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()
+
+
+def current_task(blk: Dict[str, Any]) -> Dict[str, Any] | None:
+    for candidate in blk.get("candidates", []):
+        if candidate.get("status") == "running":
+            return candidate
+    return None
+
+
+def progress_text(candidate: Dict[str, Any] | None) -> str:
+    if not candidate:
+        return "-"
+    done = candidate.get("completed_random_iterations", len(candidate.get("seeds", [])))
+    expected = candidate.get("expected_random_iterations", "?")
+    return f"{done}/{expected} seeds"
+
+
+def iteration_progress(blk: Dict[str, Any]) -> str:
+    completed = blk.get("completed_experiments")
+    expected = blk.get("expected_experiments")
+    if not isinstance(completed, int):
+        completed = sum(
+            int(
+                candidate.get(
+                    "completed_random_iterations", len(candidate.get("seeds", []))
+                )
+            )
+            for candidate in blk.get("candidates", [])
+        )
+    if not isinstance(expected, int):
+        candidate_expectations = [
+            candidate.get("expected_random_iterations")
+            for candidate in blk.get("candidates", [])
+        ]
+        expected = sum(v for v in candidate_expectations if isinstance(v, int))
+    return f"{completed}/{expected}" if expected else f"{completed}/?"
+
+
+def iteration_elapsed_seconds(blk: Dict[str, Any]) -> Any:
+    if blk.get("status") == "running" and blk.get("started_at"):
+        return elapsed_since(blk.get("started_at"))
+    elapsed = blk.get("elapsed_seconds")
+    if isinstance(elapsed, (int, float)):
+        return elapsed
+    started = parse_iso_time(blk.get("started_at"))
+    updated = parse_iso_time(blk.get("last_updated_at"))
+    if started and updated:
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        if updated.tzinfo is None:
+            updated = updated.replace(tzinfo=timezone.utc)
+        return (
+            updated.astimezone(timezone.utc) - started.astimezone(timezone.utc)
+        ).total_seconds()
+    return "-"
+
+
+def iteration_remaining_seconds(blk: Dict[str, Any]) -> Any:
+    remaining = blk.get("estimated_remaining_seconds")
+    if isinstance(remaining, (int, float)):
+        return remaining
+    completed = blk.get("completed_experiments")
+    expected = blk.get("expected_experiments")
+    elapsed = iteration_elapsed_seconds(blk)
+    if (
+        isinstance(completed, int)
+        and isinstance(expected, int)
+        and completed > 0
+        and expected >= completed
+        and isinstance(elapsed, (int, float))
+    ):
+        return (elapsed / completed) * (expected - completed)
+    return "-"
+
+
+def eta_completion_time(seconds: Any) -> str:
+    if not isinstance(seconds, (int, float)) or seconds < 0:
+        return "-"
+    return (datetime.now().astimezone() + timedelta(seconds=seconds)).strftime(
+        "%Y-%m-%d %H:%M:%S %Z"
+    )
+
+
 def metrics_panel(
     current_iter_baseline_metrics: Dict[str, Any],
+    iteration_block: Dict[str, Any] | None = None,
     prev_iter_baseline_loss: Any = "-",
     prev_iter_baseline_rankme: Any = "-",
     prev_iter_baseline_areq: Any = "-",
@@ -62,6 +190,22 @@ def metrics_panel(
     g = Table.grid(padding=1)
     g.add_column(justify="right")
     g.add_column()
+    if iteration_block is not None:
+        task = current_task(iteration_block)
+        g.add_row("Status", str(iteration_block.get("status", "-")))
+        g.add_row("Started", short_time(iteration_block.get("started_at")))
+        if task:
+            g.add_row("Running task", f"{task.get('param', '-')}={task.get('value', '-')}")
+            g.add_row("Task progress", progress_text(task))
+            if task.get("current_seed") is not None:
+                g.add_row("Current seed", str(task.get("current_seed")))
+            g.add_row("Task started", short_time(task.get("started_at")))
+            elapsed = task.get("elapsed_seconds")
+            if not isinstance(elapsed, (int, float)) and task.get("started_at"):
+                elapsed = elapsed_since(task.get("started_at"))
+            g.add_row("Task elapsed", human_duration(elapsed))
+            g.add_row("Task ETA", human_duration(task.get("estimated_remaining_seconds")))
+
     g.add_row("Prior Loss", fnum(prev_iter_baseline_loss, "{:.4f}"))
     g.add_row(
         "After Iteration Loss",
@@ -257,6 +401,10 @@ class SweepViewer(App):
         changed = sorted({it["chosen"]["param"] for it in self.iters if it.get("chosen")})
         hdrs = [
             "iter",
+            "elapsed",
+            "progress",
+            "ETA",
+            "ETA done",
             *changed,
             "best_loss",
             "best_iter",
@@ -294,6 +442,10 @@ class SweepViewer(App):
         rows.append(
             [
                 "-1",
+                "-",
+                "-",
+                "-",
+                "-",
                 *base_vals,
                 fnum(self.base_metrics.get("loss", "-"), "{:.4f}"),
                 str(self.base_metrics.get("best_iter", "-")),
@@ -377,7 +529,17 @@ class SweepViewer(App):
                     "-",
                     "-",
                 ]
-            rows.append([str(it.get("iter", i)), *vals])
+            remaining = iteration_remaining_seconds(it)
+            rows.append(
+                [
+                    str(it.get("iter", i)),
+                    hms_duration(iteration_elapsed_seconds(it)),
+                    iteration_progress(it),
+                    hms_duration(remaining),
+                    eta_completion_time(remaining),
+                    *vals,
+                ]
+            )
         return hdrs, rows
 
     def _refresh_view(self):
@@ -445,6 +607,7 @@ class SweepViewer(App):
         panel.update(
             metrics_panel(
                 current_iter_baseline_metrics=current_baseline_metrics,
+                iteration_block=blk,
                 prev_iter_baseline_loss=prior_loss_val,
                 current_avg_candidate_loss=current_avg_loss_display,
                 prior_avg_candidate_loss=prior_avg_loss_display,
@@ -456,6 +619,12 @@ class SweepViewer(App):
         self.sub_title = f"Iteration {blk['iter']}  (↑/↓ nav, q quit)"
         table.clear(columns=True)
         table.add_columns(
+            "status",
+            "progress",
+            "seed",
+            "started",
+            "elapsed",
+            "ETA",
             "param",
             "value",
             "best_loss",
@@ -484,25 +653,34 @@ class SweepViewer(App):
                 and c["value"] == chosen.get("value")
             )
             st = "bold yellow" if hl else ""
+            elapsed = c.get("elapsed_seconds")
+            if not isinstance(elapsed, (int, float)) and c.get("started_at"):
+                elapsed = elapsed_since(c.get("started_at"))
             table.add_row(
-                Text(str(c["param"]), style=st),
-                Text(str(c["value"]), style=st),
-                f"{c['best_val_loss']:.4f}",
+                Text(str(c.get("status", "complete")), style=st),
+                Text(progress_text(c), style=st),
+                Text(str(c.get("current_seed", "-")), style=st),
+                Text(short_time(c.get("started_at")), style=st),
+                Text(human_duration(elapsed), style=st),
+                Text(human_duration(c.get("estimated_remaining_seconds")), style=st),
+                Text(str(c.get("param", "-")), style=st),
+                Text(str(c.get("value", "-")), style=st),
+                fnum(c.get("best_val_loss", c.get("avg_loss", "-")), "{:.4f}"),
                 str(c.get("best_iter", "-")),
                 fnum(c.get("avg_rankme", "-"), "{:.4f}"),
                 fnum(c.get("delta_rankme", "-"), "{:+.4f}"),
                 fnum(c.get("avg_areq", "-"), "{:.4f}"),
                 fnum(c.get("delta_areq", "-"), "{:+.4f}"),
-                f"{c.get('peak_torch_allocated_mb', c.get('peak_gpu_mb', float('nan'))):.1f}",
-                f"{c.get('peak_torch_reserved_mb', float('nan')):.1f}",
-                f"{c.get('peak_process_gpu_mb', float('nan')):.1f}",
-                f"{c['delta_score']:.2e}",
-                f"{c['delta_params']:.2e}",
-                f"{c.get('delta_torch_allocated_mb', float('nan')):.1f}",
-                f"{c.get('delta_torch_reserved_mb', float('nan')):.1f}",
-                f"{c.get('delta_process_gpu_mb', float('nan')):.1f}",
-                f"{c.get('delta_iter_latency', float('nan')):.2f}",
-                f"{c['efficiency']:.2e}",
+                fnum(c.get('peak_torch_allocated_mb', c.get('peak_gpu_mb', "-")), "{:.1f}"),
+                fnum(c.get('peak_torch_reserved_mb', "-"), "{:.1f}"),
+                fnum(c.get('peak_process_gpu_mb', "-"), "{:.1f}"),
+                fnum(c.get('delta_score', "-"), "{:.2e}"),
+                fnum(c.get('delta_params', "-"), "{:.2e}"),
+                fnum(c.get('delta_torch_allocated_mb', "-"), "{:.1f}"),
+                fnum(c.get('delta_torch_reserved_mb', "-"), "{:.1f}"),
+                fnum(c.get('delta_process_gpu_mb', "-"), "{:.1f}"),
+                fnum(c.get('delta_iter_latency', "-"), "{:.2f}"),
+                fnum(c.get('efficiency', "-"), "{:.2e}"),
             )
 
 

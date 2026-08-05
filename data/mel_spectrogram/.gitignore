@@ -1,0 +1,5 @@
+mel_out/
+*.wav
+*.flac
+*.mp3
+__pycache__

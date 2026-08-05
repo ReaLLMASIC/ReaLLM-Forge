@@ -1,0 +1,5781 @@
+lanes:
+- index: 0
+  name: "script"
+  description: "Character class."
+  values:
+  - "PAD"
+  - "HANGUL"
+  - "NON_HANGUL"
+- index: 1
+  name: "choseong"
+  description: "Initial consonant index."
+  values:
+  - "PAD"
+  - "G"
+  - "GG"
+  - "N"
+  - "D"
+  - "DD"
+  - "R"
+  - "M"
+  - "B"
+  - "BB"
+  - "S"
+  - "SS"
+  - "NG"
+  - "J"
+  - "JJ"
+  - "CH"
+  - "K"
+  - "T"
+  - "P"
+  - "H"
+- index: 2
+  name: "jungseong"
+  description: "Medial vowel index."
+  values:
+  - "PAD"
+  - "A"
+  - "AE"
+  - "YA"
+  - "YAE"
+  - "EO"
+  - "E"
+  - "YEO"
+  - "YE"
+  - "O"
+  - "WA"
+  - "WAE"
+  - "OE"
+  - "YO"
+  - "U"
+  - "WEO"
+  - "WE"
+  - "WI"
+  - "YU"
+  - "EU"
+  - "YI"
+  - "I"
+- index: 3
+  name: "jongseong"
+  description: "Final consonant index; PAD means no batchim."
+  values:
+  - "PAD"
+  - "G"
+  - "GG"
+  - "GS"
+  - "N"
+  - "NJ"
+  - "NH"
+  - "D"
+  - "R"
+  - "RG"
+  - "RM"
+  - "RB"
+  - "RS"
+  - "RT"
+  - "RP"
+  - "RH"
+  - "M"
+  - "B"
+  - "BS"
+  - "S"
+  - "SS"
+  - "NG"
+  - "J"
+  - "CH"
+  - "K"
+  - "T"
+  - "P"
+  - "H"
+- index: 4
+  name: "jung_base1"
+  description: "First vowel component."
+  values:
+  - "PAD"
+  - "A"
+  - "YA"
+  - "EO"
+  - "YEO"
+  - "O"
+  - "YO"
+  - "U"
+  - "YU"
+  - "EU"
+  - "I"
+- index: 5
+  name: "jung_base2"
+  description: "Second vowel component for compound vowels."
+  values:
+  - "PAD"
+  - "A"
+  - "AE"
+  - "EO"
+  - "E"
+  - "I"
+- index: 6
+  name: "jung_has_w"
+  description: "Vowel contains w/glide composition."
+  values:
+  - "PAD"
+  - "0"
+  - "1"
+- index: 7
+  name: "jung_has_y"
+  description: "Vowel contains y/iotized onset."
+  values:
+  - "PAD"
+  - "0"
+  - "1"
+- index: 8
+  name: "jung_has_i"
+  description: "Vowel contains an i element."
+  values:
+  - "PAD"
+  - "0"
+  - "1"
+- index: 9
+  name: "jong_base1"
+  description: "First final-consonant component."
+  values:
+  - "PAD"
+  - "G"
+  - "GG"
+  - "N"
+  - "D"
+  - "DD"
+  - "R"
+  - "M"
+  - "B"
+  - "BB"
+  - "S"
+  - "SS"
+  - "NG"
+  - "J"
+  - "JJ"
+  - "CH"
+  - "K"
+  - "T"
+  - "P"
+  - "H"
+- index: 10
+  name: "jong_base2"
+  description: "Second final-consonant component."
+  values:
+  - "PAD"
+  - "G"
+  - "GG"
+  - "N"
+  - "D"
+  - "DD"
+  - "R"
+  - "M"
+  - "B"
+  - "BB"
+  - "S"
+  - "SS"
+  - "NG"
+  - "J"
+  - "JJ"
+  - "CH"
+  - "K"
+  - "T"
+  - "P"
+  - "H"
+- index: 11
+  name: "jong_base3"
+  description: "Reserved third final-consonant component."
+  values:
+  - "PAD"
+  - "G"
+  - "GG"
+  - "N"
+  - "D"
+  - "DD"
+  - "R"
+  - "M"
+  - "B"
+  - "BB"
+  - "S"
+  - "SS"
+  - "NG"
+  - "J"
+  - "JJ"
+  - "CH"
+  - "K"
+  - "T"
+  - "P"
+  - "H"
+- index: 12
+  name: "choseong_tense"
+  description: "Initial is tense/doubled."
+  values:
+  - "PAD"
+  - "0"
+  - "1"
+- index: 13
+  name: "choseong_aspirated"
+  description: "Initial is aspirated."
+  values:
+  - "PAD"
+  - "0"
+  - "1"
+- index: 14
+  name: "choseong_nasal_liquid"
+  description: "Initial is nasal/liquid/ng."
+  values:
+  - "PAD"
+  - "0"
+  - "1"
+- index: 15
+  name: "choseong_place"
+  description: "Coarse initial place."
+  values:
+  - "PAD"
+  - "velar"
+  - "coronal"
+  - "labial"
+  - "glottal"
+  - "null"
+- index: 16
+  name: "jung_height"
+  description: "Coarse vowel height."
+  values:
+  - "PAD"
+  - "low"
+  - "mid"
+  - "high"
+- index: 17
+  name: "jung_backness"
+  description: "Coarse vowel backness."
+  values:
+  - "PAD"
+  - "front"
+  - "central"
+  - "back"
+- index: 18
+  name: "jung_round"
+  description: "Rounded vowel family."
+  values:
+  - "PAD"
+  - "0"
+  - "1"
+- index: 19
+  name: "jong_complex"
+  description: "Final consonant is a cluster/double."
+  values:
+  - "PAD"
+  - "0"
+  - "1"
+- index: 20
+  name: "has_batchim"
+  description: "Syllable has a final consonant."
+  values:
+  - "PAD"
+  - "0"
+  - "1"
+- index: 21
+  name: "syllable_index_mod"
+  description: "Hangul syllable index modulo 28."
+  values:
+  - "PAD"
+  - "0"
+  - "1"
+  - "2"
+  - "3"
+  - "4"
+  - "5"
+  - "6"
+  - "7"
+  - "8"
+  - "9"
+  - "10"
+  - "11"
+  - "12"
+  - "13"
+  - "14"
+  - "15"
+  - "16"
+  - "17"
+  - "18"
+  - "19"
+  - "20"
+  - "21"
+  - "22"
+  - "23"
+  - "24"
+  - "25"
+  - "26"
+  - "27"
+- index: 22
+  name: "codepoint_mod"
+  description: "Unicode codepoint modulo 64, for tie-breaking diagnostics."
+  values:
+  - "PAD"
+  - "0"
+  - "1"
+  - "2"
+  - "3"
+  - "4"
+  - "5"
+  - "6"
+  - "7"
+  - "8"
+  - "9"
+  - "10"
+  - "11"
+  - "12"
+  - "13"
+  - "14"
+  - "15"
+  - "16"
+  - "17"
+  - "18"
+  - "19"
+  - "20"
+  - "21"
+  - "22"
+  - "23"
+  - "24"
+  - "25"
+  - "26"
+  - "27"
+  - "28"
+  - "29"
+  - "30"
+  - "31"
+  - "32"
+  - "33"
+  - "34"
+  - "35"
+  - "36"
+  - "37"
+  - "38"
+  - "39"
+  - "40"
+  - "41"
+  - "42"
+  - "43"
+  - "44"
+  - "45"
+  - "46"
+  - "47"
+  - "48"
+  - "49"
+  - "50"
+  - "51"
+  - "52"
+  - "53"
+  - "54"
+  - "55"
+  - "56"
+  - "57"
+  - "58"
+  - "59"
+  - "60"
+  - "61"
+  - "62"
+  - "63"
+characters:
+- position: 0
+  char: "H"
+  codepoint: "U+0048"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 1
+  char: "e"
+  codepoint: "U+0065"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 2
+  char: "l"
+  codepoint: "U+006C"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 3
+  char: "l"
+  codepoint: "U+006C"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 4
+  char: "o"
+  codepoint: "U+006F"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 5
+  char: "\t"
+  codepoint: "U+0009"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 6
+  char: "안"
+  codepoint: "U+C548"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 12
+      value: "NG"
+    jungseong:
+      id: 1
+      value: "A"
+    jongseong:
+      id: 4
+      value: "N"
+    jung_base1:
+      id: 1
+      value: "A"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 3
+      value: "N"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 5
+      value: "null"
+    jung_height:
+      id: 1
+      value: "low"
+    jung_backness:
+      id: 2
+      value: "central"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 5
+      value: "4"
+    codepoint_mod:
+      id: 9
+      value: "8"
+- position: 7
+  char: "녕"
+  codepoint: "U+B155"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 3
+      value: "N"
+    jungseong:
+      id: 7
+      value: "YEO"
+    jongseong:
+      id: 21
+      value: "NG"
+    jung_base1:
+      id: 4
+      value: "YEO"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 2
+      value: "1"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 12
+      value: "NG"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 2
+      value: "coronal"
+    jung_height:
+      id: 2
+      value: "mid"
+    jung_backness:
+      id: 2
+      value: "central"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 22
+      value: "21"
+    codepoint_mod:
+      id: 22
+      value: "21"
+- position: 8
+  char: "하"
+  codepoint: "U+D558"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 19
+      value: "H"
+    jungseong:
+      id: 1
+      value: "A"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 1
+      value: "A"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 2
+      value: "1"
+    choseong_nasal_liquid:
+      id: 1
+      value: "0"
+    choseong_place:
+      id: 4
+      value: "glottal"
+    jung_height:
+      id: 1
+      value: "low"
+    jung_backness:
+      id: 2
+      value: "central"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 25
+      value: "24"
+- position: 9
+  char: "세"
+  codepoint: "U+C138"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 10
+      value: "S"
+    jungseong:
+      id: 6
+      value: "E"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 3
+      value: "EO"
+    jung_base2:
+      id: 5
+      value: "I"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 2
+      value: "1"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 1
+      value: "0"
+    choseong_place:
+      id: 2
+      value: "coronal"
+    jung_height:
+      id: 2
+      value: "mid"
+    jung_backness:
+      id: 1
+      value: "front"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 57
+      value: "56"
+- position: 10
+  char: "요"
+  codepoint: "U+C694"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 12
+      value: "NG"
+    jungseong:
+      id: 13
+      value: "YO"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 6
+      value: "YO"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 2
+      value: "1"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 5
+      value: "null"
+    jung_height:
+      id: 3
+      value: "high"
+    jung_backness:
+      id: 3
+      value: "back"
+    jung_round:
+      id: 2
+      value: "1"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 21
+      value: "20"
+- position: 11
+  char: "."
+  codepoint: "U+002E"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 12
+  char: "\n"
+  codepoint: "U+000A"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 13
+  char: "G"
+  codepoint: "U+0047"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 14
+  char: "o"
+  codepoint: "U+006F"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 15
+  char: "o"
+  codepoint: "U+006F"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 16
+  char: "d"
+  codepoint: "U+0064"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 17
+  char: " "
+  codepoint: "U+0020"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 18
+  char: "m"
+  codepoint: "U+006D"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 19
+  char: "o"
+  codepoint: "U+006F"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 20
+  char: "r"
+  codepoint: "U+0072"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 21
+  char: "n"
+  codepoint: "U+006E"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 22
+  char: "i"
+  codepoint: "U+0069"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 23
+  char: "n"
+  codepoint: "U+006E"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 24
+  char: "g"
+  codepoint: "U+0067"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 25
+  char: "\t"
+  codepoint: "U+0009"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 26
+  char: "좋"
+  codepoint: "U+C88B"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 13
+      value: "J"
+    jungseong:
+      id: 9
+      value: "O"
+    jongseong:
+      id: 27
+      value: "H"
+    jung_base1:
+      id: 5
+      value: "O"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 19
+      value: "H"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 1
+      value: "0"
+    choseong_place:
+      id: 2
+      value: "coronal"
+    jung_height:
+      id: 3
+      value: "high"
+    jung_backness:
+      id: 3
+      value: "back"
+    jung_round:
+      id: 2
+      value: "1"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 28
+      value: "27"
+    codepoint_mod:
+      id: 12
+      value: "11"
+- position: 27
+  char: "은"
+  codepoint: "U+C740"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 12
+      value: "NG"
+    jungseong:
+      id: 19
+      value: "EU"
+    jongseong:
+      id: 4
+      value: "N"
+    jung_base1:
+      id: 9
+      value: "EU"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 3
+      value: "N"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 5
+      value: "null"
+    jung_height:
+      id: 3
+      value: "high"
+    jung_backness:
+      id: 2
+      value: "central"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 5
+      value: "4"
+    codepoint_mod:
+      id: 1
+      value: "0"
+- position: 28
+  char: " "
+  codepoint: "U+0020"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 29
+  char: "아"
+  codepoint: "U+C544"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 12
+      value: "NG"
+    jungseong:
+      id: 1
+      value: "A"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 1
+      value: "A"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 5
+      value: "null"
+    jung_height:
+      id: 1
+      value: "low"
+    jung_backness:
+      id: 2
+      value: "central"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 5
+      value: "4"
+- position: 30
+  char: "침"
+  codepoint: "U+CE68"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 15
+      value: "CH"
+    jungseong:
+      id: 21
+      value: "I"
+    jongseong:
+      id: 16
+      value: "M"
+    jung_base1:
+      id: 10
+      value: "I"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 2
+      value: "1"
+    jong_base1:
+      id: 7
+      value: "M"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 2
+      value: "1"
+    choseong_nasal_liquid:
+      id: 1
+      value: "0"
+    choseong_place:
+      id: 2
+      value: "coronal"
+    jung_height:
+      id: 3
+      value: "high"
+    jung_backness:
+      id: 1
+      value: "front"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 17
+      value: "16"
+    codepoint_mod:
+      id: 41
+      value: "40"
+- position: 31
+  char: "입"
+  codepoint: "U+C785"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 12
+      value: "NG"
+    jungseong:
+      id: 21
+      value: "I"
+    jongseong:
+      id: 17
+      value: "B"
+    jung_base1:
+      id: 10
+      value: "I"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 2
+      value: "1"
+    jong_base1:
+      id: 8
+      value: "B"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 5
+      value: "null"
+    jung_height:
+      id: 3
+      value: "high"
+    jung_backness:
+      id: 1
+      value: "front"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 18
+      value: "17"
+    codepoint_mod:
+      id: 6
+      value: "5"
+- position: 32
+  char: "니"
+  codepoint: "U+B2C8"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 3
+      value: "N"
+    jungseong:
+      id: 21
+      value: "I"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 10
+      value: "I"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 2
+      value: "1"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 2
+      value: "coronal"
+    jung_height:
+      id: 3
+      value: "high"
+    jung_backness:
+      id: 1
+      value: "front"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 9
+      value: "8"
+- position: 33
+  char: "다"
+  codepoint: "U+B2E4"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 4
+      value: "D"
+    jungseong:
+      id: 1
+      value: "A"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 1
+      value: "A"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 1
+      value: "0"
+    choseong_place:
+      id: 2
+      value: "coronal"
+    jung_height:
+      id: 1
+      value: "low"
+    jung_backness:
+      id: 2
+      value: "central"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 37
+      value: "36"
+- position: 34
+  char: "."
+  codepoint: "U+002E"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 35
+  char: "\n"
+  codepoint: "U+000A"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 36
+  char: "K"
+  codepoint: "U+004B"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 37
+  char: "o"
+  codepoint: "U+006F"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 38
+  char: "r"
+  codepoint: "U+0072"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 39
+  char: "e"
+  codepoint: "U+0065"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 40
+  char: "a"
+  codepoint: "U+0061"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 41
+  char: "n"
+  codepoint: "U+006E"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 42
+  char: " "
+  codepoint: "U+0020"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 43
+  char: "m"
+  codepoint: "U+006D"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 44
+  char: "u"
+  codepoint: "U+0075"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 45
+  char: "l"
+  codepoint: "U+006C"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 46
+  char: "t"
+  codepoint: "U+0074"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 47
+  char: "i"
+  codepoint: "U+0069"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 48
+  char: "c"
+  codepoint: "U+0063"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 49
+  char: "o"
+  codepoint: "U+006F"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 50
+  char: "n"
+  codepoint: "U+006E"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 51
+  char: "t"
+  codepoint: "U+0074"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 52
+  char: "e"
+  codepoint: "U+0065"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 53
+  char: "x"
+  codepoint: "U+0078"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 54
+  char: "t"
+  codepoint: "U+0074"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 55
+  char: "\t"
+  codepoint: "U+0009"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 56
+  char: "한"
+  codepoint: "U+D55C"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 19
+      value: "H"
+    jungseong:
+      id: 1
+      value: "A"
+    jongseong:
+      id: 4
+      value: "N"
+    jung_base1:
+      id: 1
+      value: "A"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 3
+      value: "N"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 2
+      value: "1"
+    choseong_nasal_liquid:
+      id: 1
+      value: "0"
+    choseong_place:
+      id: 4
+      value: "glottal"
+    jung_height:
+      id: 1
+      value: "low"
+    jung_backness:
+      id: 2
+      value: "central"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 5
+      value: "4"
+    codepoint_mod:
+      id: 29
+      value: "28"
+- position: 57
+  char: "국"
+  codepoint: "U+AD6D"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 1
+      value: "G"
+    jungseong:
+      id: 14
+      value: "U"
+    jongseong:
+      id: 1
+      value: "G"
+    jung_base1:
+      id: 7
+      value: "U"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 1
+      value: "G"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 1
+      value: "0"
+    choseong_place:
+      id: 1
+      value: "velar"
+    jung_height:
+      id: 3
+      value: "high"
+    jung_backness:
+      id: 3
+      value: "back"
+    jung_round:
+      id: 2
+      value: "1"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 2
+      value: "1"
+    codepoint_mod:
+      id: 46
+      value: "45"
+- position: 58
+  char: "어"
+  codepoint: "U+C5B4"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 12
+      value: "NG"
+    jungseong:
+      id: 5
+      value: "EO"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 3
+      value: "EO"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 5
+      value: "null"
+    jung_height:
+      id: 2
+      value: "mid"
+    jung_backness:
+      id: 2
+      value: "central"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 53
+      value: "52"
+- position: 59
+  char: " "
+  codepoint: "U+0020"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 60
+  char: "다"
+  codepoint: "U+B2E4"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 4
+      value: "D"
+    jungseong:
+      id: 1
+      value: "A"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 1
+      value: "A"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 1
+      value: "0"
+    choseong_place:
+      id: 2
+      value: "coronal"
+    jung_height:
+      id: 1
+      value: "low"
+    jung_backness:
+      id: 2
+      value: "central"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 37
+      value: "36"
+- position: 61
+  char: "중"
+  codepoint: "U+C911"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 13
+      value: "J"
+    jungseong:
+      id: 14
+      value: "U"
+    jongseong:
+      id: 21
+      value: "NG"
+    jung_base1:
+      id: 7
+      value: "U"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 12
+      value: "NG"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 1
+      value: "0"
+    choseong_place:
+      id: 2
+      value: "coronal"
+    jung_height:
+      id: 3
+      value: "high"
+    jung_backness:
+      id: 3
+      value: "back"
+    jung_round:
+      id: 2
+      value: "1"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 22
+      value: "21"
+    codepoint_mod:
+      id: 18
+      value: "17"
+- position: 62
+  char: " "
+  codepoint: "U+0020"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 63
+  char: "문"
+  codepoint: "U+BB38"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 7
+      value: "M"
+    jungseong:
+      id: 14
+      value: "U"
+    jongseong:
+      id: 4
+      value: "N"
+    jung_base1:
+      id: 7
+      value: "U"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 3
+      value: "N"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 3
+      value: "labial"
+    jung_height:
+      id: 3
+      value: "high"
+    jung_backness:
+      id: 3
+      value: "back"
+    jung_round:
+      id: 2
+      value: "1"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 5
+      value: "4"
+    codepoint_mod:
+      id: 57
+      value: "56"
+- position: 64
+  char: "맥"
+  codepoint: "U+B9E5"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 7
+      value: "M"
+    jungseong:
+      id: 2
+      value: "AE"
+    jongseong:
+      id: 1
+      value: "G"
+    jung_base1:
+      id: 1
+      value: "A"
+    jung_base2:
+      id: 5
+      value: "I"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 2
+      value: "1"
+    jong_base1:
+      id: 1
+      value: "G"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 3
+      value: "labial"
+    jung_height:
+      id: 1
+      value: "low"
+    jung_backness:
+      id: 1
+      value: "front"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 2
+      value: "1"
+    codepoint_mod:
+      id: 38
+      value: "37"
+- position: 65
+  char: " "
+  codepoint: "U+0020"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 66
+  char: "예"
+  codepoint: "U+C608"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 12
+      value: "NG"
+    jungseong:
+      id: 8
+      value: "YE"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 4
+      value: "YEO"
+    jung_base2:
+      id: 5
+      value: "I"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 2
+      value: "1"
+    jung_has_i:
+      id: 2
+      value: "1"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 5
+      value: "null"
+    jung_height:
+      id: 2
+      value: "mid"
+    jung_backness:
+      id: 1
+      value: "front"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 9
+      value: "8"
+- position: 67
+  char: "제"
+  codepoint: "U+C81C"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 13
+      value: "J"
+    jungseong:
+      id: 6
+      value: "E"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 3
+      value: "EO"
+    jung_base2:
+      id: 5
+      value: "I"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 2
+      value: "1"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 1
+      value: "0"
+    choseong_place:
+      id: 2
+      value: "coronal"
+    jung_height:
+      id: 2
+      value: "mid"
+    jung_backness:
+      id: 1
+      value: "front"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 29
+      value: "28"
+- position: 68
+  char: "입"
+  codepoint: "U+C785"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 12
+      value: "NG"
+    jungseong:
+      id: 21
+      value: "I"
+    jongseong:
+      id: 17
+      value: "B"
+    jung_base1:
+      id: 10
+      value: "I"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 2
+      value: "1"
+    jong_base1:
+      id: 8
+      value: "B"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 5
+      value: "null"
+    jung_height:
+      id: 3
+      value: "high"
+    jung_backness:
+      id: 1
+      value: "front"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 2
+      value: "1"
+    syllable_index_mod:
+      id: 18
+      value: "17"
+    codepoint_mod:
+      id: 6
+      value: "5"
+- position: 69
+  char: "니"
+  codepoint: "U+B2C8"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 3
+      value: "N"
+    jungseong:
+      id: 21
+      value: "I"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 10
+      value: "I"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 2
+      value: "1"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 2
+      value: "1"
+    choseong_place:
+      id: 2
+      value: "coronal"
+    jung_height:
+      id: 3
+      value: "high"
+    jung_backness:
+      id: 1
+      value: "front"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 9
+      value: "8"
+- position: 70
+  char: "다"
+  codepoint: "U+B2E4"
+  is_hangul: true
+  lanes:
+    script:
+      id: 1
+      value: "HANGUL"
+    choseong:
+      id: 4
+      value: "D"
+    jungseong:
+      id: 1
+      value: "A"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 1
+      value: "A"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 1
+      value: "0"
+    jung_has_y:
+      id: 1
+      value: "0"
+    jung_has_i:
+      id: 1
+      value: "0"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 1
+      value: "0"
+    choseong_aspirated:
+      id: 1
+      value: "0"
+    choseong_nasal_liquid:
+      id: 1
+      value: "0"
+    choseong_place:
+      id: 2
+      value: "coronal"
+    jung_height:
+      id: 1
+      value: "low"
+    jung_backness:
+      id: 2
+      value: "central"
+    jung_round:
+      id: 1
+      value: "0"
+    jong_complex:
+      id: 1
+      value: "0"
+    has_batchim:
+      id: 1
+      value: "0"
+    syllable_index_mod:
+      id: 1
+      value: "0"
+    codepoint_mod:
+      id: 37
+      value: "36"
+- position: 71
+  char: "."
+  codepoint: "U+002E"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"
+- position: 72
+  char: "\n"
+  codepoint: "U+000A"
+  is_hangul: false
+  lanes:
+    script:
+      id: 2
+      value: "NON_HANGUL"
+    choseong:
+      id: 0
+      value: "PAD"
+    jungseong:
+      id: 0
+      value: "PAD"
+    jongseong:
+      id: 0
+      value: "PAD"
+    jung_base1:
+      id: 0
+      value: "PAD"
+    jung_base2:
+      id: 0
+      value: "PAD"
+    jung_has_w:
+      id: 0
+      value: "PAD"
+    jung_has_y:
+      id: 0
+      value: "PAD"
+    jung_has_i:
+      id: 0
+      value: "PAD"
+    jong_base1:
+      id: 0
+      value: "PAD"
+    jong_base2:
+      id: 0
+      value: "PAD"
+    jong_base3:
+      id: 0
+      value: "PAD"
+    choseong_tense:
+      id: 0
+      value: "PAD"
+    choseong_aspirated:
+      id: 0
+      value: "PAD"
+    choseong_nasal_liquid:
+      id: 0
+      value: "PAD"
+    choseong_place:
+      id: 0
+      value: "PAD"
+    jung_height:
+      id: 0
+      value: "PAD"
+    jung_backness:
+      id: 0
+      value: "PAD"
+    jung_round:
+      id: 0
+      value: "PAD"
+    jong_complex:
+      id: 0
+      value: "PAD"
+    has_batchim:
+      id: 0
+      value: "PAD"
+    syllable_index_mod:
+      id: 0
+      value: "PAD"
+    codepoint_mod:
+      id: 0
+      value: "PAD"

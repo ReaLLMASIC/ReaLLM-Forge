@@ -24,6 +24,7 @@ from rich.table import Table
 METRICS_FILENAME = "best_val_loss_and_iter.txt"
 METRIC_KEYS = [
     "best_val_loss",
+    "best_val_bits_per_byte",
     "best_val_iter", 
     "best_tokens",
     "num_params",
@@ -78,11 +79,14 @@ def read_metrics(out_dir: str) -> dict:
     line = path.read_text().strip()
     parts = [p.strip() for p in line.split(',')]
 
-    # Take only the first 4 values and cast them appropriately
+    # Take only the core values and cast them appropriately.
+    if len(parts) == len(METRIC_KEYS) - 1:
+        # Backward compatibility for runs created before best_val_bits_per_byte.
+        parts.insert(1, "nan")
     if len(parts) < len(METRIC_KEYS):
         raise ValueError(f"Expected at least {len(METRIC_KEYS)} metrics, got {len(parts)}")
-    
-    casts = [float, int, int, int]
+
+    casts = [float, float, int, int, int]
     return {k: typ(v) for k, typ, v in zip(METRIC_KEYS, casts, parts[:len(METRIC_KEYS)])}
 
 

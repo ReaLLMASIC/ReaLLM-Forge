@@ -1,13 +1,17 @@
+# compile commands
 alias create_compile_commands_json='intercept-build make all'
 
+# apt
 alias sac='sudo apt-cache search'
 alias sai='sudo apt-get install'
 alias sau='sudo apt update'
 alias sag='sudo apt-get upgrade'
 
+# editor
 alias vim='nvim'
 alias vi='nvim'
 
+# ls
 alias l='ls -ltr'
 alias sl='ls'
 alias lt='ls -ltr'
@@ -15,6 +19,7 @@ alias ltr='ls -ltr'
 alias lth='ls -lth'
 alias ll='ls -l'
 
+# python
 alias p='python3'
 alias pe='python3 -m venv venv'
 alias pa='source venv/bin/activate'
@@ -25,17 +30,75 @@ alias pq='python3 -m pip install -r requirements.txt'
 alias pf='python3 -m pip freeze > requirements.txt'
 alias pu='python3 -m pip install --upgrade pip'
 alias pd='deactivate'
+
+# tmux
 alias t='tmux'
 
-alias ba="vim ~/.bash_aliases"
-alias sa="source ~/.bash_aliases"
-alias dh="df -h ."
+# aliases / shell helpers
+alias ba='vim ~/.bash_aliases'
+alias sa='source ~/.bash_aliases'
+alias dh='df -h .'
 
-alias wg="watch --color 'gpustat  --color'"
+# watch helpers
+alias wg="watch --color 'gpustat --color'"
 alias wd="watch --color 'df -h .'"
 
-alias gf="git fetch --all"
-alias gs="git status"
-alias gl="git log --stat -p"
+# git basics
+alias gf='git fetch --all'
+alias gs='git status'
+alias gl='git log --stat -p'
+alias gp='git pull'
+alias gd='git diff'
 
-alias c="clear"
+# git repo audit / codebase diagnostics
+alias gchurn='git log --format=format: --name-only --since="1 year ago" | grep -v "^$" | sort | uniq -c | sort -nr | head -20'
+alias ghot='git log --format=format: --name-only --since="1 year ago" | grep -v "^$" | sort | uniq -c | sort -nr | head -20'
+
+alias gbus='git shortlog -sn --no-merges'
+alias gbus6='git shortlog -sn --no-merges --since="6 months ago"'
+
+alias gbug='git log -i -E --grep="fix|bug|broken" --name-only --format= | grep -v "^$" | sort | uniq -c | sort -nr | head -20'
+alias gbugs='git log -i -E --grep="fix|bug|broken" --name-only --format= | grep -v "^$" | sort | uniq -c | sort -nr | head -20'
+
+alias gvel="git log --format='%ad' --date=format:'%Y-%m' | sort | uniq -c"
+
+alias gfire='git log --oneline --since="1 year ago" | grep -iE "revert|hotfix|emergency|rollback"'
+
+# run the full repo audit in one shot
+_git_audit() {
+  printf '\n== Churn hotspots, last year ==\n'
+  git log --format=format: --name-only --since="1 year ago" \
+    | grep -v '^$' \
+    | sort \
+    | uniq -c \
+    | sort -nr \
+    | head -20
+
+  printf '\n== Contributors, all time, no merges ==\n'
+  git shortlog -sn --no-merges
+
+  printf '\n== Active contributors, last 6 months, no merges ==\n'
+  git shortlog -sn --no-merges --since="6 months ago"
+
+  printf '\n== Bug hotspots, all time ==\n'
+  git log -i -E --grep="fix|bug|broken" --name-only --format= \
+    | grep -v '^$' \
+    | sort \
+    | uniq -c \
+    | sort -nr \
+    | head -20
+
+  printf '\n== Commit velocity by month ==\n'
+  git log --format='%ad' --date=format:'%Y-%m' \
+    | sort \
+    | uniq -c
+
+  printf '\n== Firefighting, last year ==\n'
+  git log --oneline --since="1 year ago" \
+    | grep -iE 'revert|hotfix|emergency|rollback'
+}
+
+alias gaudit='_git_audit'
+
+# misc
+alias c='clear'

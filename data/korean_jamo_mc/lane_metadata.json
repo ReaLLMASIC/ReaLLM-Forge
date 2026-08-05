@@ -1,0 +1,10 @@
+{
+  "lanes": [
+    "char",
+    "first_jamo",
+    "last_jamo",
+    "eun_neun"
+  ],
+  "num_characters": 100,
+  "special_pad": "_"
+}

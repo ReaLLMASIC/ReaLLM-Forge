@@ -1,0 +1,132 @@
+# comparison_adam_muon_hsnorm_relu2_softmax_peri.yaml using named group mechanisms from sample.yaml
+---
+
+named_static_groups:
+  # QK Norm
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    use_rotary_embeddings: [true]
+    use_abs_pos_embeddings: [false]
+
+  # Embedding Norm
+  - named_group: "rmsnorm_all"
+    norm_variant_wte: ["rmsnorm"]
+    norm_variant_attn: ["rmsnorm"]
+    norm_variant_output: ["rmsnorm"]
+
+  # Embedding Norm
+  - named_group: "rmsnorm_ao"
+    norm_variant_attn: ["rmsnorm"]
+    norm_variant_output: ["rmsnorm"]
+
+  - named_group: "hsnorm_all"
+    norm_variant_wte: ["hyperspherenorm"]
+    norm_variant_attn: ["hyperspherenorm"]
+    norm_variant_output: ["hyperspherenorm"]
+    hsnorm_radius_learning: [true]
+    norm_wte_radius_learning: [true]
+
+  - named_group: "hsnorm_ao"
+    norm_variant_attn: ["hyperspherenorm"]
+    norm_variant_output: ["hyperspherenorm"]
+    hsnorm_radius_learning: [true]
+
+  # MLP Activation
+  - named_group: "squared_relu"
+    activation_variant: ["squared_relu"]
+
+  # Relu2Max
+  - named_group: "relu2max"
+    softmax_variant_attn: ["relu2max"]
+
+  # Softmax
+  - named_group: "softmax"
+    softmax_variant_attn: ["softmax"]
+
+  # Infinite Attention
+  - named_group: "infinite"
+    attention_variant: ["infinite"]
+    use_concat_heads: [true]
+
+  # Head Dimension
+  - named_group: "hd_100"
+    n_qk_head_dim: [100]
+    n_v_head_dim: [100]
+
+  - named_group: "hd_150"
+    n_qk_head_dim: [150]
+    n_v_head_dim: [150]
+
+  - named_group: "hd_200"
+    n_qk_head_dim: [200]
+    n_v_head_dim: [200]
+
+  # MQA
+  - named_group: "mqa"
+    n_kv_group: [1]
+
+  - named_group: "muon"
+    optimizer: ["muon"]
+    weight_decay: [0]
+
+  - named_group: "adamw"
+    optimizer: ["adamw"]
+
+common_group:
+  dataset: ["minipile"]
+  eval_interval: [500]
+  max_iters: [10000]
+  never_save_checkpoint: [false]
+  compile: [true]
+  use_gradient_checkpointing: [true]
+  n_head: [3]
+  log_areq: [true]
+  log_rankme: [true]
+
+activation_variant: ["gelu", "squared_relu"]
+
+parameter_groups:
+  - named_group_static:
+      - "qk_norm"
+      - "rotary"
+      - "infinite"
+      - "hd_100"
+      - "adamw"
+      - "relu2max"
+    named_group_alternates: ["hsnorm_all", "rmsnorm_all", "rmsnorm_ao", "hsnorm_ao"]
+  - named_group_static:
+      - "qk_norm"
+      - "rotary"
+      - "infinite"
+      - "hd_100"
+      - "muon"
+      - "relu2max"
+    named_group_alternates: ["hsnorm_all", "rmsnorm_all", "rmsnorm_ao", "hsnorm_ao"]
+  - named_group_static:
+      - "qk_norm"
+      - "rotary"
+      - "infinite"
+      - "hd_100"
+      - "adamw"
+      - "softmax"
+    named_group_alternates: ["hsnorm_all", "rmsnorm_all", "rmsnorm_ao", "hsnorm_ao"]
+    use_peri_ln: [true, false]
+  - named_group_static:
+      - "qk_norm"
+      - "rotary"
+      - "infinite"
+      - "hd_100"
+      - "muon"
+      - "softmax"
+    named_group_alternates: ["hsnorm_all", "rmsnorm_all", "rmsnorm_ao", "hsnorm_ao"]
+    use_peri_ln: [true, false]

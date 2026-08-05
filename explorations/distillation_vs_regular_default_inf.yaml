@@ -1,0 +1,83 @@
+# Compare default_inf-style regular training against knowledge distillation.
+# Set distillation_source_path to the teacher checkpoint path before running.
+---
+named_static_groups:
+  # QK Norm
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    use_rotary_embeddings: [true]
+    use_abs_pos_embeddings: [false]
+
+  # Relu2Max
+  - named_group: "relu2max"
+    softmax_variant_attn: ["relu2max"]
+
+  # Infinite Attention
+  - named_group: "infinite"
+    attention_variant: ["infinite"]
+    use_concat_heads: [true]
+
+  # MQA
+  - named_group: "mqa"
+    n_kv_group: [1]
+
+  # Match one default_inf head-dimension option for a concise regular-vs-distill comparison.
+  - named_group: "hd_150"
+    n_qk_head_dim: [150]
+    n_v_head_dim: [150]
+
+  # Training modes
+  - named_group: "regular_training"
+    # No teacher or distillation loss: standard next-token prediction training.
+    log_ntp_val_loss_during_distillation: [true]
+
+  - named_group: "distillation_training"
+    distillation_teacher_ckpt: ["${DISTILLATION_SOURCE}"]
+    distillation_loss: ["kl_divergence"]
+    distillation_weight: [1.0]
+    distillation_temperature: [1.0]
+    passive_distillation_loss_log: [false]
+    log_ntp_val_loss_during_distillation: [true]
+
+  - named_group: "passive_distillation_logging"
+    distillation_teacher_ckpt: ["${DISTILLATION_SOURCE}"]
+    distillation_loss: ["kl_divergence"]
+    passive_distillation_loss_log: [true]
+    log_ntp_val_loss_during_distillation: [true]
+
+common_group:
+  # Launcher-only path variable used by distillation_teacher_ckpt values below.
+  # This key is recorded in exploration_logs but is not passed to train.py.
+  distillation_source_path: ["out/teacher/ckpt.pt"]
+  dataset: ["minipile"]
+  eval_interval: [2500]
+  max_iters: [10000]
+  never_save_checkpoint: [true]
+  compile: [true]
+  log_rankme: [true]
+  log_areq: [true]
+
+parameter_groups:
+  - named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "relu2max"
+      - "infinite"
+      - "mqa"
+      - "hd_150"
+    n_head: [4, 8, 12]
+    named_group_alternates:
+      - "regular_training"
+      - "distillation_training"
+      - "passive_distillation_logging"

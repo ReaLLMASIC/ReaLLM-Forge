@@ -594,3 +594,268 @@ code {
   z-index: 1;
   background: #020617;
 }
+
+.recursive-group-controls {
+  grid-template-columns: minmax(150px, 0.6fr) minmax(150px, 0.6fr) minmax(180px, 0.7fr) minmax(180px, 0.8fr);
+}
+
+.graph-card {
+  overflow: auto;
+}
+
+.graph-scroll {
+  height: 680px;
+  min-height: 560px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #020617;
+  position: relative;
+}
+
+.graph-scroll.static-svg-fallback {
+  overflow: auto;
+}
+
+.graph-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  margin: 0 0 12px;
+}
+
+.graph-options .checkbox-row {
+  color: var(--text);
+}
+
+.graph-scroll .vis-network {
+  outline: none;
+}
+
+.graph-scroll canvas {
+  display: block;
+}
+
+.recursive-graph-svg-local {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.recursive-graph-svg-local.panning {
+  cursor: grabbing;
+}
+
+.recursive-graph-svg-local .graph-node {
+  cursor: grab;
+}
+
+.recursive-graph-svg-local .graph-node.dragging {
+  cursor: grabbing;
+}
+
+.local-draggable-graph {
+  overflow: hidden;
+}
+
+.recursive-graph-svg {
+  display: block;
+  max-width: none;
+}
+
+.graph-edge {
+  stroke: rgba(148, 163, 184, 0.48);
+  stroke-width: 1.25;
+}
+
+.graph-edge-min {
+  stroke: #fbbf24;
+  stroke-width: 3.2;
+  opacity: 0.98;
+}
+
+.graph-edge-label {
+  fill: var(--muted);
+  font-size: 10px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: #020617;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.graph-edge-label-min {
+  fill: #fde68a;
+  font-size: 11px;
+  font-weight: 800;
+  stroke-width: 3.5px;
+}
+
+.graph-node rect {
+  fill: var(--panel-soft);
+  stroke: var(--accent-strong);
+  stroke-width: 1.1;
+}
+
+.graph-node text {
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.graph-node-id {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.graph-node-token {
+  fill: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+
+.recursive-group-scroll {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #020617;
+}
+
+.recursive-group-scroll table {
+  min-width: 860px;
+}
+
+.recursive-group-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #020617;
+}
+
+.three-pickers {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+
+.transform-example-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 18px 0 12px;
+}
+
+.inline-selection {
+  margin: 0;
+}
+
+.transform-examples-scroll {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #020617;
+  margin-bottom: 16px;
+}
+
+.transform-examples-scroll table {
+  min-width: 960px;
+}
+
+.transform-examples-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #020617;
+}
+
+.remove-example-button {
+  min-height: 32px;
+  padding: 5px 10px;
+}
+
+.linear-transform-controls {
+  grid-template-columns: minmax(280px, 1fr) minmax(140px, 0.28fr) minmax(180px, 0.35fr);
+}
+
+
+.example-pair-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.transform-pair-scroll {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #020617;
+  margin-bottom: 1rem;
+}
+
+.transform-pair-scroll table {
+  min-width: 980px;
+}
+
+.transform-pair-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #020617;
+}
+
+.remove-transform-pair {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.8rem;
+}
+
+.transform-option-hint {
+  margin-top: 0.35rem;
+}
+
+.transform-example-summary {
+  margin-top: 1rem;
+}
+
+.mini-table-wrap {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.transform-examples-mini {
+  min-width: 820px;
+}
+
+.linear-transform-scroll {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #020617;
+}
+
+.linear-transform-scroll table {
+  min-width: 1280px;
+}
+
+.linear-transform-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #020617;
+}
+
+@media (max-width: 1100px) {
+  .three-pickers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

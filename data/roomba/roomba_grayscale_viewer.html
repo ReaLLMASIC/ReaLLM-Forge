@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Roomba Pose + Grayscale Viewer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #111;
+      color: #eee;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #111;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 22px;
+    }
+
+    .panel {
+      background: #1b1b1b;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 16px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      font-size: 13px;
+      color: #ccc;
+    }
+
+    input, select, button {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 8px;
+      border-radius: 7px;
+      border: 1px solid #444;
+      background: #0f0f0f;
+      color: #eee;
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      background: #2a2a2a;
+    }
+
+    button:hover {
+      background: #373737;
+    }
+
+    .playback {
+      display: grid;
+      grid-template-columns: 100px 100px 100px 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .viewer {
+      display: grid;
+      grid-template-columns: minmax(520px, 1fr) max-content;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .pixel-panel {
+      justify-self: end;
+    }
+
+    .stats-box {
+      margin-top: 10px;
+      padding: 10px;
+      background: #101010;
+      border: 1px solid #333;
+      border-radius: 8px;
+    }
+
+    canvas {
+      background: #000;
+      border: 1px solid #333;
+      border-radius: 8px;
+      max-width: 100%;
+    }
+
+    #pixelCanvas {
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .status {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      white-space: pre-wrap;
+      color: #ccc;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .hint {
+      color: #aaa;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 900px) {
+      .viewer, .playback {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Roomba Top-Down Pose + Grayscale Viewer</h1>
+
+  <section class="panel">
+    <div class="controls">
+      <label>
+        CSV file
+        <input id="csvFile" type="file" accept=".csv,text/csv" />
+      </label>
+
+      <label>
+        Pixel rectangle width
+        <input id="gridWidth" type="number" min="1" step="1" value="3" />
+      </label>
+
+      <label>
+        Pixel rectangle height
+        <input id="gridHeight" type="number" min="1" step="1" value="3" />
+      </label>
+
+      <label>
+        Display scale, px per grayscale pixel
+        <input id="pixelScale" type="number" min="1" step="1" value="48" />
+      </label>
+
+      <label>
+        p* start corner
+        <select id="startCorner">
+          <option value="top-left" selected>top-left</option>
+          <option value="top-right">top-right</option>
+          <option value="bottom-left">bottom-left</option>
+          <option value="bottom-right">bottom-right</option>
+        </select>
+      </label>
+
+      <label>
+        p* scan direction
+        <select id="scanDirection">
+          <option value="right" selected>right</option>
+          <option value="left">left</option>
+          <option value="down">down</option>
+          <option value="up">up</option>
+        </select>
+      </label>
+
+      <label>
+        Distance modulo
+        <input id="distanceModulo" type="number" min="0" step="1" value="1000" />
+      </label>
+
+      <label>
+        Timestamp modulo
+        <input id="timestampModulo" type="number" min="0" step="1" value="1000" />
+      </label>
+
+      <label>
+        Pose scale, px per mm
+        <input id="poseScale" type="number" min="0.001" step="0.001" value="0.05" />
+      </label>
+
+      <label>
+        Playback FPS
+        <input id="fps" type="number" min="1" step="1" value="5" />
+      </label>
+    </div>
+
+    <div class="hint">
+      Default p* layout is normal image order: p0 at top-left, then p1 to the right, wrapping by width to the next row.
+      For your p0..p8 sample, use width 3 and height 3. Timestamp and distance deltas use forward modulo wrapping.
+    </div>
+  </section>
+
+  <section class="panel playback">
+    <button id="playPause">Play</button>
+    <button id="prevFrame">Previous</button>
+    <button id="nextFrame">Next</button>
+    <input id="frameSlider" type="range" min="0" max="0" value="0" />
+  </section>
+
+  <section class="viewer">
+    <div class="panel">
+      <h2 style="margin-top:0;font-size:16px;">top-down robot pose</h2>
+      <canvas id="robotCanvas" width="620" height="420"></canvas>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="panel pixel-panel">
+      <h2 style="margin-top:0;font-size:16px;">p* grayscale video</h2>
+      <canvas id="pixelCanvas" width="144" height="144"></canvas>
+      <div id="pixelStatus" class="status stats-box"></div>
+    </div>
+  </section>
+
+<script>
+(() => {
+  const els = {
+    csvFile: document.getElementById('csvFile'),
+    gridWidth: document.getElementById('gridWidth'),
+    gridHeight: document.getElementById('gridHeight'),
+    pixelScale: document.getElementById('pixelScale'),
+    startCorner: document.getElementById('startCorner'),
+    scanDirection: document.getElementById('scanDirection'),
+    distanceModulo: document.getElementById('distanceModulo'),
+    timestampModulo: document.getElementById('timestampModulo'),
+    poseScale: document.getElementById('poseScale'),
+    fps: document.getElementById('fps'),
+    playPause: document.getElementById('playPause'),
+    prevFrame: document.getElementById('prevFrame'),
+    nextFrame: document.getElementById('nextFrame'),
+    frameSlider: document.getElementById('frameSlider'),
+    pixelCanvas: document.getElementById('pixelCanvas'),
+    robotCanvas: document.getElementById('robotCanvas'),
+    status: document.getElementById('status'),
+    pixelStatus: document.getElementById('pixelStatus'),
+  };
+
+  const state = {
+    headers: [],
+    rows: [],
+    pCols: [],
+    poses: [],
+    currentFrame: 0,
+    timer: null,
+  };
+
+  const pixelCtx = els.pixelCanvas.getContext('2d');
+  const robotCtx = els.robotCanvas.getContext('2d');
+  const offscreen = document.createElement('canvas');
+  const offscreenCtx = offscreen.getContext('2d');
+
+  function parseCSV(text) {
+    const rows = [];
+    let row = [];
+    let cell = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      const next = text[i + 1];
+
+      if (inQuotes) {
+        if (ch === '"' && next === '"') {
+          cell += '"';
+          i++;
+        } else if (ch === '"') {
+          inQuotes = false;
+        } else {
+          cell += ch;
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true;
+        } else if (ch === ',') {
+          row.push(cell);
+          cell = '';
+        } else if (ch === '\n') {
+          row.push(cell);
+          rows.push(row);
+          row = [];
+          cell = '';
+        } else if (ch !== '\r') {
+          cell += ch;
+        }
+      }
+    }
+
+    if (cell.length > 0 || row.length > 0) {
+      row.push(cell);
+      rows.push(row);
+    }
+
+    return rows.filter(r => r.some(c => c.trim() !== ''));
+  }
+
+  function loadCSV(text) {
+    const parsed = parseCSV(text);
+    if (parsed.length < 2) {
+      throw new Error('CSV needs a header row and at least one data row.');
+    }
+
+    state.headers = parsed[0].map(h => h.trim());
+    state.rows = parsed.slice(1).map(values => {
+      const obj = {};
+      state.headers.forEach((header, i) => {
+        obj[header] = values[i] ?? '';
+      });
+      return obj;
+    });
+
+    state.pCols = state.headers
+      .filter(h => /^p\d+$/.test(h))
+      .sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+
+    if (state.pCols.length === 0) {
+      throw new Error('No p* columns found. Expected columns named p0, p1, p2, ...');
+    }
+
+    // Helpful default: square grids such as p0..p8 become 3 x 3.
+    const root = Math.sqrt(state.pCols.length);
+    if (Number.isInteger(root)) {
+      els.gridWidth.value = String(root);
+      els.gridHeight.value = String(root);
+    } else {
+      els.gridWidth.value = String(state.pCols.length);
+      els.gridHeight.value = '1';
+    }
+
+    state.currentFrame = 0;
+    els.frameSlider.min = '0';
+    els.frameSlider.max = String(state.rows.length - 1);
+    els.frameSlider.value = '0';
+    computePoses();
+    render();
+  }
+
+  function numberValue(row, col, fallback = 0) {
+    const value = Number(row[col]);
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  function forwardModuloDelta(curr, prev, modulo) {
+    const rawDelta = curr - prev;
+
+    if (Number.isFinite(modulo) && modulo > 0) {
+      // For conditioned total_distance_mm and timestamp, values are monotonic counters
+      // that have been reduced modulo N. The forward difference is therefore the
+      // positive modular difference: 999 -> 2 with modulo 1000 means delta 3.
+      return {
+        delta: ((rawDelta % modulo) + modulo) % modulo,
+        wrapped: curr < prev,
+      };
+    }
+
+    return {
+      delta: rawDelta,
+      wrapped: rawDelta < 0,
+    };
+  }
+
+  function computePoses() {
+    const distanceModulo = Number(els.distanceModulo.value);
+    const timestampModulo = Number(els.timestampModulo.value);
+    const poses = [];
+
+    let x = 0;
+    let y = 0;
+    let accumulatedDistance = 0;
+    let elapsedTimestampUnits = 0;
+    let distanceWrapCount = 0;
+    let timestampWrapCount = 0;
+
+    for (let i = 0; i < state.rows.length; i++) {
+      const row = state.rows[i];
+      let deltaDistance = 0;
+      let deltaTime = 0;
+      let distanceWrapped = false;
+      let timestampWrapped = false;
+
+      if (i > 0) {
+        const prev = state.rows[i - 1];
+        const distance = numberValue(row, 'total_distance_mm');
+        const prevDistance = numberValue(prev, 'total_distance_mm');
+        const timestamp = numberValue(row, 'timestamp');
+        const prevTimestamp = numberValue(prev, 'timestamp');
+
+        const d = forwardModuloDelta(distance, prevDistance, distanceModulo);
+        const t = forwardModuloDelta(timestamp, prevTimestamp, timestampModulo);
+
+        deltaDistance = d.delta;
+        deltaTime = t.delta;
+        distanceWrapped = d.wrapped;
+        timestampWrapped = t.wrapped;
+        if (distanceWrapped) distanceWrapCount += 1;
+        if (timestampWrapped) timestampWrapCount += 1;
+
+        // Heading convention: 0 degrees points up/north, 90 degrees points right/east.
+        const headingDeg = numberValue(row, 'heading_deg');
+        const headingRad = headingDeg * Math.PI / 180;
+        x += Math.sin(headingRad) * deltaDistance;
+        y -= Math.cos(headingRad) * deltaDistance;
+        accumulatedDistance += deltaDistance;
+        elapsedTimestampUnits += deltaTime;
+      }
+
+      poses.push({
+        x,
+        y,
+        accumulatedDistance,
+        elapsedTimestampUnits,
+        deltaDistance,
+        deltaTime,
+        distanceWrapped,
+        timestampWrapped,
+        distanceWrapCount,
+        timestampWrapCount,
+      });
+    }
+
+    state.poses = poses;
+  }
+
+  function clampByte(value) {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(255, Math.round(value)));
+  }
+
+  function mod(n, m) {
+    return ((n % m) + m) % m;
+  }
+
+  function pixelIndexToRowCol(i, width, height, startCorner, direction) {
+    const [vertical, horizontal] = startCorner.split('-');
+    const startRow = vertical === 'top' ? 0 : height - 1;
+    const startCol = horizontal === 'left' ? 0 : width - 1;
+
+    if (direction === 'right' || direction === 'left') {
+      const line = Math.floor(i / width);
+      const offset = i % width;
+      const rowStep = vertical === 'top' ? 1 : -1;
+      const colStep = direction === 'right' ? 1 : -1;
+      const row = startRow + line * rowStep;
+      const col = mod(startCol + offset * colStep, width);
+      if (row < 0 || row >= height) return null;
+      return { row, col };
+    }
+
+    const line = Math.floor(i / height);
+    const offset = i % height;
+    const colStep = horizontal === 'left' ? 1 : -1;
+    const rowStep = direction === 'down' ? 1 : -1;
+    const col = startCol + line * colStep;
+    const row = mod(startRow + offset * rowStep, height);
+    if (col < 0 || col >= width) return null;
+    return { row, col };
+  }
+
+  function renderGrayscaleFrame(row) {
+    const width = Math.max(1, Math.floor(Number(els.gridWidth.value) || 1));
+    const height = Math.max(1, Math.floor(Number(els.gridHeight.value) || 1));
+    const scale = Math.max(1, Math.floor(Number(els.pixelScale.value) || 1));
+    const startCorner = els.startCorner.value;
+    const direction = els.scanDirection.value;
+
+    els.pixelCanvas.width = width * scale;
+    els.pixelCanvas.height = height * scale;
+    offscreen.width = width;
+    offscreen.height = height;
+
+    const image = offscreenCtx.createImageData(width, height);
+
+    // Black background for any cells beyond p* count.
+    for (let i = 0; i < width * height; i++) {
+      const base = i * 4;
+      image.data[base + 0] = 0;
+      image.data[base + 1] = 0;
+      image.data[base + 2] = 0;
+      image.data[base + 3] = 255;
+    }
+
+    state.pCols.forEach((pCol, i) => {
+      const position = pixelIndexToRowCol(i, width, height, startCorner, direction);
+      if (!position) return;
+
+      const gray = clampByte(numberValue(row, pCol));
+      const base = (position.row * width + position.col) * 4;
+      image.data[base + 0] = gray;
+      image.data[base + 1] = gray;
+      image.data[base + 2] = gray;
+      image.data[base + 3] = 255;
+    });
+
+    offscreenCtx.putImageData(image, 0, 0);
+    pixelCtx.clearRect(0, 0, els.pixelCanvas.width, els.pixelCanvas.height);
+    pixelCtx.imageSmoothingEnabled = false;
+    pixelCtx.drawImage(offscreen, 0, 0, els.pixelCanvas.width, els.pixelCanvas.height);
+  }
+
+  function renderPixelStatus(row) {
+    const pose = state.poses[state.currentFrame] || {};
+    const battery = numberValue(row, 'battery_percent', NaN);
+    const batteryText = Number.isFinite(battery) ? `${(battery / 10).toFixed(1)}%` : 'n/a';
+
+    els.pixelStatus.textContent = [
+      `frame: ${state.currentFrame + 1} / ${state.rows.length}`,
+      `battery: ${batteryText}`,
+      `heading: ${numberValue(row, 'heading_deg').toFixed(0)}°`,
+      `distance_mod_mm: ${numberValue(row, 'total_distance_mm').toFixed(0)}`,
+      `distance_delta_mm: ${(pose.deltaDistance ?? 0).toFixed(0)}${pose.distanceWrapped ? '  wrap' : ''}`,
+      `distance_total_mm: ${(pose.accumulatedDistance ?? 0).toFixed(0)}`,
+      `timestamp_mod: ${numberValue(row, 'timestamp').toFixed(0)}`,
+      `time_delta: ${(pose.deltaTime ?? 0).toFixed(0)}${pose.timestampWrapped ? '  wrap' : ''}`,
+      `total_elapsed_time: ${(pose.elapsedTimestampUnits ?? 0).toFixed(0)}`,
+      `time_wraps: ${pose.timestampWrapCount ?? 0}`,
+      `distance_wraps: ${pose.distanceWrapCount ?? 0}`,
+    ].join('\n');
+  }
+
+  function renderRobotPose(row) {
+    const canvas = els.robotCanvas;
+    const ctx = robotCtx;
+    const width = canvas.width;
+    const height = canvas.height;
+    const margin = 34;
+    const poseScale = Math.max(0.001, Number(els.poseScale.value) || 0.05);
+    const path = state.poses.slice(0, state.currentFrame + 1);
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#050505';
+    ctx.fillRect(0, 0, width, height);
+
+    if (path.length === 0) return;
+
+    let minX = Math.min(...path.map(p => p.x));
+    let maxX = Math.max(...path.map(p => p.x));
+    let minY = Math.min(...path.map(p => p.y));
+    let maxY = Math.max(...path.map(p => p.y));
+
+    if (minX === maxX) { minX -= 100; maxX += 100; }
+    if (minY === maxY) { minY -= 100; maxY += 100; }
+
+    const fitScale = Math.min(
+      (width - margin * 2) / Math.max(1, maxX - minX),
+      (height - margin * 2) / Math.max(1, maxY - minY)
+    );
+
+    // Use requested pose scale unless it would push the path offscreen.
+    const s = Math.min(poseScale, fitScale);
+    const centerWorldX = (minX + maxX) / 2;
+    const centerWorldY = (minY + maxY) / 2;
+    const screenX = x => width / 2 + (x - centerWorldX) * s;
+    const screenY = y => height / 2 + (y - centerWorldY) * s;
+
+    // Grid.
+    ctx.save();
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= width; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= height; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Path.
+    ctx.save();
+    ctx.strokeStyle = '#76b7ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    path.forEach((p, i) => {
+      const px = screenX(p.x);
+      const py = screenY(p.y);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+    ctx.restore();
+
+    // Start point.
+    const first = path[0];
+    ctx.save();
+    ctx.fillStyle = '#77dd77';
+    ctx.beginPath();
+    ctx.arc(screenX(first.x), screenY(first.y), 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Robot and bearing.
+    const current = path[path.length - 1];
+    const headingDeg = numberValue(row, 'heading_deg');
+    const rad = headingDeg * Math.PI / 180;
+    const rx = screenX(current.x);
+    const ry = screenY(current.y);
+    const dirX = Math.sin(rad);
+    const dirY = -Math.cos(rad);
+
+    ctx.save();
+    ctx.fillStyle = '#ddd';
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(rx, ry, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffcc66';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(rx, ry);
+    ctx.lineTo(rx + dirX * 34, ry + dirY * 34);
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffcc66';
+    ctx.beginPath();
+    ctx.moveTo(rx + dirX * 43, ry + dirY * 43);
+    ctx.lineTo(rx + Math.sin(rad + 2.55) * 14, ry - Math.cos(rad + 2.55) * 14);
+    ctx.lineTo(rx + Math.sin(rad - 2.55) * 14, ry - Math.cos(rad - 2.55) * 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Top-down overlay.
+    ctx.save();
+    ctx.font = '13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    ctx.textBaseline = 'top';
+    const battery = numberValue(row, 'battery_percent', NaN);
+    const batteryText = Number.isFinite(battery) ? `${(battery / 10).toFixed(1)}%` : 'n/a';
+    const lines = [
+      `x=${current.x.toFixed(1)} mm  y=${current.y.toFixed(1)} mm`,
+      `total distance=${current.accumulatedDistance.toFixed(0)} mm`,
+      `elapsed time=${current.elapsedTimestampUnits.toFixed(0)} units`,
+      `time wraps=${current.timestampWrapCount ?? 0}  distance wraps=${current.distanceWrapCount ?? 0}`,
+      `heading=${headingDeg.toFixed(0)}°  battery=${batteryText}`,
+      `scale=${s.toFixed(4)} px/mm`,
+    ];
+    const padding = 8;
+    const lineHeight = 17;
+    const boxWidth = Math.max(...lines.map(line => ctx.measureText(line).width)) + padding * 2;
+    const boxHeight = lines.length * lineHeight + padding * 2;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.64)';
+    ctx.fillRect(8, 8, boxWidth, boxHeight);
+    ctx.fillStyle = '#fff';
+    lines.forEach((line, i) => ctx.fillText(line, 8 + padding, 8 + padding + i * lineHeight));
+    ctx.restore();
+  }
+
+  function renderStatus(row) {
+    const pose = state.poses[state.currentFrame] || {};
+    const warnings = [];
+    const gridWidth = Number(els.gridWidth.value);
+    const gridHeight = Number(els.gridHeight.value);
+    if (gridWidth * gridHeight < state.pCols.length) {
+      warnings.push(`WARNING: width * height = ${gridWidth * gridHeight}, but there are ${state.pCols.length} p* columns. Extra p* values are not visible.`);
+    }
+    if (gridWidth * gridHeight > state.pCols.length) {
+      warnings.push(`NOTE: width * height = ${gridWidth * gridHeight}, but there are only ${state.pCols.length} p* columns. Missing cells render black.`);
+    }
+
+    els.status.textContent = [
+      `p columns: ${state.pCols[0] ?? 'none'}..${state.pCols[state.pCols.length - 1] ?? 'none'} (${state.pCols.length})`,
+      `frame: ${state.currentFrame + 1} / ${state.rows.length}`,
+      `timestamp_mod: ${numberValue(row, 'timestamp').toFixed(0)}   delta: ${(pose.deltaTime ?? 0).toFixed(0)}${pose.timestampWrapped ? '   timestamp wrapped' : ''}`,
+      `elapsed_time_units: ${(pose.elapsedTimestampUnits ?? 0).toFixed(0)}`,
+      `distance_mod_mm: ${numberValue(row, 'total_distance_mm').toFixed(0)}   delta_mm: ${(pose.deltaDistance ?? 0).toFixed(0)}${pose.distanceWrapped ? '   distance wrapped' : ''}`,
+      `total_distance_mm: ${(pose.accumulatedDistance ?? 0).toFixed(0)}`,
+      `battery_percent: ${(numberValue(row, 'battery_percent') / 10).toFixed(1)}%`,
+      ...warnings,
+    ].join('\n');
+  }
+
+  function render() {
+    if (state.rows.length === 0) {
+      els.status.textContent = 'Choose a CSV file to begin.';
+      els.pixelStatus.textContent = 'Choose a CSV file to begin.';
+      return;
+    }
+
+    state.currentFrame = Math.max(0, Math.min(state.currentFrame, state.rows.length - 1));
+    els.frameSlider.value = String(state.currentFrame);
+
+    const row = state.rows[state.currentFrame];
+    renderGrayscaleFrame(row);
+    renderPixelStatus(row);
+    renderRobotPose(row);
+    renderStatus(row);
+  }
+
+  function setFrame(frame) {
+    state.currentFrame = Math.max(0, Math.min(frame, state.rows.length - 1));
+    render();
+  }
+
+  function stopPlayback() {
+    if (state.timer) {
+      clearInterval(state.timer);
+      state.timer = null;
+    }
+    els.playPause.textContent = 'Play';
+  }
+
+  function startPlayback() {
+    if (state.rows.length === 0) return;
+    stopPlayback();
+    const fps = Math.max(1, Number(els.fps.value) || 5);
+    state.timer = setInterval(() => {
+      if (state.currentFrame >= state.rows.length - 1) {
+        stopPlayback();
+        return;
+      }
+      setFrame(state.currentFrame + 1);
+    }, 1000 / fps);
+    els.playPause.textContent = 'Pause';
+  }
+
+  els.csvFile.addEventListener('change', async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      loadCSV(text);
+    } catch (err) {
+      stopPlayback();
+      state.rows = [];
+      state.pCols = [];
+      els.status.textContent = `Error: ${err.message}`;
+      els.pixelStatus.textContent = `Error: ${err.message}`;
+    }
+  });
+
+  els.playPause.addEventListener('click', () => {
+    if (state.timer) stopPlayback();
+    else startPlayback();
+  });
+
+  els.prevFrame.addEventListener('click', () => {
+    stopPlayback();
+    setFrame(state.currentFrame - 1);
+  });
+
+  els.nextFrame.addEventListener('click', () => {
+    stopPlayback();
+    setFrame(state.currentFrame + 1);
+  });
+
+  els.frameSlider.addEventListener('input', () => {
+    stopPlayback();
+    setFrame(Number(els.frameSlider.value));
+  });
+
+  [
+    els.gridWidth,
+    els.gridHeight,
+    els.pixelScale,
+    els.startCorner,
+    els.scanDirection,
+    els.poseScale,
+  ].forEach(el => {
+    el.addEventListener('input', render);
+    el.addEventListener('change', render);
+  });
+
+  [els.distanceModulo, els.timestampModulo].forEach(el => {
+    el.addEventListener('input', () => {
+      computePoses();
+      render();
+    });
+    el.addEventListener('change', () => {
+      computePoses();
+      render();
+    });
+  });
+
+  els.fps.addEventListener('change', () => {
+    if (state.timer) startPlayback();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

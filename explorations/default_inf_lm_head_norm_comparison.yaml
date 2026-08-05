@@ -1,0 +1,95 @@
+# Compare optional lm_head vector normalizations on top of default_inf settings.
+---
+
+named_static_groups:
+  # QK Norm
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    use_rotary_embeddings: [true]
+    use_abs_pos_embeddings: [false]
+
+  # Attention Softmax
+  - named_group: "softmax"
+    softmax_variant_attn: ["softmax"]
+
+  # Infinite Attention
+  - named_group: "infinite"
+    attention_variant: ["infinite"]
+    use_concat_heads: [true]
+
+  # Head Dimension
+  - named_group: "hd_100"
+    n_qk_head_dim: [100]
+    n_v_head_dim: [100]
+
+  - named_group: "hd_150"
+    n_qk_head_dim: [150]
+    n_v_head_dim: [150]
+
+  - named_group: "hd_200"
+    n_qk_head_dim: [200]
+    n_v_head_dim: [200]
+
+  # MQA
+  - named_group: "mqa"
+    n_kv_group: [1]
+
+  # Baseline
+  - named_group: "lm_head_norm_none"
+
+  # LM Head variations
+  - named_group: "lm_head_norm_hsnorm"
+    norm_variant_lm_head: ["hyperspherenorm"]
+  - named_group: "lm_head_norm_rmsnorm"
+    norm_variant_lm_head: ["rmsnorm"]
+  - named_group: "lm_head_norm_capped_hypersphere"
+    norm_variant_lm_head: ["cappedhyperspherenorm"]
+
+  # input norm variations
+  - named_group: "input_norm"
+    norm_variant_wte: ["rmsnorm"]
+  - named_group: "no_input_norm"
+
+
+named_variation_groups:
+  - named_group: "head_dim_var"
+    named_group_alternates: ["hd_100", "hd_150", "hd_200"]
+  - named_group: "lm_head_norm_var"
+    named_group_alternates: ["lm_head_norm_none", "lm_head_norm_hsnorm", "lm_head_norm_rmsnorm", "lm_head_norm_capped_hypersphere"]
+  - named_group: "norms"
+    named_group_alternates: ["input_norm", "no_input_norm"]
+
+common_group:
+  eval_interval: [250]
+  max_iters: [10000]
+  never_save_checkpoint: [true]
+  device: ["cuda:0"]
+  compile: [true]
+  log_rankme: [true]
+  log_areq: [true]
+
+dataset: ["dialogsum/tiktoken", "dialogsum/char", "dialogsum/byte"]
+parameter_groups:
+
+  - named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "softmax"
+      - "infinite"
+      - "mqa"
+    n_head: [3]
+    named_group_variations:
+      - "head_dim_var"
+      - "lm_head_norm_var"
+      - "norms"

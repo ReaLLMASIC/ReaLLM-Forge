@@ -1,0 +1,1804 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>One-Head Attention: Read / Activate / Write + Quantization Compare</title>
+  <style>
+    :root {
+      --bg: #151829;
+      --panel: rgba(255,255,255,0.06);
+      --panel-2: rgba(255,255,255,0.09);
+      --border: rgba(255,255,255,0.13);
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.70);
+      --current: #ff7b72;
+      --prior: #94a3b8;
+      --tensor: #ffd166;
+      --query: #c77dff;
+      --key: #60a5fa;
+      --value: #f4a261;
+      --attn: #52b788;
+      --sum: #4ea8de;
+      --final: #52b788;
+      --quant: #58c4dd;
+      --quant-final: #7dd3fc;
+      --grid: #8d99ae;
+      --sphere: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body { overflow: hidden; }
+
+    #app {
+      display: grid;
+      grid-template-columns: 1fr 480px;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #scene-wrap { position: relative; min-width: 0; }
+    #scene { width: 100%; height: 100%; display: block; }
+
+    .overlay-top {
+      position: absolute;
+      left: 20px;
+      right: 20px;
+      top: 18px;
+      pointer-events: none;
+    }
+
+    .title-card {
+      max-width: 1210px;
+      background: rgba(0,0,0,0.24);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px 18px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 14px 34px rgba(0,0,0,0.18);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 29px;
+      line-height: 1.08;
+      letter-spacing: -0.035em;
+    }
+
+    .subtitle {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.52;
+      max-width: 1140px;
+    }
+
+    .overlay-bottom {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      max-width: 780px;
+      background: rgba(0,0,0,0.30);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 10px 12px;
+      color: rgba(255,255,255,0.86);
+      font-size: 13px;
+      line-height: 1.45;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+    }
+
+    #sidebar {
+      border-left: 1px solid var(--border);
+      background: rgba(255,255,255,0.035);
+      overflow: auto;
+      padding: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    }
+
+    .panel h2 {
+      margin: 0 0 12px 0;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: rgba(255,255,255,0.58);
+      font-weight: 700;
+    }
+
+    .stage-name {
+      font-size: 18px;
+      font-weight: 650;
+      margin-bottom: 10px;
+      line-height: 1.35;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    button, select {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 16px;
+      padding: 11px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+      width: 100%;
+    }
+
+    button:hover, select:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.13);
+    }
+
+    button.active {
+      border-color: rgba(255,255,255,0.32);
+      background: rgba(255,255,255,0.17);
+    }
+
+    .controls-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .range-wrap { margin-top: 14px; }
+
+    .range-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      gap: 12px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #7dd3fc;
+    }
+
+    .stack { display: flex; flex-direction: column; gap: 10px; }
+
+    .stack-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      color: rgba(255,255,255,0.9);
+    }
+
+    .stack-row span:first-child { min-width: 150px; }
+
+    .toggle {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 0;
+      font-size: 14px;
+      color: rgba(255,255,255,0.9);
+    }
+
+    .toggle input { transform: translateY(1px); }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 12px;
+      margin-top: 8px;
+    }
+
+    .mini-grid label {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.86);
+      padding: 3px 0;
+    }
+
+    .small { font-size: 12px; color: var(--muted); line-height: 1.45; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .vector-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 7px;
+      font-size: 13px;
+    }
+
+    .vector-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding-bottom: 4px;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .legend-item { display: flex; align-items: center; gap: 8px; }
+    .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+    @media (max-width: 1240px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+      #sidebar { border-left: 0; border-top: 1px solid var(--border); max-height: 52vh; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="scene-wrap">
+      <canvas id="scene"></canvas>
+      <div class="overlay-top">
+        <div class="title-card">
+          <h1>One-Head Attention: Read → Project Q/K/V → Norm → Activate → Write Values → Wo Output</h1>
+          <div class="subtitle">
+            The current token reads through Wq into q. The current token plus prior tokens read through Wk and Wv into k and v. After projection, q/k/v are normalized back to the hypersphere surface, q interacts with every k vector, the selected activation produces coefficients, those coefficients scale value vectors on the v sphere, and Wo rotates the value context into the final output. The quantized path snaps selected W tensors and optional q/k/v activations to the blue grid for direct comparison.
+          </div>
+        </div>
+      </div>
+      <div class="overlay-bottom">
+        Drag to rotate • Scroll to zoom • Right-drag to pan • Red is the current token, slate arrows are prior tokens, cyan is the quantized comparison path. The Quantize W stage animates tensor vectors toward blue grid dots; Compare zooms to the output sphere.
+      </div>
+    </div>
+
+    <aside id="sidebar">
+      <div class="panel">
+        <h2>Current stage</h2>
+        <div class="stage-name" id="stageName"></div>
+        <div class="button-grid">
+          <button data-stage="0">1. Inputs</button>
+          <button data-stage="1">2. Wq → q</button>
+          <button data-stage="2">3. Wk → k</button>
+          <button data-stage="3">4. Wv → v</button>
+          <button data-stage="4">5. Norm q/k/v</button>
+          <button data-stage="5">6. q·k Scores</button>
+          <button data-stage="6">7. Activation</button>
+          <button data-stage="7">8. Scale v</button>
+          <button data-stage="8">9. Sum values</button>
+          <button data-stage="9">10. Wo output</button>
+          <button data-stage="10">11. Quantize W grid</button>
+          <button data-stage="11">12. Q Wq → q</button>
+          <button data-stage="12">13. Q Wk → k</button>
+          <button data-stage="13">14. Q Wv → v</button>
+          <button data-stage="14">15. Q norm</button>
+          <button data-stage="15">16. Post-quant q/k/v</button>
+          <button data-stage="16">17. Q q·k</button>
+          <button data-stage="17">18. Q activation</button>
+          <button data-stage="18">19. Q scale v</button>
+          <button data-stage="19">20. Q sum + Wo</button>
+          <button data-stage="20">21. Compare</button>
+          <button data-stage="0">Back to Start</button>
+        </div>
+        <div class="controls-row">
+          <button id="playPause">Play</button>
+          <button id="resetStage">Reset stage</button>
+        </div>
+        <div class="controls-row">
+          <button id="reinitializeVectors">Reinitialize</button>
+          <button id="initialView">Initial view</button>
+        </div>
+        <div class="range-wrap">
+          <div class="range-row">
+            <span>Stage progress</span>
+            <span id="progressLabel">0%</span>
+          </div>
+          <input id="progressSlider" type="range" min="0" max="1000" value="0" />
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Attention controls</h2>
+        <div class="stack">
+          <div class="stack-row">
+            <span>Activation</span>
+            <select id="activationSelect">
+              <option value="softmax" selected>softmax</option>
+              <option value="sigmoid_norm">sigmoid, then normalize</option>
+              <option value="relu2_norm">ReLU², then normalize</option>
+              <option value="sigmoid_raw">sigmoid, no normalization</option>
+              <option value="relu2_raw">ReLU², no normalization</option>
+            </select>
+          </div>
+          <div class="range-wrap" style="margin-top:0;">
+            <div class="range-row">
+              <span>q·k score multiplier</span>
+              <span id="scoreScaleLabel">30×</span>
+            </div>
+            <input id="scoreScaleSlider" type="range" min="1" max="80" step="1" value="30" />
+            <div class="small" style="margin-top:6px;">Scores are computed as multiplier × (q · kᵢ / √d) before activation.</div>
+          </div>
+          <div class="stack-row">
+            <span>Prior tokens</span>
+            <select id="priorCountSelect">
+              <option value="0">0 prior</option>
+              <option value="1">1 prior</option>
+              <option value="2">2 prior</option>
+              <option value="3">3 prior</option>
+              <option value="4">4 prior</option>
+              <option value="5" selected>5 prior</option>
+              <option value="6">6 prior</option>
+              <option value="8">8 prior</option>
+              <option value="10">10 prior</option>
+            </select>
+          </div>
+          <div class="range-wrap" style="margin-top:0;">
+            <div class="range-row">
+              <span>Solid-angle aperture</span>
+              <span id="solidAngleLabel">14° half-angle</span>
+            </div>
+            <input id="solidAngleSlider" type="range" min="4" max="34" value="14" />
+          </div>
+          <label class="toggle"><span>Auto-rotate scene</span><input id="autoRotate" type="checkbox" /></label>
+          <label class="toggle"><span>Show labels</span><input id="showLabels" type="checkbox" checked /></label>
+          <label class="toggle"><span>Show quantization dots</span><input id="showQuantDots" type="checkbox" checked /></label>
+          <label class="toggle"><span>Show quantized overlay</span><input id="showQuantOverlay" type="checkbox" checked /></label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Quantization comparison</h2>
+        <div class="stack">
+          <div class="stack-row">
+            <span>Quantization grid</span>
+            <select id="quantModeSelect">
+              <option value="ternary" selected>ternary {-1,0,+1}</option>
+              <option value="int3">int3 {-4...3}</option>
+              <option value="int4">int4 {-8...7}</option>
+            </select>
+          </div>
+          <div>
+            <div class="small">Quantize selected weight tensors before projection:</div>
+            <div class="mini-grid">
+              <label>Wq <input id="quantWq" type="checkbox" checked /></label>
+              <label>Wk <input id="quantWk" type="checkbox" checked /></label>
+              <label>Wv <input id="quantWv" type="checkbox" checked /></label>
+              <label>Wo <input id="quantWo" type="checkbox" checked /></label>
+            </div>
+          </div>
+          <div>
+            <div class="small">Optional post-quant step after q/k/v are projected and normalized, before attention or value writing:</div>
+            <div class="mini-grid">
+              <label>post q <input id="postQ" type="checkbox" /></label>
+              <label>post k <input id="postK" type="checkbox" /></label>
+              <label>post v <input id="postV" type="checkbox" /></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Legend</h2>
+        <div class="legend">
+          <div class="legend-item"><span class="swatch" style="background:var(--current)"></span>current x₀</div>
+          <div class="legend-item"><span class="swatch" style="background:var(--prior)"></span>prior x₋ᵢ</div>
+          <div class="legend-item"><span class="swatch" style="background:var(--tensor)"></span>tensor vector</div>
+          <div class="legend-item"><span class="swatch" style="background:var(--query)"></span>q</div>
+          <div class="legend-item"><span class="swatch" style="background:var(--key)"></span>k</div>
+          <div class="legend-item"><span class="swatch" style="background:var(--value)"></span>v</div>
+          <div class="legend-item"><span class="swatch" style="background:var(--attn)"></span>attention-scaled v</div>
+          <div class="legend-item"><span class="swatch" style="background:var(--quant)"></span>quant path / grid</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Attention coefficients</h2>
+        <div class="vector-grid" id="weightGrid"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Quantized-path coefficients</h2>
+        <div class="vector-grid" id="qWeightGrid"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Output comparison</h2>
+        <div class="vector-grid" id="compareGrid"></div>
+        <div class="small" style="margin-top:10px;">Cosine and angle compare the continuous output with the output after the selected weight and post-projection quantization switches. When all quantization switches are off, the two paths should match.</div>
+      </div>
+    </aside>
+  </div>
+
+<script type="module">
+import * as THREE from 'https://esm.sh/three@0.160.0';
+import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+const BG = '#151829';
+const WHITE = '#ffffff';
+const GRID = '#8d99ae';
+const CURRENT = '#ff7b72';
+const PRIOR = '#94a3b8';
+const TENSOR = '#ffd166';
+const QUERY = '#c77dff';
+const KEY = '#60a5fa';
+const VALUE = '#f4a261';
+const ATTENTION = '#52b788';
+const SUM = '#4ea8de';
+const FINAL = '#52b788';
+const QUANT = '#58c4dd';
+const QUANT_FINAL = '#7dd3fc';
+const SPHERE_RADIUS = 1.22;
+const STAGE_SECONDS = 1.35;
+const LONG_STAGE_SECONDS = 1.95;
+const MAX_STAGE = 20;
+const UP = new THREE.Vector3(0, 1, 0);
+const SQRT_D = Math.sqrt(3);
+const TENSOR_KEYS = ['Wq', 'Wk', 'Wv', 'Wo'];
+
+const CENTERS = {
+  Wq: new THREE.Vector3(-6.05, 3.15, 0),
+  Wk: new THREE.Vector3(-6.05, 0.0, 0),
+  Wv: new THREE.Vector3(-6.05, -3.15, 0),
+  q: new THREE.Vector3(-1.2, 3.15, 0),
+  k: new THREE.Vector3(-1.2, 0.0, 0),
+  v: new THREE.Vector3(-1.2, -3.15, 0),
+  Wo: new THREE.Vector3(4.35, -0.25, 0),
+};
+
+const stageLabels = {
+  0: 'Input tokens on Wq / Wk / Wv read spheres',
+  1: 'Project current token through Wq: raw q = Wq x₀',
+  2: 'Project current + prior tokens through Wk: raw kᵢ = Wk xᵢ',
+  3: 'Project current + prior tokens through Wv: raw vᵢ = Wv xᵢ',
+  4: 'Norm q / k / v: project vectors back onto the hypersphere surface',
+  5: 'q interacts with each kᵢ: scoreᵢ = score scale × (q·kᵢ / √d)',
+  6: 'Activation produces attention coefficients aᵢ',
+  7: 'Attention coefficients scale each value vector aᵢ vᵢ',
+  8: 'Write and sum scaled values into one context vector',
+  9: 'Wo rotates / projects the value context into final output',
+  10: 'Quantize selected Wq / Wk / Wv / Wo tensors onto the blue grid',
+  11: 'Q Wq → q: project with the selected quantized Wq path',
+  12: 'Q Wk → k: project current + prior tokens with the selected quantized Wk path',
+  13: 'Q Wv → v: project current + prior tokens with the selected quantized Wv path',
+  14: 'Q norm q / k / v back onto the hypersphere surface',
+  15: 'Post-quantize q / k / v activations according to the checkboxes',
+  16: 'Q attention scores: q̃ interacts with each k̃ᵢ',
+  17: 'Q activation produces quantized-path coefficients ãᵢ',
+  18: 'Q coefficients scale each ṽ vector',
+  19: 'Q sum scaled values and apply W̃o',
+  20: 'Compare continuous output against selected quantized path',
+};
+
+function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+function clamp01(x) { return clamp(x, 0, 1); }
+function smoothstep01(x) { const t = clamp01(x); return t * t * (3 - 2 * t); }
+function colorLerp(a, b, t) { return new THREE.Color(a).lerp(new THREE.Color(b), clamp01(t)); }
+function unit(v) { const n = v.length(); return n > 1e-9 ? v.clone().multiplyScalar(1 / n) : new THREE.Vector3(0, 1, 0); }
+function lerpVec(a, b, t) { return a.clone().lerp(b, clamp01(t)); }
+function angleBetween(a, b) { return Math.acos(clamp(unit(a).dot(unit(b)), -1, 1)); }
+function slerpUnit(a, b, t) {
+  const ua = unit(a);
+  const ub = unit(b);
+  let dot = clamp(ua.dot(ub), -1, 1);
+  if (dot > 0.9995) return unit(ua.lerp(ub, t));
+  if (dot < -0.9995) {
+    const ortho = Math.abs(ua.x) < 0.6 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+    const axis = new THREE.Vector3().crossVectors(ua, ortho).normalize();
+    return unit(ua.multiplyScalar(Math.cos(Math.PI * t)).add(axis.multiplyScalar(Math.sin(Math.PI * t))));
+  }
+  const omega = Math.acos(dot);
+  const so = Math.sin(omega);
+  const s1 = Math.sin((1 - t) * omega) / so;
+  const s2 = Math.sin(t * omega) / so;
+  return unit(ua.multiplyScalar(s1).add(ub.multiplyScalar(s2)));
+}
+function displayDir(v, length = SPHERE_RADIUS) { return unit(v).multiplyScalar(length); }
+function tokenLabel(i) { return i === 0 ? 'x₀' : `x₋${i}`; }
+function activationName(mode) {
+  if (mode === 'softmax') return 'softmax';
+  if (mode === 'sigmoid_norm') return 'sigmoid → normalize';
+  if (mode === 'relu2_norm') return 'ReLU² → normalize';
+  if (mode === 'sigmoid_raw') return 'sigmoid';
+  return 'ReLU²';
+}
+function activationDescription(mode) {
+  if (mode === 'softmax') return 'softmax normalization → aᵢ';
+  if (mode.endsWith('_norm')) return 'normalize activated scores → aᵢ';
+  return 'use activated scores directly → aᵢ';
+}
+
+function seededRng(seed = 1) {
+  let s = seed >>> 0;
+  return function rand() {
+    s = (1664525 * s + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+function gaussian(rand) {
+  const u1 = Math.max(rand(), 1e-12);
+  const u2 = rand();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+function gaussian3(rand) { return new THREE.Vector3(gaussian(rand), gaussian(rand), gaussian(rand)); }
+function makeMatrix(rand, bias = 0) {
+  const M = [];
+  for (let r = 0; r < 3; r++) {
+    const row = [];
+    for (let c = 0; c < 3; c++) row.push(0.46 * gaussian(rand));
+    M.push(row);
+  }
+  for (let i = 0; i < 3; i++) M[i][i] += (rand() > 0.5 ? 1 : -1) * (0.42 + 0.15 * rand()) + bias;
+  const frob = Math.sqrt(M.flat().reduce((acc, x) => acc + x * x, 0));
+  const scale = frob > 1e-9 ? 1.55 / frob : 1;
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) M[r][c] *= scale;
+  return M;
+}
+function matVec(M, v) {
+  return new THREE.Vector3(
+    M[0][0] * v.x + M[0][1] * v.y + M[0][2] * v.z,
+    M[1][0] * v.x + M[1][1] * v.y + M[1][2] * v.z,
+    M[2][0] * v.x + M[2][1] * v.y + M[2][2] * v.z,
+  );
+}
+function cloneMat(M) { return M.map(row => row.slice()); }
+function vecToArray(v) { return [v.x, v.y, v.z]; }
+function arrayToVec(a) { return new THREE.Vector3(a[0], a[1], a[2]); }
+function flattenMat(M) { return M.flat(); }
+function unflattenMat(a) { return [[a[0], a[1], a[2]], [a[3], a[4], a[5]], [a[6], a[7], a[8]]]; }
+function quantizeArray(values, mode) {
+  const maxAbs = values.reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+  if (maxAbs < 1e-10) return values.map(() => 0);
+  if (mode === 'ternary') {
+    const threshold = maxAbs * 0.35;
+    const kept = values.filter(x => Math.abs(x) >= threshold).map(Math.abs);
+    const scale = kept.length ? kept.reduce((a, b) => a + b, 0) / kept.length : maxAbs;
+    return values.map(x => Math.abs(x) < threshold ? 0 : Math.sign(x) * scale);
+  }
+  const maxLevel = mode === 'int4' ? 7 : 3;
+  const minLevel = mode === 'int4' ? -8 : -4;
+  const step = maxAbs / maxLevel;
+  return values.map(x => clamp(Math.round(x / step), minLevel, maxLevel) * step);
+}
+function quantizeMat(M, mode) { return unflattenMat(quantizeArray(flattenMat(M), mode)); }
+function quantizeVec(v, mode) { return arrayToVec(quantizeArray(vecToArray(v), mode)); }
+function matrixDeltaNorm(A, B) {
+  let s = 0;
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) s += Math.pow(A[r][c] - B[r][c], 2);
+  return Math.sqrt(s);
+}
+function quantLevels(mode) {
+  if (mode === 'ternary') return [-1, 0, 1];
+  if (mode === 'int4') return Array.from({ length: 16 }, (_, i) => i - 8);
+  return Array.from({ length: 8 }, (_, i) => i - 4);
+}
+const quantDirCache = new Map();
+function buildQuantDirs(mode) {
+  if (quantDirCache.has(mode)) return quantDirCache.get(mode);
+  const levels = quantLevels(mode);
+  const dirs = [];
+  const seen = new Set();
+  for (const x of levels) for (const y of levels) for (const z of levels) {
+    if (x === 0 && y === 0 && z === 0) continue;
+    const v = unit(new THREE.Vector3(x, y, z));
+    const key = `${v.x.toFixed(6)}|${v.y.toFixed(6)}|${v.z.toFixed(6)}`;
+    if (!seen.has(key)) { seen.add(key); dirs.push(v); }
+  }
+  quantDirCache.set(mode, dirs);
+  return dirs;
+}
+function nearestGridDir(v, mode) {
+  const dirs = buildQuantDirs(mode);
+  const u = unit(v);
+  let best = dirs[0];
+  let bestDot = -Infinity;
+  for (const d of dirs) {
+    const dot = u.dot(d);
+    if (dot > bestDot) { bestDot = dot; best = d; }
+  }
+  return best.clone();
+}
+function matRows(M) { return M.map(row => new THREE.Vector3(row[0], row[1], row[2])); }
+
+function activationRaw(scores, mode) {
+  if (mode === 'softmax') {
+    const maxScore = Math.max(...scores);
+    return scores.map(s => Math.exp(clamp(s - maxScore, -60, 60)));
+  }
+  if (mode === 'sigmoid_raw' || mode === 'sigmoid_norm') return scores.map(s => 1 / (1 + Math.exp(-clamp(s, -60, 60))));
+  return scores.map(s => Math.max(0, s) ** 2);
+}
+function activationUsesNormalization(mode) { return mode === 'softmax' || mode === 'sigmoid_norm' || mode === 'relu2_norm'; }
+function attentionWeights(scores, mode) {
+  const raw = activationRaw(scores, mode);
+  if (!activationUsesNormalization(mode)) return { raw, weights: raw.slice(), normalized: false };
+  const total = raw.reduce((a, b) => a + b, 0);
+  const weights = total > 1e-10 ? raw.map(x => x / total) : raw.map(() => 1 / Math.max(1, raw.length));
+  return { raw, weights, normalized: true };
+}
+
+function makeDataset(seed, priorCount) {
+  const rand = seededRng(seed);
+  const tokenCount = priorCount + 1;
+  const tokens = [];
+  for (let i = 0; i < tokenCount; i++) {
+    const mag = i === 0 ? 1.0 : 0.72 + 0.26 * rand();
+    tokens.push(unit(gaussian3(rand)).multiplyScalar(mag));
+  }
+  return {
+    tokens,
+    Wq: makeMatrix(rand, 0.04),
+    Wk: makeMatrix(rand, -0.02),
+    Wv: makeMatrix(rand, 0.02),
+    Wo: makeMatrix(rand, 0.05),
+  };
+}
+
+function computePass(ds, opts, useQuantized) {
+  const qW = useQuantized && opts.quantWq ? quantizeMat(ds.Wq, opts.quantMode) : cloneMat(ds.Wq);
+  const kW = useQuantized && opts.quantWk ? quantizeMat(ds.Wk, opts.quantMode) : cloneMat(ds.Wk);
+  const vW = useQuantized && opts.quantWv ? quantizeMat(ds.Wv, opts.quantMode) : cloneMat(ds.Wv);
+  const oW = useQuantized && opts.quantWo ? quantizeMat(ds.Wo, opts.quantMode) : cloneMat(ds.Wo);
+
+  const qRaw = matVec(qW, ds.tokens[0]);
+  const kRaw = ds.tokens.map(x => matVec(kW, x));
+  const vRaw = ds.tokens.map(x => matVec(vW, x));
+
+  const qNorm = unit(qRaw);
+  const kNorm = kRaw.map(unit);
+  const vNorm = vRaw.map(unit);
+
+  let q = qNorm.clone();
+  let k = kNorm.map(x => x.clone());
+  let v = vNorm.map(x => x.clone());
+  if (useQuantized && opts.postQ) q = nearestGridDir(q, opts.quantMode);
+  if (useQuantized && opts.postK) k = k.map(x => nearestGridDir(x, opts.quantMode));
+  if (useQuantized && opts.postV) v = v.map(x => nearestGridDir(x, opts.quantMode));
+
+  const baseScores = k.map(ki => q.dot(ki) / SQRT_D);
+  const scores = baseScores.map(x => x * opts.scoreScale);
+  const act = attentionWeights(scores, opts.activation);
+  const weightedV = v.map((vi, i) => vi.clone().multiplyScalar(act.weights[i]));
+  const chain = [];
+  let acc = new THREE.Vector3(0, 0, 0);
+  for (let i = 0; i < weightedV.length; i++) {
+    const start = acc.clone();
+    const end = acc.clone().add(weightedV[i]);
+    chain.push({ start, end, vec: weightedV[i].clone(), index: i });
+    acc = end;
+  }
+  const context = acc.clone();
+  const output = matVec(oW, context);
+
+  return {
+    Wq: qW, Wk: kW, Wv: vW, Wo: oW,
+    qRaw, kRaw, vRaw, qNorm, kNorm, vNorm, q, k, v,
+    baseScores, scores, raw: act.raw, weights: act.weights, normalized: act.normalized,
+    weightedV, chain, context, output,
+  };
+}
+
+function computeDerived() {
+  const opts = {
+    activation: state.activation,
+    scoreScale: state.scoreScale,
+    quantMode: state.quantMode,
+    quantWq: state.quantWq,
+    quantWk: state.quantWk,
+    quantWv: state.quantWv,
+    quantWo: state.quantWo,
+    postQ: state.postQ,
+    postK: state.postK,
+    postV: state.postV,
+  };
+  const continuous = computePass(data, opts, false);
+  const quantized = computePass(data, opts, true);
+  const rawPoints = [continuous.qRaw, quantized.qRaw, ...continuous.kRaw, ...quantized.kRaw, ...continuous.vRaw, ...quantized.vRaw];
+  const rawMax = Math.max(0.1, ...rawPoints.map(v => v.length()));
+  const projectionScale = SPHERE_RADIUS * 0.76 / rawMax;
+  const allPoints = [continuous.context, quantized.context, ...continuous.chain.map(c => c.end), ...quantized.chain.map(c => c.end)];
+  const maxPartial = Math.max(0.1, ...allPoints.map(v => v.length()));
+  const chainScale = SPHERE_RADIUS * 0.86 / maxPartial;
+  const cos = continuous.output.length() > 1e-9 && quantized.output.length() > 1e-9 ? unit(continuous.output).dot(unit(quantized.output)) : 0;
+  const angleDeg = Math.acos(clamp(cos, -1, 1)) * 180 / Math.PI;
+  const deltaNorm = continuous.output.clone().sub(quantized.output).length();
+  const matrixDeltas = {
+    Wq: matrixDeltaNorm(data.Wq, quantized.Wq),
+    Wk: matrixDeltaNorm(data.Wk, quantized.Wk),
+    Wv: matrixDeltaNorm(data.Wv, quantized.Wv),
+    Wo: matrixDeltaNorm(data.Wo, quantized.Wo),
+  };
+  const tensorContinuous = { Wq: matRows(data.Wq), Wk: matRows(data.Wk), Wv: matRows(data.Wv), Wo: matRows(data.Wo) };
+  const tensorQuantized = { Wq: matRows(quantized.Wq), Wk: matRows(quantized.Wk), Wv: matRows(quantized.Wv), Wo: matRows(quantized.Wo) };
+  const quantDirs = buildQuantDirs(state.quantMode);
+  return { continuous, quantized, projectionScale, chainScale, cos, angleDeg, deltaNorm, matrixDeltas, tensorContinuous, tensorQuantized, quantDirs };
+}
+
+const UNIT_CONE_GEOMETRY = (() => {
+  const g = new THREE.ConeGeometry(1, 1, 30, 1, true);
+  g.rotateZ(Math.PI);
+  g.translate(0, 0.5, 0);
+  return g;
+})();
+let sharedCapGeometry = null;
+let sharedRimGeometry = null;
+function buildSectorGeometry(halfAngleDeg) {
+  const oldCap = sharedCapGeometry;
+  const oldRim = sharedRimGeometry;
+  const alpha = THREE.MathUtils.degToRad(halfAngleDeg);
+  sharedCapGeometry = new THREE.SphereGeometry(1, 28, 12, 0, Math.PI * 2, 0, alpha);
+  const pts = [];
+  const r = Math.sin(alpha);
+  const y = Math.cos(alpha);
+  for (let i = 0; i <= 64; i++) {
+    const phi = i / 64 * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(phi) * r, y, Math.sin(phi) * r));
+  }
+  sharedRimGeometry = new THREE.BufferGeometry().setFromPoints(pts);
+  return { oldCap, oldRim };
+}
+
+class DirectionGlyph {
+  constructor(color, opacity = 1, dashed = false) {
+    this.group = new THREE.Group();
+    this.dashed = dashed;
+    this.sideMat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: opacity * 0.13, metalness: 0.03, roughness: 0.82, side: THREE.DoubleSide, depthWrite: false });
+    this.side = new THREE.Mesh(UNIT_CONE_GEOMETRY, this.sideMat);
+    this.group.add(this.side);
+    this.capMat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: opacity * 0.08, metalness: 0.03, roughness: 0.82, side: THREE.DoubleSide, depthWrite: false });
+    this.cap = new THREE.Mesh(sharedCapGeometry, this.capMat);
+    this.group.add(this.cap);
+    this.rimMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.22, depthWrite: false });
+    this.rim = new THREE.Line(sharedRimGeometry, this.rimMat);
+    this.group.add(this.rim);
+    this.linePositions = new Float32Array([0, 0, 0, 0, 1, 0]);
+    this.lineGeom = new THREE.BufferGeometry();
+    this.lineGeom.setAttribute('position', new THREE.BufferAttribute(this.linePositions, 3));
+    this.lineMat = dashed
+      ? new THREE.LineDashedMaterial({ color, transparent: true, opacity, dashSize: 0.10, gapSize: 0.07, depthWrite: false })
+      : new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
+    this.line = new THREE.Line(this.lineGeom, this.lineMat);
+    this.group.add(this.line);
+    this.headGeom = new THREE.ConeGeometry(0.05, 0.17, 18);
+    this.headMat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity, metalness: 0.05, roughness: 0.55, depthWrite: false });
+    this.head = new THREE.Mesh(this.headGeom, this.headMat);
+    this.group.add(this.head);
+  }
+
+  set(start, end, color, opacity = 1, sectorScale = 1) {
+    const dir = end.clone().sub(start);
+    const len = dir.length();
+    this.group.visible = len > 1e-6 && opacity > 0.002;
+    if (!this.group.visible) return;
+    this.group.position.copy(start);
+    this.group.quaternion.setFromUnitVectors(UP, dir.clone().normalize());
+    if (this.cap.geometry !== sharedCapGeometry) this.cap.geometry = sharedCapGeometry;
+    if (this.rim.geometry !== sharedRimGeometry) this.rim.geometry = sharedRimGeometry;
+    const alpha = THREE.MathUtils.degToRad(state.solidAngleDeg * sectorScale);
+    const coneHeight = Math.max(0.001, len * Math.cos(alpha));
+    const baseRadius = Math.max(0.001, len * Math.sin(alpha));
+    this.side.scale.set(baseRadius, coneHeight, baseRadius);
+    this.cap.scale.set(len, len, len);
+    this.rim.scale.set(len, len, len);
+    this.sideMat.color.set(color);
+    this.capMat.color.set(color);
+    this.rimMat.color.set(color);
+    this.sideMat.opacity = opacity * 0.13;
+    this.capMat.opacity = opacity * 0.075;
+    this.rimMat.opacity = opacity * 0.24;
+    const headLen = Math.min(0.22, Math.max(0.10, len * 0.20));
+    const shaftLen = Math.max(0.001, len - headLen);
+    const headRadius = Math.min(0.055, Math.max(0.032, len * 0.055));
+    this.linePositions[0] = 0; this.linePositions[1] = 0; this.linePositions[2] = 0;
+    this.linePositions[3] = 0; this.linePositions[4] = shaftLen; this.linePositions[5] = 0;
+    this.lineGeom.attributes.position.needsUpdate = true;
+    this.lineGeom.computeBoundingSphere();
+    if (this.dashed) this.line.computeLineDistances();
+    this.lineMat.color.set(color);
+    this.lineMat.opacity = opacity;
+    this.headMat.color.set(color);
+    this.headMat.opacity = opacity;
+    this.head.scale.set(headRadius / 0.05, headLen / 0.17, headRadius / 0.05);
+    this.head.position.set(0, len - headLen / 2, 0);
+    this.head.quaternion.identity();
+  }
+
+  dispose() {
+    this.lineGeom.dispose();
+    this.lineMat.dispose();
+    this.headGeom.dispose();
+    this.headMat.dispose();
+    this.sideMat.dispose();
+    this.capMat.dispose();
+    this.rimMat.dispose();
+  }
+}
+
+function makeTextSprite(text, color = '#ffffff', width = 300, height = 96, fontSize = 32) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = width;
+  canvas.height = height;
+  ctx.font = `bold ${fontSize}px Inter, Arial, sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, width / 2, height / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(width / 330, height / 330, 1);
+  sprite.renderOrder = 10;
+  sprite.userData = { canvas, ctx, texture, fontSize };
+  return sprite;
+}
+function updateTextSprite(sprite, text, color = '#ffffff') {
+  const { canvas, ctx, texture, fontSize } = sprite.userData;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = `bold ${fontSize}px Inter, Arial, sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  texture.needsUpdate = true;
+}
+function makeLine(dashed = false, color = WHITE) {
+  const arr = new Float32Array([0, 0, 0, 0, 1, 0]);
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  const mat = dashed
+    ? new THREE.LineDashedMaterial({ color, transparent: true, opacity: 0.5, dashSize: 0.09, gapSize: 0.065, depthWrite: false })
+    : new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5, depthWrite: false });
+  const line = new THREE.Line(geom, mat);
+  line.visible = false;
+  return line;
+}
+function setLine(line, a, b, opacity = 1, color = WHITE) {
+  line.visible = opacity > 0.002;
+  if (!line.visible) return;
+  const arr = line.geometry.attributes.position.array;
+  arr[0] = a.x; arr[1] = a.y; arr[2] = a.z;
+  arr[3] = b.x; arr[4] = b.y; arr[5] = b.z;
+  line.geometry.attributes.position.needsUpdate = true;
+  line.geometry.computeBoundingSphere();
+  line.material.opacity = opacity;
+  line.material.color.set(color);
+  if (line.material.isLineDashedMaterial) line.computeLineDistances();
+}
+function makePanel() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1240;
+  canvas.height = 720;
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.98, side: THREE.DoubleSide, depthWrite: false });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(5.25, 3.05), material);
+  mesh.renderOrder = 20;
+  mesh.userData = { canvas, ctx: canvas.getContext('2d'), texture };
+  return mesh;
+}
+function drawAttentionPanel(mesh, title, pass, progress) {
+  const { canvas, ctx, texture } = mesh.userData;
+  const scores = pass.scores;
+  const raw = pass.raw;
+  const weights = pass.weights;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(0,0,0,0.38)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.13)';
+  ctx.lineWidth = 2;
+  const pad = 28;
+  const r = 24;
+  ctx.beginPath();
+  ctx.moveTo(pad + r, pad);
+  ctx.arcTo(canvas.width - pad, pad, canvas.width - pad, canvas.height - pad, r);
+  ctx.arcTo(canvas.width - pad, canvas.height - pad, pad, canvas.height - pad, r);
+  ctx.arcTo(pad, canvas.height - pad, pad, pad, r);
+  ctx.arcTo(pad, pad, canvas.width - pad, pad, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = WHITE;
+  ctx.font = 'bold 34px Inter, Arial';
+  ctx.fillText(title, 52, 62);
+  ctx.font = '20px Inter, Arial';
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.fillText(`scoreᵢ = ${state.scoreScale} × (q · kᵢ / √d)  →  activation(scoreᵢ)  →  ${activationDescription(state.activation)}`, 52, 96);
+
+  const x0 = 62;
+  const y0 = 152;
+  const rowH = Math.min(48, 420 / Math.max(1, scores.length));
+  const maxScore = Math.max(1, ...scores.map(x => Math.abs(x)));
+  const maxRaw = Math.max(1e-6, ...raw);
+  const maxCoeff = Math.max(1e-6, ...weights);
+  const col = { token: x0, score: x0 + 138, scoreBar: x0 + 270, raw: x0 + 405, rawBar: x0 + 535, coeff: x0 + 705, bar: x0 + 870 };
+  ctx.font = 'bold 18px ui-monospace, Menlo, Consolas, monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.fillText('token', col.token, y0 - 30);
+  ctx.fillText('score', col.score, y0 - 30);
+  ctx.fillText('raw act.', col.raw, y0 - 30);
+  ctx.fillText('aᵢ / coeff', col.coeff, y0 - 30);
+  ctx.fillText('coefficient bar', col.bar, y0 - 30);
+
+  const currentIdx = Math.min(scores.length - 1, Math.floor(progress * scores.length));
+  for (let i = 0; i < scores.length; i++) {
+    const y = y0 + i * rowH;
+    const rowT = smoothstep01(progress * scores.length - i);
+    if (i === currentIdx) {
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      ctx.fillRect(x0 - 16, y - 22, canvas.width - 92, rowH - 6);
+    }
+    ctx.fillStyle = i === 0 ? CURRENT : PRIOR;
+    ctx.fillText(tokenLabel(i), col.token, y);
+    const score = scores[i];
+    ctx.fillStyle = `rgba(96,165,250,${0.30 + 0.70 * rowT})`;
+    ctx.fillText(score.toFixed(3), col.score, y);
+    const scoreBarW = 96 * Math.abs(score) / maxScore;
+    ctx.fillRect(col.scoreBar + (score < 0 ? -scoreBarW : 0), y - 13, scoreBarW, 12);
+    ctx.fillStyle = `rgba(82,183,136,${0.30 + 0.70 * rowT})`;
+    ctx.fillText(raw[i].toFixed(3), col.raw, y);
+    ctx.fillRect(col.rawBar, y - 13, 125 * raw[i] / maxRaw, 12);
+    ctx.fillStyle = `rgba(125,211,252,${0.30 + 0.70 * rowT})`;
+    ctx.fillText(weights[i].toFixed(3), col.coeff, y);
+    ctx.fillStyle = `rgba(125,211,252,${0.18 + 0.82 * rowT})`;
+    ctx.fillRect(col.bar, y - 14, 270 * weights[i] / maxCoeff, 16);
+  }
+  texture.needsUpdate = true;
+}
+
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(BG, 1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(BG);
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 120);
+const INITIAL_CAMERA_POS = new THREE.Vector3(0, 5.6, 15.2);
+camera.position.copy(INITIAL_CAMERA_POS);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.enablePan = true;
+controls.target.set(-1.2, 0, 0);
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+const d1 = new THREE.DirectionalLight(0xffffff, 1.2); d1.position.set(4, 6, 7); scene.add(d1);
+const d2 = new THREE.DirectionalLight(0xffffff, 0.45); d2.position.set(-6, -4, -5); scene.add(d2);
+const world = new THREE.Group();
+scene.add(world);
+
+const state = {
+  forceOverview: true,
+  stage: 0,
+  progress: 0,
+  playing: false,
+  activation: 'softmax',
+  priorCount: 5,
+  scoreScale: 30,
+  solidAngleDeg: 14,
+  autoRotate: false,
+  showLabels: true,
+  showQuantDots: true,
+  showQuantOverlay: true,
+  quantMode: 'ternary',
+  quantWq: true,
+  quantWk: true,
+  quantWv: true,
+  quantWo: true,
+  postQ: false,
+  postK: false,
+  postV: false,
+  stageStartedAt: performance.now(),
+  cameraGuideUntil: performance.now() + 1200,
+};
+
+buildSectorGeometry(state.solidAngleDeg);
+let datasetSeed = 28;
+let data = makeDataset(datasetSeed, state.priorCount);
+let derived = computeDerived();
+
+const sphereGeom = new THREE.SphereGeometry(SPHERE_RADIUS, 32, 22);
+const spheres = {};
+function addAxes(center, opacity = 0.42) {
+  const group = new THREE.Group();
+  const len = SPHERE_RADIUS * 1.22;
+  const axes = [
+    [new THREE.Vector3(-len, 0, 0), new THREE.Vector3(len, 0, 0)],
+    [new THREE.Vector3(0, -len, 0), new THREE.Vector3(0, len, 0)],
+    [new THREE.Vector3(0, 0, -len), new THREE.Vector3(0, 0, len)],
+  ];
+  for (const [a, b] of axes) {
+    const geom = new THREE.BufferGeometry().setFromPoints([center.clone().add(a), center.clone().add(b)]);
+    const mat = new THREE.LineBasicMaterial({ color: GRID, transparent: true, opacity, depthWrite: false });
+    group.add(new THREE.Line(geom, mat));
+  }
+  return group;
+}
+function addSphere(key, label, color) {
+  const center = CENTERS[key];
+  const mat = new THREE.MeshBasicMaterial({ color: WHITE, wireframe: true, transparent: true, opacity: 0.078, depthWrite: false });
+  const mesh = new THREE.Mesh(sphereGeom, mat);
+  mesh.position.copy(center);
+  world.add(mesh);
+  const lab = makeTextSprite(label, color, 300, 80, 29);
+  lab.position.copy(center.clone().add(new THREE.Vector3(0, SPHERE_RADIUS + 0.45, 0)));
+  world.add(lab);
+  const axes = addAxes(center);
+  world.add(axes);
+  spheres[key] = { mesh, label: lab, axes, center, color };
+}
+addSphere('Wq', 'Wq read sphere', TENSOR);
+addSphere('Wk', 'Wk read sphere', TENSOR);
+addSphere('Wv', 'Wv read sphere', TENSOR);
+addSphere('q', 'q sphere', QUERY);
+addSphere('k', 'k sphere', KEY);
+addSphere('v', 'v / context sphere', VALUE);
+addSphere('Wo', 'Wo output sphere', FINAL);
+
+const QUANT_DOT_KEYS = ['Wq', 'Wk', 'Wv', 'Wo', 'q', 'k', 'v'];
+const quantDotGroups = {};
+for (const key of QUANT_DOT_KEYS) {
+  const group = new THREE.Group();
+  group.position.copy(CENTERS[key]);
+  group.visible = false;
+  world.add(group);
+  quantDotGroups[key] = group;
+}
+function clearGroupChildren(group) {
+  while (group.children.length) {
+    const child = group.children.pop();
+    child.geometry?.dispose?.();
+    child.material?.dispose?.();
+  }
+}
+function rebuildQuantDots() {
+  const dirs = derived.quantDirs || buildQuantDirs(state.quantMode);
+  const stride = Math.max(1, Math.ceil(dirs.length / 900));
+  const dotRadius = state.quantMode === 'ternary' ? 0.047 : 0.032;
+  for (const key of QUANT_DOT_KEYS) {
+    const group = quantDotGroups[key];
+    clearGroupChildren(group);
+    const displayDirs = dirs.filter((_, i) => i % stride === 0);
+    const geom = new THREE.SphereGeometry(dotRadius, 10, 10);
+    const mat = new THREE.MeshBasicMaterial({ color: QUANT, transparent: true, opacity: 0.82, depthWrite: false });
+    const inst = new THREE.InstancedMesh(geom, mat, displayDirs.length);
+    const matrix = new THREE.Matrix4();
+    for (let i = 0; i < displayDirs.length; i++) {
+      matrix.makeTranslation(displayDirs[i].x * SPHERE_RADIUS, displayDirs[i].y * SPHERE_RADIUS, displayDirs[i].z * SPHERE_RADIUS);
+      inst.setMatrixAt(i, matrix);
+    }
+    inst.instanceMatrix.needsUpdate = true;
+    inst.renderOrder = 6;
+    group.add(inst);
+  }
+}
+function setQuantDotsVisible(keys, opacity = 0.9) {
+  for (const key of QUANT_DOT_KEYS) {
+    const group = quantDotGroups[key];
+    const visible = state.showQuantDots && keys.includes(key);
+    group.visible = visible;
+    if (visible) group.children.forEach(child => { child.material.opacity = opacity; });
+  }
+}
+
+const attentionPanel = makePanel();
+attentionPanel.visible = false;
+scene.add(attentionPanel);
+
+const dyn = {
+  allGlyphs: [], allLines: [], allLabels: [],
+  inputWq: null, inputWk: [], inputWv: [],
+  qArrow: null, qArrowQ: null,
+  kArrows: [], kArrowsQ: [], vArrows: [], vArrowsQ: [],
+  scaledV: [], scaledVQ: [], chainV: [], chainVQ: [],
+  contextArrow: null, contextArrowQ: null, outputArrow: null, outputArrowQ: null, woContextGhost: null,
+  scoreLines: [], scoreLinesQ: [], transferLines: [], labels: [],
+  tensorArrows: {}, tensorArrowsQ: {},
+};
+function addGlyph(name, color, dashed = false, opacity = 1) {
+  const g = new DirectionGlyph(color, opacity, dashed);
+  world.add(g.group);
+  dyn.allGlyphs.push(g);
+  if (name) dyn[name] = g;
+  return g;
+}
+function addLineToDyn(arr, dashed = true, color = WHITE) {
+  const l = makeLine(dashed, color);
+  world.add(l);
+  dyn.allLines.push(l);
+  arr.push(l);
+  return l;
+}
+function addLabelToDyn(text, color = WHITE, width = 260) {
+  const label = makeTextSprite(text, color, width, 72, 27);
+  label.visible = false;
+  world.add(label);
+  dyn.allLabels.push(label);
+  return label;
+}
+function clearDynamicVisuals() {
+  for (const g of dyn.allGlyphs) { world.remove(g.group); g.dispose(); }
+  for (const l of dyn.allLines) { world.remove(l); l.geometry.dispose(); l.material.dispose(); }
+  for (const s of dyn.allLabels) { world.remove(s); s.material.map.dispose(); s.material.dispose(); }
+  dyn.allGlyphs = [];
+  dyn.allLines = [];
+  dyn.allLabels = [];
+  dyn.inputWk = [];
+  dyn.inputWv = [];
+  dyn.kArrows = [];
+  dyn.kArrowsQ = [];
+  dyn.vArrows = [];
+  dyn.vArrowsQ = [];
+  dyn.scaledV = [];
+  dyn.scaledVQ = [];
+  dyn.chainV = [];
+  dyn.chainVQ = [];
+  dyn.scoreLines = [];
+  dyn.scoreLinesQ = [];
+  dyn.transferLines = [];
+  dyn.labels = [];
+  dyn.tensorArrows = {};
+  dyn.tensorArrowsQ = {};
+}
+function buildDynamicVisuals() {
+  clearDynamicVisuals();
+  addGlyph('inputWq', CURRENT, false, 1);
+  addGlyph('qArrow', QUERY, false, 1);
+  addGlyph('qArrowQ', QUANT, true, 1);
+  addGlyph('contextArrow', SUM, false, 1);
+  addGlyph('contextArrowQ', QUANT, true, 1);
+  addGlyph('outputArrow', FINAL, false, 1);
+  addGlyph('outputArrowQ', QUANT_FINAL, true, 1);
+  addGlyph('woContextGhost', VALUE, true, 0.55);
+  for (const key of TENSOR_KEYS) {
+    dyn.tensorArrows[key] = [];
+    dyn.tensorArrowsQ[key] = [];
+    for (let j = 0; j < 3; j++) {
+      dyn.tensorArrows[key].push(addGlyph(null, TENSOR, false, 0.9));
+      dyn.tensorArrowsQ[key].push(addGlyph(null, QUANT, true, 0.9));
+    }
+  }
+  for (let i = 0; i < state.priorCount + 1; i++) {
+    dyn.inputWk.push(addGlyph(null, i === 0 ? CURRENT : PRIOR, false, 0.9));
+    dyn.inputWv.push(addGlyph(null, i === 0 ? CURRENT : PRIOR, false, 0.9));
+    dyn.kArrows.push(addGlyph(null, KEY, false, 1));
+    dyn.kArrowsQ.push(addGlyph(null, QUANT, true, 1));
+    dyn.vArrows.push(addGlyph(null, VALUE, false, 1));
+    dyn.vArrowsQ.push(addGlyph(null, QUANT, true, 1));
+    dyn.scaledV.push(addGlyph(null, ATTENTION, false, 1));
+    dyn.scaledVQ.push(addGlyph(null, QUANT, true, 1));
+    dyn.chainV.push(addGlyph(null, SUM, false, 1));
+    dyn.chainVQ.push(addGlyph(null, QUANT_FINAL, true, 1));
+    addLineToDyn(dyn.scoreLines, true, KEY);
+    addLineToDyn(dyn.scoreLinesQ, true, QUANT);
+    addLineToDyn(dyn.transferLines, true, WHITE);
+  }
+  while (dyn.transferLines.length < state.priorCount + 8) addLineToDyn(dyn.transferLines, true, WHITE);
+  while (dyn.labels.length < 44) dyn.labels.push(addLabelToDyn('', WHITE));
+}
+buildDynamicVisuals();
+rebuildQuantDots();
+
+function syncAllGlyphSectorGeometries() {
+  for (const g of dyn.allGlyphs) {
+    g.cap.geometry = sharedCapGeometry;
+    g.rim.geometry = sharedRimGeometry;
+  }
+}
+
+const stageNameEl = document.getElementById('stageName');
+const progressLabelEl = document.getElementById('progressLabel');
+const progressSliderEl = document.getElementById('progressSlider');
+const playPauseBtn = document.getElementById('playPause');
+const resetStageBtn = document.getElementById('resetStage');
+const reinitializeVectorsBtn = document.getElementById('reinitializeVectors');
+const initialViewBtn = document.getElementById('initialView');
+const activationSelectEl = document.getElementById('activationSelect');
+const priorCountSelectEl = document.getElementById('priorCountSelect');
+const scoreScaleSliderEl = document.getElementById('scoreScaleSlider');
+const scoreScaleLabelEl = document.getElementById('scoreScaleLabel');
+const solidAngleSliderEl = document.getElementById('solidAngleSlider');
+const solidAngleLabelEl = document.getElementById('solidAngleLabel');
+const autoRotateEl = document.getElementById('autoRotate');
+const showLabelsEl = document.getElementById('showLabels');
+const showQuantDotsEl = document.getElementById('showQuantDots');
+const showQuantOverlayEl = document.getElementById('showQuantOverlay');
+const quantModeSelectEl = document.getElementById('quantModeSelect');
+const stageButtons = [...document.querySelectorAll('[data-stage]')];
+const weightGridEl = document.getElementById('weightGrid');
+const qWeightGridEl = document.getElementById('qWeightGrid');
+const compareGridEl = document.getElementById('compareGrid');
+const quantWqEl = document.getElementById('quantWq');
+const quantWkEl = document.getElementById('quantWk');
+const quantWvEl = document.getElementById('quantWv');
+const quantWoEl = document.getElementById('quantWo');
+const postQEl = document.getElementById('postQ');
+const postKEl = document.getElementById('postK');
+const postVEl = document.getElementById('postV');
+
+function activeQuantSwitchCount() { return [state.quantWq, state.quantWk, state.quantWv, state.quantWo, state.postQ, state.postK, state.postV].filter(Boolean).length; }
+function refreshWeightGrid(el, pass, prefix = 'a') {
+  el.innerHTML = '';
+  pass.weights.forEach((w, i) => {
+    const item = document.createElement('div');
+    item.className = 'vector-item';
+    item.innerHTML = `<span>${prefix}${i} ${tokenLabel(i)} <span class="small">score ${pass.scores[i].toFixed(3)}</span></span><span class="mono">${w.toFixed(4)}</span>`;
+    el.appendChild(item);
+  });
+}
+function refreshCompareGrid() {
+  compareGridEl.innerHTML = '';
+  const c = derived.continuous;
+  const q = derived.quantized;
+  const rows = [
+    ['activation', activationName(state.activation)],
+    ['score multiplier', `${state.scoreScale}×`],
+    ['tokens', `1 current + ${state.priorCount} prior`],
+    ['quant grid', state.quantMode],
+    ['active quant switches', String(activeQuantSwitchCount())],
+    ['cosine(output, q-output)', derived.cos.toFixed(6)],
+    ['angle difference', `${derived.angleDeg.toFixed(3)}°`],
+    ['output Δ norm', derived.deltaNorm.toFixed(5)],
+    ['continuous output dir', `[${unit(c.output).toArray().map(x => x.toFixed(3)).join(', ')}]`],
+    ['quant output dir', `[${unit(q.output).toArray().map(x => x.toFixed(3)).join(', ')}]`],
+    ['‖ΔWq‖ / ‖ΔWk‖', `${derived.matrixDeltas.Wq.toFixed(3)} / ${derived.matrixDeltas.Wk.toFixed(3)}`],
+    ['‖ΔWv‖ / ‖ΔWo‖', `${derived.matrixDeltas.Wv.toFixed(3)} / ${derived.matrixDeltas.Wo.toFixed(3)}`],
+  ];
+  rows.forEach(([k, v]) => {
+    const item = document.createElement('div');
+    item.className = 'vector-item';
+    item.innerHTML = `<span>${k}</span><span class="mono">${v}</span>`;
+    compareGridEl.appendChild(item);
+  });
+}
+function refreshUi() {
+  stageNameEl.textContent = stageLabels[state.stage];
+  progressLabelEl.textContent = `${Math.round(state.progress * 100)}%`;
+  progressSliderEl.value = String(Math.round(state.progress * 1000));
+  playPauseBtn.textContent = state.playing ? 'Pause' : 'Play';
+  activationSelectEl.value = state.activation;
+  priorCountSelectEl.value = String(state.priorCount);
+  scoreScaleSliderEl.value = String(state.scoreScale);
+  scoreScaleLabelEl.textContent = `${state.scoreScale}×`;
+  solidAngleSliderEl.value = String(state.solidAngleDeg);
+  solidAngleLabelEl.textContent = `${state.solidAngleDeg}° half-angle`;
+  quantModeSelectEl.value = state.quantMode;
+  autoRotateEl.checked = state.autoRotate;
+  showLabelsEl.checked = state.showLabels;
+  showQuantDotsEl.checked = state.showQuantDots;
+  showQuantOverlayEl.checked = state.showQuantOverlay;
+  quantWqEl.checked = state.quantWq;
+  quantWkEl.checked = state.quantWk;
+  quantWvEl.checked = state.quantWv;
+  quantWoEl.checked = state.quantWo;
+  postQEl.checked = state.postQ;
+  postKEl.checked = state.postK;
+  postVEl.checked = state.postV;
+  stageButtons.forEach(btn => btn.classList.toggle('active', Number(btn.dataset.stage) === state.stage));
+  refreshWeightGrid(weightGridEl, derived.continuous, 'a');
+  refreshWeightGrid(qWeightGridEl, derived.quantized, 'ã');
+  refreshCompareGrid();
+}
+function recompute({ dots = false } = {}) {
+  derived = computeDerived();
+  if (dots) rebuildQuantDots();
+  refreshUi();
+}
+function rebuildAll() {
+  data = makeDataset(datasetSeed, state.priorCount);
+  derived = computeDerived();
+  buildDynamicVisuals();
+  rebuildQuantDots();
+  state.stage = 0;
+  state.progress = 0;
+  state.playing = false;
+  state.stageStartedAt = performance.now();
+  state.cameraGuideUntil = performance.now() + 1200;
+  refreshUi();
+}
+function goToStage(stage) {
+  state.forceOverview = false;
+  state.stage = clamp(stage, 0, MAX_STAGE);
+  state.progress = 0;
+  state.playing = true;
+  state.stageStartedAt = performance.now();
+  state.cameraGuideUntil = performance.now() + (state.stage === MAX_STAGE ? 2400 : 1400);
+  refreshUi();
+}
+function stageDurationSeconds(stage = state.stage) { return (stage === 6 || stage === 10 || stage === 17 || stage === 20) ? LONG_STAGE_SECONDS : STAGE_SECONDS; }
+
+stageButtons.forEach(btn => btn.addEventListener('click', () => goToStage(Number(btn.dataset.stage))));
+playPauseBtn.addEventListener('click', () => {
+  state.playing = !state.playing;
+  if (state.playing) state.stageStartedAt = performance.now() - state.progress * stageDurationSeconds() * 1000;
+  refreshUi();
+});
+resetStageBtn.addEventListener('click', () => { state.progress = 0; state.playing = false; refreshUi(); });
+reinitializeVectorsBtn.addEventListener('click', () => { datasetSeed += 1; state.forceOverview = true; rebuildAll(); });
+initialViewBtn.addEventListener('click', () => {
+  state.forceOverview = true;
+  state.stage = 0;
+  state.progress = 0;
+  state.playing = false;
+  controls.target.set(-1.2, 0, 0);
+  camera.position.copy(INITIAL_CAMERA_POS);
+  controls.update();
+  state.cameraGuideUntil = performance.now() + 1200;
+  refreshUi();
+});
+progressSliderEl.addEventListener('input', e => { state.progress = Number(e.target.value) / 1000; state.playing = false; refreshUi(); });
+activationSelectEl.addEventListener('change', e => { state.activation = e.target.value; recompute(); });
+scoreScaleSliderEl.addEventListener('input', e => { state.scoreScale = Number(e.target.value); recompute(); });
+priorCountSelectEl.addEventListener('change', e => { state.priorCount = Number(e.target.value); rebuildAll(); });
+solidAngleSliderEl.addEventListener('input', e => {
+  state.solidAngleDeg = Number(e.target.value);
+  const { oldCap, oldRim } = buildSectorGeometry(state.solidAngleDeg);
+  syncAllGlyphSectorGeometries();
+  oldCap?.dispose();
+  oldRim?.dispose();
+  refreshUi();
+});
+autoRotateEl.addEventListener('change', e => { state.autoRotate = e.target.checked; refreshUi(); });
+showLabelsEl.addEventListener('change', e => { state.showLabels = e.target.checked; refreshUi(); });
+showQuantDotsEl.addEventListener('change', e => { state.showQuantDots = e.target.checked; refreshUi(); });
+showQuantOverlayEl.addEventListener('change', e => { state.showQuantOverlay = e.target.checked; refreshUi(); });
+quantModeSelectEl.addEventListener('change', e => { state.quantMode = e.target.value; recompute({ dots: true }); });
+quantWqEl.addEventListener('change', e => { state.quantWq = e.target.checked; recompute(); });
+quantWkEl.addEventListener('change', e => { state.quantWk = e.target.checked; recompute(); });
+quantWvEl.addEventListener('change', e => { state.quantWv = e.target.checked; recompute(); });
+quantWoEl.addEventListener('change', e => { state.quantWo = e.target.checked; recompute(); });
+postQEl.addEventListener('change', e => { state.postQ = e.target.checked; recompute(); });
+postKEl.addEventListener('change', e => { state.postK = e.target.checked; recompute(); });
+postVEl.addEventListener('change', e => { state.postV = e.target.checked; recompute(); });
+
+function resize() {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+refreshUi();
+
+function endpoint(center, vec, len = SPHERE_RADIUS) { return center.clone().add(displayDir(vec, len)); }
+function rawEndpoint(center, vec, scale = 1) { return center.clone().add(vec.clone().multiplyScalar(scale)); }
+function rawProjEndpoint(center, vec) { return rawEndpoint(center, vec, derived.projectionScale); }
+function hideDynamics() {
+  attentionPanel.visible = false;
+  setQuantDotsVisible([]);
+  for (const g of dyn.allGlyphs) g.group.visible = false;
+  for (const l of dyn.allLines) l.visible = false;
+  for (const s of dyn.allLabels) s.visible = false;
+}
+function setSphereEmphasis(keys) {
+  for (const key of Object.keys(spheres)) {
+    const active = state.forceOverview || keys.includes(key);
+    spheres[key].mesh.material.opacity = active ? 0.085 : 0.024;
+    spheres[key].label.material.opacity = active ? 1 : 0.24;
+    spheres[key].axes.children.forEach(line => { line.material.opacity = active ? 0.42 : 0.08; });
+  }
+}
+function labelAt(label, pos, text, color, opacity = 1) {
+  if (!label) return;
+  if (!state.showLabels || opacity <= 0.002) { label.visible = false; return; }
+  updateTextSprite(label, text, color);
+  label.position.copy(pos);
+  label.visible = true;
+  label.material.opacity = opacity;
+}
+function renderInputTokens(opacity = 1) {
+  const tokens = data.tokens;
+  dyn.inputWq.set(CENTERS.Wq, endpoint(CENTERS.Wq, tokens[0]), CURRENT, opacity, 1.0);
+  labelAt(dyn.labels[0], endpoint(CENTERS.Wq, tokens[0], SPHERE_RADIUS + 0.22), 'x₀', CURRENT, opacity);
+  for (let i = 0; i < tokens.length; i++) {
+    const color = i === 0 ? CURRENT : PRIOR;
+    const fade = opacity * (i === 0 ? 0.95 : 0.72);
+    dyn.inputWk[i].set(CENTERS.Wk, endpoint(CENTERS.Wk, tokens[i]), color, fade, 0.82);
+    dyn.inputWv[i].set(CENTERS.Wv, endpoint(CENTERS.Wv, tokens[i]), color, fade, 0.82);
+    if (opacity > 0.65) {
+      labelAt(dyn.labels[i + 1], endpoint(CENTERS.Wk, tokens[i], SPHERE_RADIUS + 0.20), tokenLabel(i), color, fade * 0.85);
+    }
+  }
+}
+function renderRawProjections(pass, qOpacity = 1, kOpacity = 1, vOpacity = 1, quant = false) {
+  const qGlyph = quant ? dyn.qArrowQ : dyn.qArrow;
+  const kGlyphs = quant ? dyn.kArrowsQ : dyn.kArrows;
+  const vGlyphs = quant ? dyn.vArrowsQ : dyn.vArrows;
+  const qColor = quant ? QUANT : QUERY;
+  const kColor = quant ? QUANT : KEY;
+  const vColor = quant ? QUANT : VALUE;
+  qGlyph.set(CENTERS.q, rawProjEndpoint(CENTERS.q, pass.qRaw), qColor, qOpacity);
+  for (let i = 0; i < pass.kRaw.length; i++) {
+    kGlyphs[i].set(CENTERS.k, rawProjEndpoint(CENTERS.k, pass.kRaw[i]), kColor, kOpacity * (i === 0 ? 1 : 0.75), 0.9);
+    vGlyphs[i].set(CENTERS.v, rawProjEndpoint(CENTERS.v, pass.vRaw[i]), vColor, vOpacity * (i === 0 ? 1 : 0.75), 0.9);
+  }
+}
+function renderFinalProjections(pass, qOpacity = 1, kOpacity = 1, vOpacity = 1, quant = false) {
+  const qGlyph = quant ? dyn.qArrowQ : dyn.qArrow;
+  const kGlyphs = quant ? dyn.kArrowsQ : dyn.kArrows;
+  const vGlyphs = quant ? dyn.vArrowsQ : dyn.vArrows;
+  const qColor = quant ? QUANT : QUERY;
+  const kColor = quant ? QUANT : KEY;
+  const vColor = quant ? QUANT : VALUE;
+  qGlyph.set(CENTERS.q, endpoint(CENTERS.q, pass.q), qColor, qOpacity);
+  for (let i = 0; i < pass.k.length; i++) {
+    kGlyphs[i].set(CENTERS.k, endpoint(CENTERS.k, pass.k[i]), kColor, kOpacity * (i === 0 ? 1 : 0.75), 0.9);
+    vGlyphs[i].set(CENTERS.v, endpoint(CENTERS.v, pass.v[i]), vColor, vOpacity * (i === 0 ? 1 : 0.75), 0.9);
+  }
+}
+function renderNormTransition(pass, progress, quant = false) {
+  const t = smoothstep01(progress);
+  const qGlyph = quant ? dyn.qArrowQ : dyn.qArrow;
+  const kGlyphs = quant ? dyn.kArrowsQ : dyn.kArrows;
+  const vGlyphs = quant ? dyn.vArrowsQ : dyn.vArrows;
+  const qColor = quant ? QUANT : QUERY;
+  const kColor = quant ? QUANT : KEY;
+  const vColor = quant ? QUANT : VALUE;
+  qGlyph.set(CENTERS.q, lerpVec(rawProjEndpoint(CENTERS.q, pass.qRaw), endpoint(CENTERS.q, pass.qNorm), t), qColor, 1);
+  labelAt(dyn.labels[0], endpoint(CENTERS.q, pass.qNorm, SPHERE_RADIUS + 0.25), quant ? 'norm q̃' : 'norm q', qColor, progress);
+  for (let i = 0; i < pass.kNorm.length; i++) {
+    const local = smoothstep01(progress * pass.kNorm.length - i + 0.25);
+    kGlyphs[i].set(CENTERS.k, lerpVec(rawProjEndpoint(CENTERS.k, pass.kRaw[i]), endpoint(CENTERS.k, pass.kNorm[i]), t), kColor, (i === 0 ? 1 : 0.75), 0.9);
+    vGlyphs[i].set(CENTERS.v, lerpVec(rawProjEndpoint(CENTERS.v, pass.vRaw[i]), endpoint(CENTERS.v, pass.vNorm[i]), t), vColor, (i === 0 ? 1 : 0.75), 0.9);
+    if (i < 5) {
+      labelAt(dyn.labels[i + 1], endpoint(CENTERS.k, pass.kNorm[i], SPHERE_RADIUS + 0.18), `${quant ? 'norm k̃' : 'norm k'}${i}`, kColor, local * 0.7);
+      labelAt(dyn.labels[i + 12], endpoint(CENTERS.v, pass.vNorm[i], SPHERE_RADIUS + 0.18), `${quant ? 'norm ṽ' : 'norm v'}${i}`, vColor, local * 0.7);
+    }
+  }
+}
+function renderTensorSnap(progress, opacity = 1) {
+  setQuantDotsVisible(TENSOR_KEYS, 0.86);
+  renderInputTokens(0.12 * opacity);
+  const t = smoothstep01(progress);
+  const rowsByKey = derived.tensorContinuous;
+  const qRowsByKey = derived.tensorQuantized;
+  for (const key of TENSOR_KEYS) {
+    const selected = key === 'Wq' ? state.quantWq : key === 'Wk' ? state.quantWk : key === 'Wv' ? state.quantWv : state.quantWo;
+    for (let j = 0; j < 3; j++) {
+      const start = rowsByKey[key][j];
+      const target = selected ? qRowsByKey[key][j] : start;
+      const dir = selected ? slerpUnit(start, target, t) : unit(start);
+      const color = selected ? colorLerp(TENSOR, QUANT, t) : new THREE.Color(TENSOR);
+      dyn.tensorArrows[key][j].set(CENTERS[key], endpoint(CENTERS[key], dir), color, opacity * (selected ? 1 : 0.48), 0.72);
+      if (selected) {
+        const startTip = endpoint(CENTERS[key], unit(start));
+        const endTip = endpoint(CENTERS[key], unit(target));
+        setLine(dyn.transferLines[(TENSOR_KEYS.indexOf(key) * 3 + j) % dyn.transferLines.length], startTip, endTip, 0.16 + 0.24 * (1 - t), QUANT);
+      }
+    }
+    const delta = derived.matrixDeltas[key].toFixed(2);
+    const text = selected ? `${key} snaps to grid  Δ=${delta}` : `${key} unchanged`;
+    labelAt(dyn.labels[24 + TENSOR_KEYS.indexOf(key)], CENTERS[key].clone().add(new THREE.Vector3(0, -SPHERE_RADIUS - 0.42, 0)), text, selected ? QUANT : TENSOR, opacity);
+  }
+}
+function renderPostQuant(progress) {
+  setQuantDotsVisible(['q', 'k', 'v'], 0.9);
+  const pass = derived.quantized;
+  const t = smoothstep01(progress);
+  const qTarget = state.postQ ? pass.q : pass.qNorm;
+  dyn.qArrowQ.set(CENTERS.q, lerpVec(endpoint(CENTERS.q, pass.qNorm), endpoint(CENTERS.q, qTarget), t), QUANT, 1.0);
+  labelAt(dyn.labels[0], endpoint(CENTERS.q, qTarget, SPHERE_RADIUS + 0.25), state.postQ ? 'post Q(q̃)' : 'post q off', QUANT, 1.0);
+  for (let i = 0; i < pass.k.length; i++) {
+    const kTarget = state.postK ? pass.k[i] : pass.kNorm[i];
+    const vTarget = state.postV ? pass.v[i] : pass.vNorm[i];
+    dyn.kArrowsQ[i].set(CENTERS.k, lerpVec(endpoint(CENTERS.k, pass.kNorm[i]), endpoint(CENTERS.k, kTarget), t), QUANT, i === 0 ? 1 : 0.75, 0.9);
+    dyn.vArrowsQ[i].set(CENTERS.v, lerpVec(endpoint(CENTERS.v, pass.vNorm[i]), endpoint(CENTERS.v, vTarget), t), QUANT, i === 0 ? 1 : 0.75, 0.9);
+  }
+  const label = `post: ${state.postQ ? 'q ' : ''}${state.postK ? 'k ' : ''}${state.postV ? 'v' : ''}`.trim();
+  labelAt(dyn.labels[1], CENTERS.k.clone().add(new THREE.Vector3(0, -SPHERE_RADIUS - 0.44, 0)), label === 'post:' ? 'post-quant off' : label, QUANT, 1.0);
+}
+function renderScoreLines(pass, lines, labelOffset, color, opacity, progress, labelPrefix = 's', labelKind = 'score') {
+  const qTip = endpoint(CENTERS.q, pass.q);
+  const maxWeight = Math.max(1e-6, ...pass.weights);
+  for (let i = 0; i < pass.k.length; i++) {
+    const localT = smoothstep01(progress * pass.k.length - i);
+    const kTip = endpoint(CENTERS.k, pass.k[i]);
+    const lineOpacity = opacity * (0.12 + 0.88 * localT) * (0.45 + 0.55 * pass.weights[i] / maxWeight);
+    setLine(lines[i], qTip, kTip, lineOpacity, color);
+    const labelValue = labelKind === 'weight' ? pass.weights[i] : pass.scores[i];
+    labelAt(dyn.labels[i], lerpVec(qTip, kTip, 0.55).add(labelOffset), `${labelPrefix}${i}:${labelValue.toFixed(2)}`, color, lineOpacity);
+  }
+}
+function renderScaledValues(pass, glyphs, color, opacity, progress, quant = false) {
+  const maxCoeff = Math.max(0.001, ...pass.weights);
+  for (let i = 0; i < pass.v.length; i++) {
+    const localT = smoothstep01(progress * pass.v.length - i);
+    const baseEnd = endpoint(CENTERS.v, pass.v[i]);
+    const scaledRaw = pass.weightedV[i].clone().multiplyScalar(derived.chainScale);
+    const scaledEnd = CENTERS.v.clone().add(scaledRaw);
+    const baseGlyph = quant ? dyn.vArrowsQ[i] : dyn.vArrows[i];
+    baseGlyph.set(CENTERS.v, baseEnd, quant ? QUANT : VALUE, quant ? 0.14 * opacity : 0.12 * opacity, 0.9);
+    glyphs[i].set(CENTERS.v, lerpVec(baseEnd, scaledEnd, localT), color, opacity * (0.20 + 0.80 * localT), 0.8);
+    const label = quant ? `ã${i}:${pass.weights[i].toFixed(2)}` : `a${i}:${pass.weights[i].toFixed(2)}`;
+    labelAt(dyn.labels[i], scaledEnd.clone().add(new THREE.Vector3(0.16, 0.08 + 0.08 * (i % 2), 0.12)), label, color, opacity * localT * (0.45 + 0.55 * pass.weights[i] / maxCoeff));
+  }
+}
+function renderChain(pass, glyphs, color, opacity, progress) {
+  for (let i = 0; i < pass.chain.length; i++) {
+    const seg = pass.chain[i];
+    const localT = smoothstep01(progress * pass.chain.length - i);
+    const start = rawEndpoint(CENTERS.v, seg.start, derived.chainScale);
+    const end = rawEndpoint(CENTERS.v, lerpVec(seg.start, seg.end, localT), derived.chainScale);
+    glyphs[i].set(start, end, color, opacity * (localT > 0.01 ? 1 : 0), 0.75);
+  }
+}
+function renderContextAndOutput(pass, contextGlyph, outputGlyph, colorContext, colorOutput, opacity, progress, quant = false) {
+  const contextEnd = rawEndpoint(CENTERS.v, pass.context, derived.chainScale);
+  contextGlyph.set(CENTERS.v, contextEnd, colorContext, opacity);
+  const startDir = pass.context.length() > 1e-9 ? pass.context : new THREE.Vector3(0, 1, 0);
+  const finalDir = pass.output.length() > 1e-9 ? pass.output : new THREE.Vector3(0, 1, 0);
+  const interp = slerpUnit(startDir, finalDir, smoothstep01(progress));
+  const outEnd = CENTERS.Wo.clone().add(interp.multiplyScalar(SPHERE_RADIUS));
+  outputGlyph.set(CENTERS.Wo, outEnd, colorLerp(colorContext, colorOutput, progress), opacity);
+  setLine(dyn.transferLines[0], contextEnd, outEnd, opacity * 0.32, quant ? QUANT : FINAL);
+  labelAt(dyn.labels[0], outEnd.clone().add(new THREE.Vector3(0.24, 0.10, 0.12)), quant ? 'quant output' : 'output', colorOutput, opacity);
+}
+function renderCompare() {
+  const fade = 0.035;
+  renderFinalProjections(derived.continuous, fade, fade, fade, false);
+  if (state.showQuantOverlay) renderFinalProjections(derived.quantized, fade, fade, fade, true);
+  renderChain(derived.continuous, dyn.chainV, SUM, fade, 1.0);
+  renderChain(derived.quantized, dyn.chainVQ, QUANT_FINAL, fade, 1.0);
+  dyn.contextArrow.set(CENTERS.v, rawEndpoint(CENTERS.v, derived.continuous.context, derived.chainScale), SUM, 0.22);
+  dyn.contextArrowQ.set(CENTERS.v, rawEndpoint(CENTERS.v, derived.quantized.context, derived.chainScale), QUANT, 0.28);
+  const contTip = endpoint(CENTERS.Wo, derived.continuous.output);
+  const qTip = endpoint(CENTERS.Wo, derived.quantized.output);
+  dyn.outputArrow.set(CENTERS.Wo, contTip, FINAL, 1.0);
+  dyn.outputArrowQ.set(CENTERS.Wo, qTip, QUANT_FINAL, 1.0);
+  setLine(dyn.transferLines[0], contTip, qTip, 0.48, QUANT_FINAL);
+  labelAt(dyn.labels[0], contTip.clone().add(new THREE.Vector3(0.25, 0.14, 0.12)), 'continuous output', FINAL, 1.0);
+  labelAt(dyn.labels[1], qTip.clone().add(new THREE.Vector3(0.25, -0.14, 0.12)), 'quantized output', QUANT_FINAL, 1.0);
+  labelAt(dyn.labels[2], CENTERS.Wo.clone().add(new THREE.Vector3(0, -SPHERE_RADIUS - 0.50, 0)), `cos=${derived.cos.toFixed(4)}, angle=${derived.angleDeg.toFixed(2)}°`, WHITE, 1.0);
+}
+
+function renderStage() {
+  const s = state.stage;
+  const t = state.progress;
+  hideDynamics();
+
+  if (state.forceOverview || s === 0) setSphereEmphasis(['Wq', 'Wk', 'Wv', 'q', 'k', 'v', 'Wo']);
+  else if (s === 1 || s === 11) setSphereEmphasis(['Wq', 'q']);
+  else if (s === 2 || s === 12) setSphereEmphasis(['Wk', 'k']);
+  else if (s === 3 || s === 13) setSphereEmphasis(['Wv', 'v']);
+  else if (s === 4 || s === 14 || s === 15) setSphereEmphasis(['q', 'k', 'v']);
+  else if (s === 5 || s === 6 || s === 16 || s === 17) setSphereEmphasis(['q', 'k']);
+  else if (s === 7 || s === 8 || s === 18) setSphereEmphasis(['v']);
+  else if (s === 9 || s === 19) setSphereEmphasis(['v', 'Wo']);
+  else if (s === 10) setSphereEmphasis(['Wq', 'Wk', 'Wv', 'Wo']);
+  else if (s === 20) setSphereEmphasis(['Wo']);
+
+  if (s <= 3 || s === 0) renderInputTokens(0.95);
+  if (s === 0) return;
+
+  if (s === 1) {
+    const local = smoothstep01(t);
+    renderInputTokens(0.45);
+    const start = endpoint(CENTERS.Wq, data.tokens[0]);
+    const end = rawProjEndpoint(CENTERS.q, derived.continuous.qRaw);
+    setLine(dyn.transferLines[0], start, end, 0.38 * local, QUERY);
+    dyn.qArrow.set(CENTERS.q, lerpVec(CENTERS.q, end, local), QUERY, local);
+    labelAt(dyn.labels[0], end.clone().add(new THREE.Vector3(0.16, 0.12, 0.10)), 'raw q = Wq x₀', QUERY, local);
+  }
+
+  if (s === 2) {
+    renderInputTokens(0.42);
+    dyn.qArrow.set(CENTERS.q, rawProjEndpoint(CENTERS.q, derived.continuous.qRaw), QUERY, 0.18);
+    for (let i = 0; i < data.tokens.length; i++) {
+      const local = smoothstep01(t * data.tokens.length - i);
+      const start = endpoint(CENTERS.Wk, data.tokens[i]);
+      const end = rawProjEndpoint(CENTERS.k, derived.continuous.kRaw[i]);
+      setLine(dyn.transferLines[i], start, end, 0.26 * local, KEY);
+      dyn.kArrows[i].set(CENTERS.k, lerpVec(CENTERS.k, end, local), KEY, local * (i === 0 ? 1 : 0.78), 0.9);
+      labelAt(dyn.labels[i], end.clone().add(new THREE.Vector3(0.12, 0.08, 0.10)), `raw k${i}`, KEY, local);
+    }
+  }
+
+  if (s === 3) {
+    renderInputTokens(0.42);
+    renderRawProjections(derived.continuous, 0.15, 0.15, 0.0, false);
+    for (let i = 0; i < data.tokens.length; i++) {
+      const local = smoothstep01(t * data.tokens.length - i);
+      const start = endpoint(CENTERS.Wv, data.tokens[i]);
+      const end = rawProjEndpoint(CENTERS.v, derived.continuous.vRaw[i]);
+      setLine(dyn.transferLines[i], start, end, 0.26 * local, VALUE);
+      dyn.vArrows[i].set(CENTERS.v, lerpVec(CENTERS.v, end, local), VALUE, local * (i === 0 ? 1 : 0.78), 0.9);
+      labelAt(dyn.labels[i], end.clone().add(new THREE.Vector3(0.12, 0.08, 0.10)), `raw v${i}`, VALUE, local);
+    }
+  }
+
+  if (s === 4) renderNormTransition(derived.continuous, t, false);
+
+  if (s === 5) {
+    renderFinalProjections(derived.continuous, 1.0, 1.0, 0.12, false);
+    renderScoreLines(derived.continuous, dyn.scoreLines, new THREE.Vector3(0, 0.08, 0.08), KEY, 1.0, t, 's');
+  }
+
+  if (s === 6) {
+    renderFinalProjections(derived.continuous, 1.0, 1.0, 0.14, false);
+    renderScoreLines(derived.continuous, dyn.scoreLines, new THREE.Vector3(0, 0.08, 0.08), ATTENTION, 1.0, 1.0, 'a');
+    attentionPanel.visible = true;
+    attentionPanel.position.set(1.75, 1.55, 2.95);
+    drawAttentionPanel(attentionPanel, `Activation: ${activationName(state.activation)}`, derived.continuous, t);
+    attentionPanel.lookAt(camera.position);
+  }
+
+  if (s === 7) {
+    renderFinalProjections(derived.continuous, 0.12, 0.12, 1.0, false);
+    renderScaledValues(derived.continuous, dyn.scaledV, ATTENTION, 1.0, t, false);
+  }
+
+  if (s === 8) {
+    renderFinalProjections(derived.continuous, 0.06, 0.06, 0.16, false);
+    renderScaledValues(derived.continuous, dyn.scaledV, ATTENTION, 0.35, 1.0, false);
+    renderChain(derived.continuous, dyn.chainV, SUM, 1.0, t);
+    dyn.contextArrow.set(CENTERS.v, rawEndpoint(CENTERS.v, lerpVec(new THREE.Vector3(), derived.continuous.context, smoothstep01(t)), derived.chainScale), SUM, 0.45 + 0.55 * t);
+    labelAt(dyn.labels[0], rawEndpoint(CENTERS.v, derived.continuous.context, derived.chainScale).add(new THREE.Vector3(0.18, -0.12, 0.12)), 'context = Σ aᵢvᵢ', SUM, t);
+  }
+
+  if (s === 9) {
+    renderFinalProjections(derived.continuous, 0.04, 0.04, 0.08, false);
+    renderChain(derived.continuous, dyn.chainV, SUM, 0.25, 1.0);
+    renderContextAndOutput(derived.continuous, dyn.contextArrow, dyn.outputArrow, SUM, FINAL, 1.0, t, false);
+    const ghostEnd = CENTERS.Wo.clone().add(displayDir(derived.continuous.context));
+    dyn.woContextGhost.set(CENTERS.Wo, ghostEnd, VALUE, 0.42);
+    labelAt(dyn.labels[1], ghostEnd.clone().add(new THREE.Vector3(0.20, -0.10, 0.10)), 'context before Wo', VALUE, 0.55);
+  }
+
+  if (s === 10) renderTensorSnap(t, 1.0);
+
+  if (s === 11) {
+    renderTensorSnap(1.0, 0.22);
+    renderInputTokens(0.30);
+    renderRawProjections(derived.continuous, 0.08, 0.08, 0.08, false);
+    const local = smoothstep01(t);
+    const start = endpoint(CENTERS.Wq, data.tokens[0]);
+    const end = rawProjEndpoint(CENTERS.q, derived.quantized.qRaw);
+    setLine(dyn.transferLines[0], start, end, 0.42 * local, QUANT);
+    dyn.qArrowQ.set(CENTERS.q, lerpVec(CENTERS.q, end, local), QUANT, local);
+    labelAt(dyn.labels[0], end.clone().add(new THREE.Vector3(0.16, 0.10, 0.10)), state.quantWq ? 'raw q̃ = W̃q x₀' : 'raw q̃ = Wq x₀', QUANT, local);
+  }
+
+  if (s === 12) {
+    renderInputTokens(0.30);
+    renderRawProjections(derived.quantized, 1.0, 0.0, 0.0, true);
+    for (let i = 0; i < data.tokens.length; i++) {
+      const local = smoothstep01(t * data.tokens.length - i);
+      const start = endpoint(CENTERS.Wk, data.tokens[i]);
+      const end = rawProjEndpoint(CENTERS.k, derived.quantized.kRaw[i]);
+      setLine(dyn.transferLines[i], start, end, 0.30 * local, QUANT);
+      dyn.kArrowsQ[i].set(CENTERS.k, lerpVec(CENTERS.k, end, local), QUANT, local * (i === 0 ? 1 : 0.78), 0.9);
+      labelAt(dyn.labels[i], end.clone().add(new THREE.Vector3(0.12, 0.08, 0.10)), `raw k̃${i}`, QUANT, local);
+    }
+  }
+
+  if (s === 13) {
+    renderInputTokens(0.30);
+    renderRawProjections(derived.quantized, 1.0, 1.0, 0.0, true);
+    for (let i = 0; i < data.tokens.length; i++) {
+      const local = smoothstep01(t * data.tokens.length - i);
+      const start = endpoint(CENTERS.Wv, data.tokens[i]);
+      const end = rawProjEndpoint(CENTERS.v, derived.quantized.vRaw[i]);
+      setLine(dyn.transferLines[i], start, end, 0.30 * local, QUANT);
+      dyn.vArrowsQ[i].set(CENTERS.v, lerpVec(CENTERS.v, end, local), QUANT, local * (i === 0 ? 1 : 0.78), 0.9);
+      labelAt(dyn.labels[i], end.clone().add(new THREE.Vector3(0.12, 0.08, 0.10)), `raw ṽ${i}`, QUANT, local);
+    }
+  }
+
+  if (s === 14) renderNormTransition(derived.quantized, t, true);
+
+  if (s === 15) renderPostQuant(t);
+
+  if (s === 16) {
+    renderFinalProjections(derived.quantized, 1.0, 1.0, 0.12, true);
+    renderScoreLines(derived.quantized, dyn.scoreLinesQ, new THREE.Vector3(0, -0.10, 0.08), QUANT, 1.0, t, 's̃');
+  }
+
+  if (s === 17) {
+    renderFinalProjections(derived.quantized, 1.0, 1.0, 0.12, true);
+    renderScoreLines(derived.quantized, dyn.scoreLinesQ, new THREE.Vector3(0, -0.10, 0.08), QUANT, 1.0, 1.0, 'ã');
+    attentionPanel.visible = true;
+    attentionPanel.position.set(1.75, 1.55, 2.95);
+    drawAttentionPanel(attentionPanel, `Quantized activation: ${activationName(state.activation)}`, derived.quantized, t);
+    attentionPanel.lookAt(camera.position);
+  }
+
+  if (s === 18) {
+    renderFinalProjections(derived.quantized, 0.10, 0.10, 1.0, true);
+    renderScaledValues(derived.quantized, dyn.scaledVQ, QUANT, 0.95, t, true);
+  }
+
+  if (s === 19) {
+    renderFinalProjections(derived.quantized, 0.04, 0.04, 0.16, true);
+    renderScaledValues(derived.quantized, dyn.scaledVQ, QUANT, 0.30, 1.0, true);
+    renderChain(derived.quantized, dyn.chainVQ, QUANT_FINAL, 0.95, t);
+    renderContextAndOutput(derived.quantized, dyn.contextArrowQ, dyn.outputArrowQ, QUANT, QUANT_FINAL, 0.95, t, true);
+  }
+
+  if (s === 20) renderCompare();
+
+  if (state.showQuantOverlay && s >= 10 && s < 20 && ![10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(s)) {
+    renderFinalProjections(derived.quantized, 0.24, 0.24, 0.24, true);
+  }
+}
+
+function focusCenter(stage) {
+  if (state.forceOverview || stage === 0 || stage === 10) return new THREE.Vector3(-1.25, 0, 0);
+  if (stage === 1 || stage === 11) return new THREE.Vector3(-3.65, 3.15, 0);
+  if (stage === 2 || stage === 12) return new THREE.Vector3(-3.65, 0, 0);
+  if (stage === 3 || stage === 13) return new THREE.Vector3(-3.65, -3.15, 0);
+  if (stage === 4 || stage === 14 || stage === 15) return new THREE.Vector3(-1.2, 0, 0);
+  if (stage === 5 || stage === 6 || stage === 16 || stage === 17) return new THREE.Vector3(-1.2, 1.45, 0);
+  if (stage === 7 || stage === 8 || stage === 18) return CENTERS.v.clone();
+  if (stage === 9 || stage === 19) return new THREE.Vector3(1.6, -1.7, 0);
+  if (stage === 20) return CENTERS.Wo.clone();
+  return new THREE.Vector3(-1.2, 0, 0);
+}
+function desiredCameraDistance(stage) {
+  if (state.forceOverview || stage === 0 || stage === 10) return 15.0;
+  if (stage === 20) return 4.6;
+  if (stage === 6 || stage === 17) return 8.2;
+  if (stage === 9 || stage === 19) return 7.1;
+  if (stage === 4 || stage === 14 || stage === 15) return 8.4;
+  return 6.8;
+}
+
+let lastTs = performance.now();
+function animate(ts) {
+  const dt = Math.min(0.05, (ts - lastTs) / 1000);
+  lastTs = ts;
+  if (state.playing) {
+    const elapsed = (ts - state.stageStartedAt) / 1000;
+    state.progress = clamp01(elapsed / stageDurationSeconds());
+    if (state.progress >= 1) state.playing = false;
+    refreshUi();
+  }
+  const target = focusCenter(state.stage);
+  controls.target.lerp(target, 0.08);
+  if (ts < state.cameraGuideUntil && !state.autoRotate) {
+    const offset = camera.position.clone().sub(controls.target);
+    if (offset.length() > 0.001) {
+      const desired = controls.target.clone().add(offset.normalize().multiplyScalar(desiredCameraDistance(state.stage)));
+      camera.position.lerp(desired, 0.055);
+    }
+  }
+  if (state.autoRotate) {
+    const orbit = controls.target.clone();
+    camera.position.sub(orbit);
+    camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), dt * 0.22);
+    camera.position.add(orbit);
+  }
+  controls.update();
+  renderStage();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

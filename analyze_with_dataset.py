@@ -1,4 +1,4 @@
-# colorize_dataset.py  (rolling-window mode added)
+# analyze_with_dataset.py  (rolling-window mode added)
 """Colourise a dataset split using a trained GPT model.
 
 Modes
@@ -18,7 +18,7 @@ Example
 -------
 ```bash
 # rolling window, colour 3 000 tokens starting  at offset 50 000
-python colorize_dataset.py \
+python analyze_with_dataset.py \
   --out_dir out/my_run \
   --dataset tiny_shakespeare \
   --split train \
@@ -31,10 +31,10 @@ python colorize_dataset.py \
 from __future__ import annotations
 
 import argparse, io, pickle, math
+import numpy as np
 from pathlib import Path
 from typing import Callable, List, Sequence
 
-import numpy as np
 import torch, torch.nn.functional as F
 from rich.console import Console
 from rich.table import Table
@@ -134,6 +134,44 @@ def parse_args():
         ),
     )
     p.add_argument(
+        "--activation_heatmap",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Collect per-layer activation traces and save heatmap HTML/NPY outputs",
+    )
+    p.add_argument(
+        "--activation_heatmap_file",
+        default="activation_heatmap.html",
+        help="Output HTML file for activation heatmaps",
+    )
+    p.add_argument(
+        "--activation_hist_file",
+        default="activation_hist.html",
+        help="Output HTML file for activation-input histograms overlaid with activation curves",
+    )
+    p.add_argument(
+        "--activation_hist_bins",
+        type=int,
+        default=120,
+        help="Number of bins for per-layer activation-input histograms",
+    )
+    p.add_argument(
+        "--attention_head_heatmap_file",
+        default="attention_head_heatmap.html",
+        help="Output HTML file for per-layer per-head attention output heatmaps",
+    )
+    p.add_argument(
+        "--attention_head_hist_file",
+        default="attention_head_hist.html",
+        help="Output HTML file for per-layer per-head attention output histograms",
+    )
+    p.add_argument("--analysis_layers", default="all", help="Layer selection for analysis: 'all' or comma-separated 1-based layer ids")
+    p.add_argument("--analysis_heads", default="all", help="Head selection for attention analysis: 'all' or comma-separated 1-based head ids")
+    p.add_argument("--plot_residual_magnitude", action=argparse.BooleanOptionalAction, default=True,
+                   help="Export and plot average residual magnitude across model locations")
+    p.add_argument("--residual_magnitude_file", default="residual_magnitude.html",
+                   help="Output HTML file for residual magnitude traces")
+    p.add_argument(
         "--components",
         choices=["wte", "attn", "mlp", "resid"],
         nargs="+",
@@ -195,6 +233,28 @@ def main():
     tokens_left = min(args.num_tokens, len(data) - 1 - pos)
 
     lines: List[str] = []
+    heatmap_traces = None
+    heatmap_inputs = None
+    attn_head_traces = None
+    residual_mag_traces = []
+    residual_radius_samples = {}
+    residual_mag_token_info = []
+
+    def parse_selection(spec: str, max_count: int):
+        if spec == "all":
+            return list(range(max_count))
+        out = []
+        for tok in spec.split(","):
+            tok = tok.strip()
+            if not tok:
+                continue
+            idx = int(tok) - 1
+            if 0 <= idx < max_count:
+                out.append(idx)
+        return sorted(set(out))
+
+    selected_layers = parse_selection(args.analysis_layers, model.config.n_layer)
+    selected_heads = parse_selection(args.analysis_heads, model.config.n_head)
 
     if args.display == "token":
         ids: List[int] = []
@@ -236,9 +296,76 @@ def main():
             break  # not enough tokens to predict next
 
         ctx_tok = torch.from_numpy(seq[:-1].astype(np.int64))[None].to(args.device)
+        tgt_token = int(seq[-1])  # ground-truth next token associated with this window
 
         activations = {"t0": None, "attn": [], "mlp": [], "ar": [], "mr": []}
         handles = []
+        act_call_counts = {}
+        if args.activation_heatmap:
+            if heatmap_traces is None:
+                heatmap_traces = [[] for _ in range(model.config.n_layer)]
+                heatmap_inputs = [[] for _ in range(model.config.n_layer)]
+                attn_head_traces = [[[] for _ in range(model.config.n_head)] for _ in range(model.config.n_layer)]
+            for li, blk in enumerate(model.transformer.h):
+                if li not in selected_layers:
+                    continue
+                if hasattr(blk.mlp, "activation_variant"):
+                    act_call_counts[li] = 0
+                    def make_act_hook(layer_idx):
+                        def hook(module, inp, out):
+                            # SwigLU / DualPath* can call activation multiple times; take the first call per token.
+                            if act_call_counts[layer_idx] == 0:
+                                in_vec = inp[0][0, -1, :].detach().float().cpu()
+                                vec = out[0, -1, :].detach().float().cpu()
+                                heatmap_inputs[layer_idx].append(in_vec.numpy())
+                                heatmap_traces[layer_idx].append(vec.numpy())
+                            act_call_counts[layer_idx] += 1
+                        return hook
+                    handles.append(blk.mlp.activation_variant.register_forward_hook(make_act_hook(li)))
+                def make_attn_head_hook(layer_idx):
+                    def hook(module, inp, out):
+                        vec = out[0, -1, :].detach().float().cpu().numpy()
+                        if vec.shape[0] % model.config.n_head != 0:
+                            return
+                        per_head = vec.reshape(model.config.n_head, -1)
+                        for hi in range(model.config.n_head):
+                            attn_head_traces[layer_idx][hi].append(per_head[hi])
+                    return hook
+                handles.append(blk.attn.register_forward_hook(make_attn_head_hook(li)))
+        if args.plot_residual_magnitude:
+            residual_points = {"after wte": None, "after_attn": {}, "after_mlp": {}, "ln_f": None}
+            patched_combiners = []
+
+            def record_radius(stage_name: str, tensor: torch.Tensor):
+                radii = tensor.detach().float().norm(dim=-1).reshape(-1).cpu().numpy()
+                residual_radius_samples.setdefault(stage_name, []).append(radii)
+
+            def wte_hook(module, inp, out):
+                residual_points["after wte"] = out.detach().float()
+                record_radius("after wte", out)
+            handles.append(model.transformer.wte.register_forward_hook(wte_hook))
+
+            for li, blk in enumerate(model.transformer.h):
+                if li not in selected_layers:
+                    continue
+                original_combine = blk._combine_resid
+
+                def make_recording_combine(layer_idx, combine_fn):
+                    def recording_combine(kind, x, out):
+                        combined = combine_fn(kind, x, out)
+                        if kind in ("attn", "mlp"):
+                            residual_points[f"after_{kind}"][layer_idx] = combined.detach().float()
+                            record_radius(f"after {kind[0]}{layer_idx + 1}", combined)
+                        return combined
+                    return recording_combine
+
+                blk._combine_resid = make_recording_combine(li, original_combine)
+                patched_combiners.append((blk, original_combine))
+
+            def lnf_hook(module, inp, out):
+                residual_points["ln_f"] = out.detach().float()
+                record_radius("ln_f", out)
+            handles.append(model.transformer.ln_f.register_forward_hook(lnf_hook))
         if args.display != "token" and args.activation_view != "none":
             def t0_hook(module, inp, out):
                 activations["t0"] = out[0, -1, :].detach()
@@ -274,6 +401,27 @@ def main():
 
         for h in handles:
             h.remove()
+        if args.plot_residual_magnitude:
+            for blk, original_combine in patched_combiners:
+                blk._combine_resid = original_combine
+            stage_names = ["after wte"]
+            mags = []
+            for st in stage_names:
+                v = residual_points[st]
+                mags.append(float(v[0, -1, :].norm().item()) if v is not None else np.nan)
+            for li in selected_layers:
+                stage_names.append(f"after a{li+1}")
+                v = residual_points["after_attn"].get(li)
+                mags.append(float(v[0, -1, :].norm().item()) if v is not None else np.nan)
+                stage_names.append(f"after m{li+1}")
+                v = residual_points["after_mlp"].get(li)
+                mags.append(float(v[0, -1, :].norm().item()) if v is not None else np.nan)
+            stage_names.append("ln_f")
+            v = residual_points["ln_f"]
+            mags.append(float(v[0, -1, :].norm().item()) if v is not None else np.nan)
+            residual_mag_traces.append((stage_names, mags))
+            token_text = decode([tgt_token])
+            residual_mag_token_info.append((tgt_token, token_text, _escape_ws(token_text)))
 
         if args.activation_view != "none" and "resid" in args.components and activations["t0"] is not None:
             resid = activations["t0"].float().clone()
@@ -285,7 +433,6 @@ def main():
 
         logits = logits.squeeze(0)  # (ctx_len, vocab)
         ctx_len = logits.size(0)
-        tgt_token = int(seq[-1])  # ground-truth next token
 
         layer_texts: List[Text] = []
         if args.activation_view != "none" and activations["t0"] is not None:
@@ -445,6 +592,219 @@ def main():
         fig.write_html(args.plot_file)
         console.print(f"[cyan]Saved plot → {args.plot_file}[/cyan]")
 
+
+    if args.activation_heatmap and heatmap_traces is not None:
+        from plotly.subplots import make_subplots
+        import plotly.graph_objects as go
+
+        rows = len(heatmap_traces)
+        fig = make_subplots(rows=rows, cols=1, shared_xaxes=True,
+                            subplot_titles=[f"layer {i+1}" for i in range(rows)])
+        npy_payload = {}
+        for i, layer_series in enumerate(heatmap_traces):
+            if not layer_series:
+                continue
+            arr = np.stack(layer_series, axis=0)  # (tokens, hidden_or_mlp_dim)
+            npy_payload[f"layer_{i+1}"] = arr
+            fig.add_trace(go.Heatmap(z=arr.T, coloraxis="coloraxis", showscale=(i == 0)), row=i+1, col=1)
+            fig.update_yaxes(title_text="unit", row=i+1, col=1)
+
+        fig.update_layout(height=max(280 * rows, 400), coloraxis={"colorscale": "RdBu", "cmid": 0.0})
+        fig.write_html(args.activation_heatmap_file)
+        np.savez(Path(args.activation_heatmap_file).with_suffix('.npz'), **npy_payload)
+        console.print(f"[cyan]Saved activation heatmaps → {args.activation_heatmap_file}[/cyan]")
+
+        hist_fig = make_subplots(
+            rows=rows,
+            cols=1,
+            shared_xaxes=False,
+            subplot_titles=[f"layer {i+1}" for i in range(rows)],
+            specs=[[{"secondary_y": True}] for _ in range(rows)],
+        )
+        hist_payload = {}
+        for i, layer_inputs in enumerate(heatmap_inputs):
+            if not layer_inputs:
+                continue
+            arr_in = np.concatenate([a.reshape(-1) for a in layer_inputs], axis=0)
+            hist_payload[f"layer_{i+1}_activation_input"] = arr_in
+            counts, edges = np.histogram(arr_in, bins=args.activation_hist_bins, density=True)
+            centers = (edges[:-1] + edges[1:]) * 0.5
+            layer_mlp = model.transformer.h[i].mlp
+            x_eval = torch.from_numpy(centers.astype(np.float32)).to(args.device)
+            with torch.no_grad():
+                y_eval = layer_mlp.activation_variant(x_eval).detach().float().cpu().numpy()
+
+            hist_fig.add_trace(
+                go.Bar(x=centers, y=counts, name=f"L{i+1} hist", marker_color="rgba(55, 83, 109, 0.55)"),
+                row=i + 1,
+                col=1,
+                secondary_y=False,
+            )
+            hist_fig.add_trace(
+                go.Scatter(x=centers, y=y_eval, mode="lines", name=f"L{i+1} act(x)", line={"color": "crimson", "width": 2}),
+                row=i + 1,
+                col=1,
+                secondary_y=True,
+            )
+            hist_fig.update_yaxes(title_text="density", row=i + 1, col=1, secondary_y=False)
+            hist_fig.update_yaxes(title_text="activation(x)", row=i + 1, col=1, secondary_y=True)
+            hist_fig.update_xaxes(title_text="activation input", row=i + 1, col=1)
+
+        hist_fig.update_layout(height=max(280 * rows, 400), barmode="overlay")
+        hist_fig.write_html(args.activation_hist_file)
+        np.savez(Path(args.activation_hist_file).with_suffix('.npz'), **hist_payload)
+        console.print(f"[cyan]Saved activation histograms → {args.activation_hist_file}[/cyan]")
+
+        attn_rows = model.config.n_layer
+        attn_fig = make_subplots(
+            rows=attn_rows,
+            cols=1,
+            shared_xaxes=True,
+            subplot_titles=[f"attn layer {i+1}" for i in range(attn_rows)],
+        )
+        attn_payload = {}
+        for li in selected_layers:
+            if not any(attn_head_traces[li][hi] for hi in range(model.config.n_head)):
+                continue
+            head_means = []
+            for hi in selected_heads:
+                if not attn_head_traces[li][hi]:
+                    head_means.append(np.array([], dtype=np.float32))
+                    continue
+                arr = np.stack(attn_head_traces[li][hi], axis=0)
+                attn_payload[f"layer_{li+1}_head_{hi+1}"] = arr
+                head_means.append(arr.mean(axis=1))
+            max_len = max((m.shape[0] for m in head_means), default=0)
+            if max_len == 0:
+                continue
+            z = np.full((len(selected_heads), max_len), np.nan, dtype=np.float32)
+            for row_i, m in enumerate(head_means):
+                if m.shape[0] > 0:
+                    z[row_i, :m.shape[0]] = m
+            attn_fig.add_trace(go.Heatmap(z=z, coloraxis="coloraxis", showscale=(li == 0)), row=li + 1, col=1)
+            attn_fig.update_yaxes(title_text="head", row=li + 1, col=1)
+        attn_fig.update_layout(height=max(260 * attn_rows, 400), coloraxis={"colorscale": "RdBu", "cmid": 0.0})
+        attn_fig.write_html(args.attention_head_heatmap_file)
+        np.savez(Path(args.attention_head_heatmap_file).with_suffix(".npz"), **attn_payload)
+        console.print(f"[cyan]Saved attention head heatmaps → {args.attention_head_heatmap_file}[/cyan]")
+
+        attn_hist = make_subplots(rows=attn_rows, cols=1, shared_xaxes=False, subplot_titles=[f"attn layer {i+1}" for i in range(attn_rows)])
+        for li in selected_layers:
+            for hi in selected_heads:
+                if not attn_head_traces[li][hi]:
+                    continue
+                arr = np.stack(attn_head_traces[li][hi], axis=0).reshape(-1)
+                counts, edges = np.histogram(arr, bins=args.activation_hist_bins, density=True)
+                centers = (edges[:-1] + edges[1:]) * 0.5
+                attn_hist.add_trace(
+                    go.Scatter(x=centers, y=counts, mode="lines", name=f"L{li+1}H{hi+1}", line={"width": 1}),
+                    row=li + 1, col=1
+                )
+            attn_hist.update_yaxes(title_text="density", row=li + 1, col=1)
+            attn_hist.update_xaxes(title_text="attn output", row=li + 1, col=1)
+        attn_hist.update_layout(height=max(260 * attn_rows, 400))
+        attn_hist.write_html(args.attention_head_hist_file)
+        console.print(f"[cyan]Saved attention head histograms → {args.attention_head_hist_file}[/cyan]")
+
+    if args.plot_residual_magnitude and residual_mag_traces:
+        from plotly.subplots import make_subplots
+        import plotly.graph_objects as go
+
+        stage_names = residual_mag_traces[0][0]
+        arr = np.array([m for _, m in residual_mag_traces], dtype=np.float32)
+        means = []
+        stds = []
+        counts = []
+        for stage in stage_names:
+            samples = residual_radius_samples.get(stage, [])
+            if samples:
+                vals = np.concatenate(samples, axis=0).astype(np.float32)
+                means.append(float(vals.mean()))
+                stds.append(float(vals.std(ddof=0)))
+                counts.append(int(vals.size))
+            else:
+                means.append(np.nan)
+                stds.append(np.nan)
+                counts.append(0)
+
+        fig = make_subplots(
+            rows=2,
+            cols=1,
+            shared_xaxes=False,
+            subplot_titles=[
+                "average residual magnitude by location (std bars)",
+                "per-window final-token residual magnitude trace",
+            ],
+            vertical_spacing=0.12,
+        )
+        fig.add_trace(
+            go.Bar(
+                x=stage_names,
+                y=means,
+                error_y={
+                    "type": "data",
+                    "array": stds,
+                    "visible": True,
+                    "thickness": 1.5,
+                    "width": 3,
+                    "color": "rgba(30, 30, 30, 0.75)",
+                },
+                name="average magnitude ± std",
+                customdata=np.array(counts),
+                marker={
+                    "color": means,
+                    "colorscale": "Viridis",
+                    "showscale": False,
+                    "line": {"color": "rgba(30, 30, 30, 0.65)", "width": 0.8},
+                },
+                opacity=0.9,
+                hovertemplate="%{x}<br>avg magnitude=%{y:.6f}<br>std=%{error_y.array:.6f}<br>n=%{customdata}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
+        heatmap_customdata = np.array(
+            [[info for info in residual_mag_token_info] for _ in stage_names],
+            dtype=object,
+        )
+        fig.add_trace(
+            go.Heatmap(
+                z=arr.T,
+                x=list(range(arr.shape[0])),
+                y=stage_names,
+                customdata=heatmap_customdata,
+                coloraxis="coloraxis",
+                name="trace",
+                hovertemplate=(
+                    "window=%{x}<br>location=%{y}<br>magnitude=%{z:.6f}"
+                    "<br>token id=%{customdata[0]}"
+                    "<br>token=%{customdata[1]}"
+                    "<br>token rendering=%{customdata[2]}<extra></extra>"
+                ),
+            ),
+            row=2,
+            col=1,
+        )
+        fig.update_yaxes(title_text="average magnitude", gridcolor="rgba(0,0,0,0.12)", row=1, col=1)
+        fig.update_yaxes(title_text="location", row=2, col=1)
+        fig.update_xaxes(title_text="location", tickangle=45, showgrid=False, row=1, col=1)
+        fig.update_xaxes(title_text="window", row=2, col=1)
+        fig.update_layout(height=max(720, 28 * len(stage_names) + 420), bargap=0.18, plot_bgcolor="white", coloraxis={"colorscale": "Viridis"})
+        fig.write_html(args.residual_magnitude_file)
+        np.savez(
+            Path(args.residual_magnitude_file).with_suffix(".npz"),
+            stage_names=np.array(stage_names, dtype=object),
+            magnitudes=arr,
+            mean_radius=np.array(means, dtype=np.float32),
+            std_radius=np.array(stds, dtype=np.float32),
+            mean_magnitude=np.array(means, dtype=np.float32),
+            std_magnitude=np.array(stds, dtype=np.float32),
+            sample_count=np.array(counts, dtype=np.int64),
+            token_ids=np.array([info[0] for info in residual_mag_token_info], dtype=np.int64),
+            token_texts=np.array([info[1] for info in residual_mag_token_info], dtype=object),
+            token_renderings=np.array([info[2] for info in residual_mag_token_info], dtype=object),
+        )
+        console.print(f"[cyan]Saved residual magnitude summary → {args.residual_magnitude_file}[/cyan]")
 
 if __name__ == "__main__":
     main()

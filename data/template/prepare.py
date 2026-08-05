@@ -113,6 +113,8 @@ def parse_arguments():
     parser.add_argument("--reuse_chars", action="store_true", help="Reuse character list from meta.pkl")
     parser.add_argument("--char_bpe_vocab_path", type=str, default=None,
                         help="Path to a char_bpe meta.pkl to reuse its vocabulary/merges")
+    parser.add_argument("--char_bpe_incomplete_coverage_uses_bpe", action=argparse.BooleanOptionalAction, default=True,
+                        help="When char_bpe vocab_size cannot fit every observed character plus byte fallback, keep the highest-frequency characters/BPE tokens and rely on byte fallback for the rest (default: true). Use --no-char_bpe_incomplete_coverage_uses_bpe to require complete character coverage.")
 
     # Custom tokenizer arguments
     parser.add_argument("--tokens_file", type=str, default=None, help="Path to the file containing newline-separated tokens for tokenization")
@@ -153,6 +155,53 @@ def _read_input_data(path):
     with open(path, 'r', encoding='utf-8', errors='replace') as f:
         return f.read()
 
+
+
+def _utf8_len(text):
+    return len(text.encode("utf-8")) if text is not None else 0
+
+def _tokenization_byte_metrics(train_data, val_data, train_ids, val_ids):
+    train_bytes = _utf8_len(train_data)
+    val_bytes = _utf8_len(val_data)
+    train_tokens = len(train_ids) if train_ids is not None else 0
+    val_tokens = len(val_ids) if val_ids is not None else 0
+    total_bytes = train_bytes + val_bytes
+    total_tokens = train_tokens + val_tokens
+    metrics = {
+        "train_utf8_bytes": train_bytes,
+        "val_utf8_bytes": val_bytes,
+        "total_utf8_bytes": total_bytes,
+        "train_token_count": train_tokens,
+        "val_token_count": val_tokens,
+        "total_token_count": total_tokens,
+    }
+    if train_bytes > 0:
+        metrics["train_tokens_per_byte"] = train_tokens / train_bytes
+        metrics["train_bytes_per_token"] = train_bytes / train_tokens if train_tokens > 0 else None
+    if val_bytes > 0:
+        metrics["val_tokens_per_byte"] = val_tokens / val_bytes
+        metrics["val_bytes_per_token"] = val_bytes / val_tokens if val_tokens > 0 else None
+    if total_bytes > 0:
+        metrics["tokens_per_byte"] = total_tokens / total_bytes
+        metrics["bytes_per_token"] = total_bytes / total_tokens if total_tokens > 0 else None
+    return metrics
+
+def _update_meta_with_byte_metrics(meta_path, byte_metrics):
+    if not byte_metrics:
+        return
+    with open(meta_path, "rb") as f:
+        meta = pickle.load(f)
+    meta["byte_metrics"] = byte_metrics
+    # Convenience aliases used by train.py. Prefer validation when available because
+    # bits-per-byte is reported for validation loss.
+    if "val_tokens_per_byte" in byte_metrics:
+        meta["tokens_per_byte"] = byte_metrics["val_tokens_per_byte"]
+        meta["bits_per_byte_split"] = "val"
+    elif "tokens_per_byte" in byte_metrics:
+        meta["tokens_per_byte"] = byte_metrics["tokens_per_byte"]
+        meta["bits_per_byte_split"] = "all"
+    with open(meta_path, "wb") as f:
+        pickle.dump(meta, f)
 
 def main():
     args = parse_arguments()
@@ -247,6 +296,10 @@ def main():
     else:
         val_ids = None
 
+    byte_metrics = None
+    if args.method not in {"sinewave", "whisper_mel_csv"}:
+        byte_metrics = _tokenization_byte_metrics(train_data, val_data, train_ids, val_ids)
+
     # Determine dtype based on vocabulary size from meta.pkl
     if args.method == "whisper_mel_csv":
         dtype = None
@@ -300,7 +353,7 @@ def main():
             "power": args.mel_power,
             "normalize": args.mel_normalize,
         }
-        with open("meta.pkl", "wb") as f:
+        with open(args.meta_output_path, "wb") as f:
             pickle.dump(meta, f)
 
     # Save additional metadata for tiktoken if needed
@@ -317,6 +370,9 @@ def main():
         })
         with open(args.meta_output_path, "wb") as f:
             pickle.dump(meta, f)
+
+    if byte_metrics is not None:
+        _update_meta_with_byte_metrics(args.meta_output_path, byte_metrics)
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,4 @@
+English: Hello Korean: 안녕하세요.
+Hello	안녕하세요.
+Good morning	좋은 아침입니다.
+Korean jamo lite	한국어 조사 은는 예제입니다.

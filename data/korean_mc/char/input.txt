@@ -1,0 +1,3 @@
+Hello	안녕하세요.
+Good morning	좋은 아침입니다.
+Korean multicontext	한국어 다중 문맥 예제입니다.

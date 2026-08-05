@@ -521,6 +521,7 @@ class CharBPETokenizerWithByteFallback(Tokenizer):
     def __init__(self, args, train_data, val_data=None):
         super().__init__(args)
         self.reuse_meta_path = getattr(args, "char_bpe_vocab_path", None)
+        self.incomplete_coverage_uses_bpe = getattr(args, "char_bpe_incomplete_coverage_uses_bpe", True)
         if self.reuse_meta_path:
             meta = self._load_char_bpe_meta(self.reuse_meta_path)
             self.desired_vocab_size = meta["vocab_size"]
@@ -542,11 +543,30 @@ class CharBPETokenizerWithByteFallback(Tokenizer):
         if val_data:
             corpus_text += val_data
 
-        self.unique_chars = sorted(set(corpus_text))
+        char_counts = Counter(corpus_text)
+        self.unique_chars = sorted(char_counts)
         if not self.unique_chars:
             raise ValueError("Training data must contain at least one character for char_bpe tokenization.")
 
-        self.char_tokens = list(self.unique_chars)
+        max_char_tokens = self.desired_vocab_size - 256
+        if len(self.unique_chars) > max_char_tokens:
+            if not self.incomplete_coverage_uses_bpe:
+                raise ValueError(
+                    "char_bpe cannot provide complete character coverage with "
+                    f"vocab_size={self.desired_vocab_size}: found {len(self.unique_chars)} "
+                    f"unique characters but only {max_char_tokens} non-byte token slots are available. "
+                    "Increase vocab_size or enable char_bpe_incomplete_coverage_uses_bpe."
+                )
+            # Keep the most frequent characters in the explicit BPE vocabulary and
+            # let raw byte fallback cover the rest.  Ties use the character value
+            # for deterministic vocabulary generation.
+            ranked_chars = sorted(char_counts.items(), key=lambda item: (-item[1], item[0]))
+            self.char_tokens = [ch for ch, _count in ranked_chars[:max_char_tokens]]
+            self.incomplete_coverage = True
+        else:
+            self.char_tokens = list(self.unique_chars)
+            self.incomplete_coverage = False
+
         self._train_merges(corpus_text)
         self._build_vocab()
 
@@ -563,7 +583,7 @@ class CharBPETokenizerWithByteFallback(Tokenizer):
         return meta
 
     def _train_merges(self, text):
-        tokens = list(text)
+        tokens = self._initial_bpe_tokens(text)
         # Nothing to merge if text empty or target vocab already satisfied
         if len(tokens) < 2:
             return
@@ -601,6 +621,16 @@ class CharBPETokenizerWithByteFallback(Tokenizer):
                 break
 
         self.sorted_char_tokens = sorted(self.char_tokens, key=lambda t: len(t), reverse=True)
+
+    def _initial_bpe_tokens(self, text):
+        tokens = []
+        known_chars = set(self.char_tokens)
+        for ch in text:
+            if ch in known_chars:
+                tokens.append(ch)
+            else:
+                tokens.extend(bytes([b]) for b in ch.encode('utf-8'))
+        return tokens
 
     @staticmethod
     def _apply_merge(tokens, pair, new_token):
@@ -684,6 +714,9 @@ class CharBPETokenizerWithByteFallback(Tokenizer):
             "char_tokens": self.char_tokens,
             "char_tokens_sorted": self.sorted_char_tokens,
             "byte_fallback": True,
+            "incomplete_coverage_uses_bpe": self.incomplete_coverage_uses_bpe,
+            "incomplete_coverage": getattr(self, "incomplete_coverage", False),
+            "unique_char_count": len(getattr(self, "unique_chars", self.char_tokens)),
         }
         self.finalize_meta(meta)
         return ids

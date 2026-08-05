@@ -487,3 +487,234 @@ def test_min_angular_distances_route_returns_closest_non_self_tokens(client: Tes
     assert rows[0]["other_token_raw"] == "world"
     assert rows[0]["magnitude"] == pytest.approx(1.0)
     assert rows[0]["other_magnitude"] == pytest.approx(2**0.5)
+
+
+def test_recursive_angle_group_route_expands_connected_tokens_and_edges(client: TestClient) -> None:
+    response = client.get(
+        "/api/recursive-angle-group",
+        params={
+            "seed_id": 0,
+            "max_angle_deg": 50,
+            "group_size_limit": 100,
+            "block_size": 2,
+            "compute_device": "cpu",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["model_name"] == "fake-model"
+    assert data["seed_token_id"] == 0
+    assert data["max_angle_deg"] == 50.0
+    assert data["group_size_limit"] == 100
+    assert data["compute_device"] == "cpu"
+    assert data["block_size"] == 2
+    assert data["truncated"] is False
+    assert data["node_count"] == 3
+    assert data["edge_count"] == 2
+    assert [node["token_id"] for node in data["nodes"]] == [0, 1, 2]
+    assert [node["connected_count"] for node in data["nodes"]] == [1, 1, 2]
+    assert [(edge["source_token_id"], edge["target_token_id"]) for edge in data["edges"]] == [(0, 2), (1, 2)]
+    assert [edge["angle_deg"] for edge in data["edges"]] == [pytest.approx(45.0), pytest.approx(45.0)]
+    assert set(data["dictionary"].keys()) == {"0", "1", "2"}
+    assert data["dictionary"]["2"]["token_raw"] == "world"
+
+
+def test_recursive_angle_group_route_stops_at_group_size_limit(client: TestClient) -> None:
+    response = client.get(
+        "/api/recursive-angle-group",
+        params={
+            "seed_id": 0,
+            "max_angle_deg": 50,
+            "group_size_limit": 2,
+            "block_size": 2,
+            "compute_device": "cpu",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["truncated"] is True
+    assert data["node_count"] == 2
+    assert [node["token_id"] for node in data["nodes"]] == [0, 2]
+    assert data["edge_count"] == 1
+
+
+def test_recursive_angle_group_route_rejects_invalid_angle(client: TestClient) -> None:
+    response = client.get(
+        "/api/recursive-angle-group",
+        params={"seed_id": 0, "max_angle_deg": 181},
+    )
+
+    assert response.status_code == 422
+
+
+def test_linear_transform_neighbors_route_maps_source_to_target_and_ranks_neighbors(client: TestClient) -> None:
+    response = client.get(
+        "/api/linear-transform-neighbors",
+        params={
+            "source_token_id": 0,
+            "target_token_id": 2,
+            "input_token_id": 0,
+            "limit": 3,
+            "transform_type": "rank_one",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source_token_id"] == 0
+    assert data["target_token_id"] == 2
+    assert data["input_token_id"] == 0
+    assert data["transform_type"] == "rank_one"
+    assert data["limit"] == 3
+    assert data["coefficient"] == pytest.approx(1.0)
+    assert data["source_to_target_angle_deg"] == pytest.approx(45.0)
+    assert data["transformed_vector_magnitude"] == pytest.approx(2**0.5)
+    assert [row["token_id"] for row in data["rows"][:3]] == [2, 0, 1]
+    assert data["rows"][0]["angle_deg"] == pytest.approx(0.0)
+    assert data["rows"][0]["magnitude"] == pytest.approx(2**0.5)
+
+
+def test_linear_transform_neighbors_route_supports_offset_mode(client: TestClient) -> None:
+    response = client.get(
+        "/api/linear-transform-neighbors",
+        params={
+            "source_token_id": 0,
+            "target_token_id": 2,
+            "input_token_id": 1,
+            "limit": 2,
+            "transform_type": "offset",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["transform_type"] == "offset"
+    assert data["coefficient"] == pytest.approx(1.0)
+    assert [row["token_id"] for row in data["rows"][:2]] == [1, 2]
+    assert data["rows"][0]["angle_deg"] == pytest.approx(0.0)
+
+
+def test_linear_transform_neighbors_route_supports_closest_identity_mode(client: TestClient) -> None:
+    response = client.get(
+        "/api/linear-transform-neighbors",
+        params={
+            "source_token_id": 0,
+            "target_token_id": 2,
+            "input_token_id": 0,
+            "limit": 2,
+            "transform_type": "closest_identity",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["transform_type"] == "closest_identity"
+    assert data["transform_parameter_label"] == "Projection coefficient"
+    assert [row["token_id"] for row in data["rows"][:2]] == [2, 0]
+    assert data["rows"][0]["angle_deg"] == pytest.approx(0.0)
+
+
+def test_linear_transform_neighbors_route_supports_orthogonal_mode(client: TestClient) -> None:
+    response = client.get(
+        "/api/linear-transform-neighbors",
+        params={
+            "source_token_id": 0,
+            "target_token_id": 1,
+            "input_token_id": 0,
+            "limit": 2,
+            "transform_type": "orthogonal",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["transform_type"] == "orthogonal"
+    assert data["transform_parameter_label"] == "Direction rotation/reflection angle °"
+    assert data["coefficient"] == pytest.approx(90.0)
+    assert data["transformed_vector_magnitude"] == pytest.approx(1.0)
+    assert [row["token_id"] for row in data["rows"][:2]] == [1, 2]
+    assert data["rows"][0]["angle_deg"] == pytest.approx(0.0)
+
+
+def test_linear_transform_neighbors_route_supports_transform_scale_zero(client: TestClient) -> None:
+    response = client.get(
+        "/api/linear-transform-neighbors",
+        params={
+            "source_token_id": 0,
+            "target_token_id": 2,
+            "input_token_id": 0,
+            "limit": 2,
+            "transform_type": "closest_identity",
+            "transform_scale": 0,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["transform_scale"] == pytest.approx(0.0)
+    assert data["input_to_transformed_angle_deg"] == pytest.approx(0.0)
+    assert data["transformed_vector_magnitude"] == pytest.approx(1.0)
+    assert [row["token_id"] for row in data["rows"][:2]] == [0, 2]
+
+
+def test_linear_transform_neighbors_post_accepts_transform_scale(client: TestClient) -> None:
+    response = client.post(
+        "/api/linear-transform-neighbors",
+        json={
+            "examples": [{"source_token_id": 0, "target_token_id": 2}],
+            "input_token_id": 0,
+            "limit": 2,
+            "transform_type": "closest_identity",
+            "ridge_lambda": 0.001,
+            "transform_scale": 2.5,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["transform_scale"] == pytest.approx(2.5)
+    assert data["input_to_transformed_angle_deg"] > 45.0
+
+
+def test_linear_transform_neighbors_route_rejects_unknown_transform(client: TestClient) -> None:
+    response = client.get(
+        "/api/linear-transform-neighbors",
+        params={
+            "source_token_id": 0,
+            "target_token_id": 2,
+            "input_token_id": 1,
+            "transform_type": "made_up",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "transform_type" in response.json()["detail"]
+
+
+def test_linear_transform_neighbors_post_supports_multiple_examples_and_original_distances(client: TestClient) -> None:
+    response = client.post(
+        "/api/linear-transform-neighbors",
+        json={
+            "examples": [
+                {"source_token_id": 0, "target_token_id": 1},
+                {"source_token_id": 1, "target_token_id": 0},
+            ],
+            "input_token_id": 0,
+            "limit": 3,
+            "transform_type": "least_squares",
+            "ridge_lambda": 0.001,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["pair_count"] == 2
+    assert data["effective_source_rank"] == 2
+    assert data["transform_type"] == "least_squares"
+    assert [example["source_token_id"] for example in data["examples"]] == [0, 1]
+    assert data["rows"][0]["token_id"] == 1
+    assert data["rows"][0]["angle_deg"] == pytest.approx(0.0)
+    assert "angle_to_original_input_deg" in data["rows"][0]
+    assert data["rows"][0]["angle_to_original_input_deg"] == pytest.approx(90.0)

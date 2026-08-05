@@ -1,5 +1,6 @@
 # sample.py
 import argparse
+import csv
 import importlib.util
 import json
 import math
@@ -123,6 +124,16 @@ def parse_args():
                         help="Element dtype for --multicontext_start_files.")
     parser.add_argument('--multicontext_start_file_max_tokens', type=int, default=None,
                         help="If set, keep only the last N tokens from each --multicontext_start_files input.")
+    parser.add_argument('--multicontext_csv_input', type=str, default=None,
+                        help="Optional CSV prompt for multicontext sampling. Columns are matched to --multicontext_datasets by metadata/name/order.")
+    parser.add_argument('--multicontext_csv_has_header', default=True, action=argparse.BooleanOptionalAction,
+                        help="Whether --multicontext_csv_input has a header row. Disable with --no-multicontext_csv_has_header.")
+    parser.add_argument('--multicontext_csv_output_dir', type=str, default=None,
+                        help="Directory for timestamped CSV outputs generated from --multicontext_csv_input. Defaults to --out_dir/csv_samples.")
+    parser.add_argument('--multicontext_csv_output_file', type=str, default=None,
+                        help="Optional explicit CSV output path. Only valid with --num_samples 1.")
+    parser.add_argument('--multicontext_csv_output_include_prompt', default=True, action=argparse.BooleanOptionalAction,
+                        help="Include prompt rows in generated multicontext CSV output. Disable to write only continuation rows.")
     parser.add_argument(
         '--numerical_multicontext_plotly',
         action=argparse.BooleanOptionalAction,
@@ -1161,6 +1172,109 @@ def python_programming_encode(text: str, stoi: dict, processor) -> list[int]:
     processor.encode_with_reserved_tokens(text, encode_bytes, emit_reserved)
     return ids
 
+def _read_multicontext_csv_prompt(csv_path: str, has_header: bool) -> tuple[List[str], List[List[str]]]:
+    """Read a complete CSV prompt and return headers plus column-oriented values."""
+    path = Path(csv_path)
+    if not path.exists():
+        raise FileNotFoundError(f"CSV prompt not found: {path}")
+
+    with path.open("r", newline="", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        try:
+            first = next(reader)
+        except StopIteration as exc:
+            raise ValueError(f"CSV prompt is empty: {path}") from exc
+
+        rows: List[List[str]] = []
+        if has_header:
+            headers = [cell.strip() for cell in first]
+            if any(not header for header in headers):
+                raise ValueError("CSV prompt header cells must be non-empty")
+        else:
+            headers = [f"col_{idx}" for idx in range(len(first))]
+            rows.append([cell.strip() for cell in first])
+
+        for row_num, row in enumerate(reader, start=2):
+            if not row or all(cell.strip() == "" for cell in row):
+                continue
+            if len(row) != len(headers):
+                raise ValueError(f"CSV prompt row {row_num} has {len(row)} columns; expected {len(headers)}")
+            rows.append([cell.strip() for cell in row])
+
+    if not rows:
+        raise ValueError(f"CSV prompt has no data rows: {path}")
+
+    columns = [[row[col_idx] for row in rows] for col_idx in range(len(headers))]
+    return headers, columns
+
+
+def _csv_column_for_dataset(
+    *,
+    dataset_name: str,
+    dataset_index: int,
+    meta: Dict[str, object],
+    headers: Sequence[str],
+    columns: Sequence[Sequence[str]],
+) -> List[str]:
+    aliases = [
+        str(meta.get('source_column', '')),
+        str(meta.get('context_name', '')),
+        Path(dataset_name).name,
+        str(meta.get('column_index', '')),
+        f"col_{meta.get('column_index', dataset_index)}",
+    ]
+    header_to_idx = {header: idx for idx, header in enumerate(headers)}
+    for alias in aliases:
+        if alias in header_to_idx:
+            return list(columns[header_to_idx[alias]])
+    if dataset_index < len(columns):
+        return list(columns[dataset_index])
+    raise ValueError(f"CSV prompt has no column for dataset {dataset_name!r}")
+
+
+def _decoded_csv_values(token_ids: Sequence[int], decode_fn: Callable[[Sequence[int]], str]) -> List[str]:
+    decoded = decode_fn(list(token_ids))
+    if decoded.strip() == "":
+        return []
+    return [piece.strip() for piece in decoded.split(',')]
+
+
+def _write_multicontext_csv_sample(
+    *,
+    output_path: Union[str, Path],
+    dataset_names: Sequence[str],
+    dataset_meta: Dict[str, Dict[str, object]],
+    decode_lookup: Dict[str, Callable[[Sequence[int]], str]],
+    token_state: Dict[str, torch.Tensor],
+    prompt_lengths: Dict[str, int],
+    include_prompt: bool,
+) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    headers = [
+        str(dataset_meta[name].get('source_column') or dataset_meta[name].get('context_name') or Path(name).name)
+        for name in dataset_names
+    ]
+    decoded_columns: List[List[str]] = []
+    for name in dataset_names:
+        token_ids = token_state[name][0].detach().cpu().tolist()
+        if not include_prompt:
+            token_ids = token_ids[prompt_lengths.get(name, 0):]
+        decoded_columns.append(_decoded_csv_values(token_ids, decode_lookup[name]))
+
+    lengths = {len(col) for col in decoded_columns}
+    if len(lengths) != 1:
+        raise ValueError(f"Decoded multicontext columns have mismatched lengths: {sorted(lengths)}")
+
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        for row in zip(*decoded_columns):
+            writer.writerow(row)
+    return path
+
+
 def get_tokenizer_functions(meta):
     """Get encode/decode functions based on tokenizer metadata"""
     if 'tokenizer' not in meta:
@@ -1301,6 +1415,30 @@ def get_tokenizer_functions(meta):
 
         def decode(token_ids):
             return json_byte_fallback_decode(token_ids, itos)
+
+        return encode, decode
+
+    if meta['tokenizer'] == 'csv_integer_range':
+        int_min = int(meta.get('int_min', 0))
+        int_max = int(meta.get('int_max', int_min + int(meta.get('vocab_size', 1)) - 1))
+
+        def encode(text):
+            text = text.strip()
+            if not text:
+                return []
+            values = []
+            for piece in text.replace(',', ' ').split():
+                raw_value = int(piece)
+                if raw_value < int_min or raw_value > int_max:
+                    raise ValueError(
+                        f"CSV integer value {raw_value} outside [{int_min}, {int_max}] "
+                        f"for column {meta.get('source_column', meta.get('context_name', 'unknown'))}"
+                    )
+                values.append(raw_value - int_min)
+            return values
+
+        def decode(token_ids):
+            return ','.join(str(int(token_id) + int_min) for token_id in token_ids)
 
         return encode, decode
 
@@ -1455,11 +1593,12 @@ def main():
         args.multicontext
         and args.multicontext_start is None
         and args.multicontext_start_files is None
+        and args.multicontext_csv_input is None
         and args.multicontext_datasets
     ):
         args.multicontext_start = [args.start] * len(args.multicontext_datasets)
 
-    if args.multicontext and args.multicontext_start_files is not None:
+    if args.multicontext and (args.multicontext_start_files is not None or args.multicontext_csv_input is not None):
         # Avoid single-context encode path when multicontext starts come from raw token files.
         start_ids = [0]
     else:
@@ -1563,11 +1702,24 @@ def main():
     elif args.multicontext:
         if not args.multicontext_datasets:
             raise ValueError("Must specify --multicontext_datasets when using --multicontext")
-        if args.multicontext_start is None and args.multicontext_start_files is None:
-            raise ValueError("Must specify --multicontext_start or --multicontext_start_files when using --multicontext")
+        if args.multicontext_start is None and args.multicontext_start_files is None and args.multicontext_csv_input is None:
+            raise ValueError("Must specify --multicontext_start, --multicontext_start_files, or --multicontext_csv_input when using --multicontext")
 
         dataset_names = list(args.multicontext_datasets)
-        if args.multicontext_start_files is not None:
+        csv_headers = None
+        csv_columns = None
+        if args.multicontext_csv_input is not None:
+            if args.multicontext_start_files is not None or args.multicontext_start is not None:
+                raise ValueError(
+                    "Use only one of --multicontext_csv_input, --multicontext_start_files, or --multicontext_start."
+                )
+            csv_headers, csv_columns = _read_multicontext_csv_prompt(
+                args.multicontext_csv_input,
+                args.multicontext_csv_has_header,
+            )
+            start_strings = None
+            start_files = None
+        elif args.multicontext_start_files is not None:
             if len(args.multicontext_datasets) != len(args.multicontext_start_files):
                 raise ValueError(
                     "Number of --multicontext_datasets must match number of --multicontext_start_files."
@@ -1595,7 +1747,16 @@ def main():
 
             encode_i, decode_i = get_tokenizer_functions(dataset_meta[dataset_name])
 
-            if start_files is not None:
+            if csv_columns is not None and csv_headers is not None:
+                csv_values = _csv_column_for_dataset(
+                    dataset_name=dataset_name,
+                    dataset_index=i,
+                    meta=dataset_meta[dataset_name],
+                    headers=csv_headers,
+                    columns=csv_columns,
+                )
+                token_ids = encode_i(",".join(csv_values))
+            elif start_files is not None:
                 start_file = start_files[i]
                 if not os.path.exists(start_file):
                     raise FileNotFoundError(f"start file not found: {start_file}")
@@ -1719,6 +1880,27 @@ def main():
                     with open(args.sample_file, "w") as file:
                         for name, text in output_dict.items():
                             file.write(f"\n{name}: \n{text}\n")
+
+                if args.multicontext_csv_input is not None:
+                    if args.multicontext_csv_output_file is not None:
+                        if args.num_samples != 1:
+                            raise ValueError("--multicontext_csv_output_file requires --num_samples 1")
+                        csv_output_path = Path(args.multicontext_csv_output_file)
+                    else:
+                        csv_output_dir = Path(args.multicontext_csv_output_dir or Path(args.out_dir) / "csv_samples")
+                        input_stem = Path(args.multicontext_csv_input).stem
+                        csv_output_path = csv_output_dir / f"{input_stem}_sample{sample_idx + 1}_{timestamp}.csv"
+
+                    written_csv = _write_multicontext_csv_sample(
+                        output_path=csv_output_path,
+                        dataset_names=dataset_names,
+                        dataset_meta=dataset_meta,
+                        decode_lookup=decode_lookup,
+                        token_state=token_state,
+                        prompt_lengths=prompt_lengths,
+                        include_prompt=args.multicontext_csv_output_include_prompt,
+                    )
+                    print(f"Saved multicontext CSV sample to: {written_csv}")
 
         if args.numerical_multicontext_plotly:
             plot_output = write_plotly_report(

@@ -17,6 +17,8 @@ A regular Python webapp refactor of the Streamlit token-angle explorer. The app 
 - A new all-pairs angle-distribution section computes unique unordered token pairs block by block, immediately bins them into 5° acute-angle buckets from 0° to 90°, plots angle-ordered bin counts with a log/linear y-axis toggle, and lets you click a bin row to view the unique tokens participating in that bin. It does not cache the full pairwise matrix.
 - Export buttons are available for visible tables and plots. Tables export as CSV; plots export as PNG.
 - A new minimum-angular-distance section computes, for every token, the closest other token by signed angular distance while excluding self-distance. It plots minimum angle by sorted rank and shows a sortable table with both token records and both vector lengths.
+- The recursive angle-group graph is a local draggable SVG graph with pan/zoom and optional lowest-angle edge highlighting; it does not require an external CDN.
+- A new linear token-transform section defines a source→target transform, applies it to a third token, then ranks nearest tokens to the transformed vector.
 - Token search route ordering is guarded so `/api/tokens/search` is not mistaken for a token ID route.
 - Search dropdowns now auto-select a result after an explicit Search click, matching Streamlit selectbox behavior without searching on every keystroke.
 - Token search is explicit and literal: click Search or press Enter, and the backend returns every case-insensitive substring match. Byte-fallback tokens such as `<0xF9>` also expose plain aliases like `0xF9` and `F9` for literal search.
@@ -75,6 +77,26 @@ The final section computes the closest non-self token for every token in the act
 The implementation streams row/column blocks, updates only two O(vocab) arrays on the compute device (`best_cosine` and `best_other_token_id`), and discards each block immediately. It never materializes the full pairwise matrix and does not write pairwise data to disk.
 
 The scatter plot sorts tokens from lowest to highest minimum non-self angle; the x-axis is that sorted rank and the y-axis is the minimum angle. The table defaults to token-ID order so the rows track the vocabulary, and the **Table sort** dropdown can switch to minimum-angle order. Each row includes the token ID/raw/display text/vector length, the minimum angle, and the other token ID/raw/display text/vector length.
+
+## Linear token transform
+
+The bottom section lets you select a source token, a target token, and an input token by search or token ID. The default transform is a closest-to-identity / minimum-change rank-one linear map:
+
+```text
+T(x) = x + ((x · source) / (source · source)) * (target - source)
+```
+
+This sends the source vector exactly to the target vector without materializing a full hidden-dimension × hidden-dimension matrix. The older `rank_one` API value remains accepted as a backward-compatible alias.
+
+An orthogonal-only mode is also available. It applies the shortest direction-aligning rotation/reflection that maps the source direction to the target direction, then applies that orthogonal map to the input token. Orthogonal maps preserve vector lengths, so if the source and target magnitudes differ, this mode maps source direction to target direction rather than mapping the source vector exactly to the target vector. The `orthonormal` API value is accepted as an alias.
+
+An optional analogy-style offset mode is also available:
+
+```text
+input + target - source
+```
+
+That mode is useful for comparison, but it is an affine translation rather than a strictly linear map. In all modes, the app compares the transformed vector against every token vector and lists nearest neighbors by signed angular distance.
 
 ## Setup
 
@@ -174,8 +196,25 @@ Then restart the server and click **Load model** again. The weight-only path rea
 - `GET /api/pairwise-angle-bins?block_size=2048&compute_device=auto&include_self=false` — blockwise all-pairs acute-angle histogram, returned as angle-ordered 5° bins for plotting
 - `GET /api/pairwise-angle-bins/{bin_index}/tokens` — tokens that participated in the selected bin during the last pairwise-bin computation, sorted by token ID
 - `GET /api/min-angular-distances?block_size=2048&compute_device=auto` — closest non-self angular neighbor for every token, returned in token-ID order with min-angle ranks
+- `GET /api/linear-transform-neighbors?source_token_id=0&target_token_id=1&input_token_id=2&limit=200&transform_type=closest_identity` — apply the source→target transform to the input token and rank nearest token vectors. Supported transform types: `closest_identity` (`rank_one` alias), `orthogonal` (`orthonormal` alias), and `offset`.
 
 
 ## Common-close button notes
 
 The homepage is rendered as plain `HTMLResponse` and no longer uses Starlette's `TemplateResponse`, so mixed FastAPI/Starlette versions cannot prevent the JavaScript button handlers from loading. The pairwise buttons also resolve typed token IDs automatically, even if the user typed an ID but did not click **Use ID** first.
+
+### Recursive angle group
+
+The bottom section lets you choose a seed token by search or token ID, set a group size limit, set a maximum signed angle, and recursively grow a token dictionary. A token is added when it is within the maximum angle of any token already in the dictionary. The expansion stops when no new tokens are found or when the group reaches the size limit.
+
+The backend endpoint is:
+
+```text
+GET /api/recursive-angle-group?seed_id=0&max_angle_deg=35&group_size_limit=100&block_size=2048&compute_device=auto
+```
+
+The computation scans neighbors blockwise and only keeps the current group plus the final nodes/edges. It does not materialize or cache a full pairwise matrix. The UI renders a local interactive SVG node-edge graph with draggable nodes, pan/zoom, angle-labelled edges, and an option to highlight each node’s lowest-angle incident edge. It provides downloads for the graph SVG, graph PNG, adjacency matrix CSV, dictionary JSON, and token list CSV.
+
+### Multi-example linear transform
+
+The bottom **Linear token transform** panel now supports a saved list of source→target token examples. If no examples are saved, the current source and target pickers are used as the original one-pair transform. With two or more saved examples, the least-squares option is enabled. All transform-neighbor rows include both the angle to the transformed input vector and the original angle from the untransformed input token.

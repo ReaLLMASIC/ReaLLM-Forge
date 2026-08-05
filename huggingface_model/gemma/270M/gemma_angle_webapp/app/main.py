@@ -16,24 +16,29 @@ from .model_service import (
     get_current_assets,
     get_model_status,
     iter_neighborhood_csv,
+    linear_transform_neighbors,
     list_local_models,
     load_active_model,
     minimum_angular_distances,
     nearest_neighbors,
     pairwise_angle_bin_tokens,
     pairwise_angle_distribution,
+    recursive_angle_group,
     search_tokens,
 )
 from .schemas import (
     AngleResponse,
     CommonCloseTokensResponse,
     LocalModelRecord,
+    LinearTransformNeighborsRequest,
+    LinearTransformNeighborsResponse,
     LocalModelsResponse,
     MinAngularDistancesResponse,
     ModelLoadRequest,
     NeighborhoodResponse,
     PairwiseAngleBinTokensResponse,
     PairwiseAngleDistributionResponse,
+    RecursiveAngleGroupResponse,
     StatusResponse,
     TokenRecord,
     TokenSearchResponse,
@@ -223,6 +228,68 @@ def tokens_close_to_both_pairwise_anchors(
     )
 
 
+def _linear_transform_response(
+    *,
+    examples: list[tuple[int, int]],
+    input_token_id: int,
+    limit: int,
+    transform_type: str,
+    ridge_lambda: float = 1e-3,
+    transform_scale: float = 1.0,
+) -> LinearTransformNeighborsResponse:
+    assets = _load_assets_or_500()
+    try:
+        data = linear_transform_neighbors(
+            assets,
+            input_token_id=input_token_id,
+            examples=examples,
+            limit=limit,
+            transform_type=transform_type,
+            ridge_lambda=ridge_lambda,
+            transform_scale=transform_scale,
+        )
+    except IndexError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return LinearTransformNeighborsResponse(**data)
+
+
+@app.get("/api/linear-transform-neighbors", response_model=LinearTransformNeighborsResponse)
+def transformed_token_neighbors(
+    source_token_id: int = Query(..., ge=0),
+    target_token_id: int = Query(..., ge=0),
+    input_token_id: int = Query(..., ge=0),
+    limit: int = Query(200, ge=1, le=5000),
+    transform_type: str = Query("closest_identity", description="closest_identity, orthogonal, least_squares, ridge, or offset"),
+    ridge_lambda: float = Query(1e-3, ge=0),
+    transform_scale: float = Query(1.0, ge=-1000.0, le=1000.0, description="Scale the fitted transform effect; 0 keeps input, 1 is normal, >1 extrapolates."),
+) -> LinearTransformNeighborsResponse:
+    """Backward-compatible single-example transform endpoint."""
+    return _linear_transform_response(
+        examples=[(source_token_id, target_token_id)],
+        input_token_id=input_token_id,
+        limit=limit,
+        transform_type=transform_type,
+        ridge_lambda=ridge_lambda,
+        transform_scale=transform_scale,
+    )
+
+
+@app.post("/api/linear-transform-neighbors", response_model=LinearTransformNeighborsResponse)
+def transformed_token_neighbors_multi(request: LinearTransformNeighborsRequest) -> LinearTransformNeighborsResponse:
+    """Apply a transform learned from one or more token-pair examples."""
+    examples = [(item.source_token_id, item.target_token_id) for item in request.examples]
+    return _linear_transform_response(
+        examples=examples,
+        input_token_id=request.input_token_id,
+        limit=request.limit,
+        transform_type=request.transform_type,
+        ridge_lambda=request.ridge_lambda,
+        transform_scale=request.transform_scale,
+    )
+
+
 @app.get("/api/neighborhood", response_model=NeighborhoodResponse)
 def token_neighborhood(
     anchor_id: int = Query(..., ge=0),
@@ -313,6 +380,34 @@ def min_angular_distances(
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return MinAngularDistancesResponse(**data)
+
+
+@app.get("/api/recursive-angle-group", response_model=RecursiveAngleGroupResponse)
+def recursive_token_angle_group(
+    seed_id: int = Query(..., ge=0),
+    max_angle_deg: float = Query(35.0, ge=0, le=180),
+    group_size_limit: int = Query(100, ge=1, le=1000),
+    block_size: int = Query(2048, ge=1, le=16384),
+    compute_device: str = Query("auto", description="auto, cpu, cuda:0, etc."),
+) -> RecursiveAngleGroupResponse:
+    """Return a recursively expanded within-angle token group and graph edges."""
+    assets = _load_assets_or_500()
+    try:
+        data = recursive_angle_group(
+            assets,
+            seed_id,
+            max_angle_deg=max_angle_deg,
+            group_size_limit=group_size_limit,
+            block_size=block_size,
+            compute_device=compute_device,
+        )
+    except IndexError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return RecursiveAngleGroupResponse(**data)
 
 
 if __name__ == "__main__":

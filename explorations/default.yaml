@@ -19,15 +19,16 @@ named_static_groups:
       use_rotary_embeddings: [true]
       use_abs_pos_embeddings: [false]
 
-  # Embedding Norm
-  - named_group: "rmsnorm_wte"
-    named_group_settings:
-      norm_variant_wte: ["rmsnorm"]
-
   # MLP Activation
   - named_group: "squared_relu"
     named_group_settings:
       activation_variant: ["squared_relu"]
+
+named_variation_groups:
+  # Embedding norm sweep. `default` omits the option entirely; YAML `null`
+  # preserves a Python None in the generated/logged config and omits the flag.
+  - named_group: "wte_norm"
+    norm_variant_wte: [default, "hyperspherenorm", null]
 
 common_group:
   dataset: ["minipile"]
@@ -41,5 +42,6 @@ parameter_groups:
       - "qk_norm"
       - "peri_ln"
       - "rotary"
-      - "rmsnorm_wte"
       - "squared_relu"
+    named_group_variations:
+      - "wte_norm"

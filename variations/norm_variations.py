@@ -202,6 +202,19 @@ class kRMSNorm(nn.Module):
 
         return x
 
+
+class CappedHyperSphereNorm(nn.Module):
+    """Project vectors onto a sqrt(n_embd) hypersphere only when outside the radius."""
+
+    def __init__(self, config):
+        super().__init__()
+        self.radius = math.sqrt(config.n_embd)
+
+    def forward(self, x):
+        norms = x.norm(2, dim=-1, keepdim=True)
+        scale = torch.where(norms > self.radius, self.radius / (norms + 1e-8), torch.ones_like(norms))
+        return x * scale
+
 class IdentityNorm(nn.Module):
     def __init__(self, config=None):  # Accept config for API consistency
         super().__init__()
@@ -219,4 +232,5 @@ norm_dictionary = {
     "hyperspherenorm": HyperSphereNorm,
     "dact": DynamicActivation,
     "identity": IdentityNorm,
+    "cappedhyperspherenorm": CappedHyperSphereNorm,
 }

@@ -476,6 +476,28 @@ class Block(nn.Module):
             return checkpoint.checkpoint(self.block_forward, x, iter_num, use_reentrant=False)
         return self.block_forward(x, iter_num)
 
+    def attention_residual_attn(self, x: torch.Tensor, iter_num: int) -> torch.Tensor:
+        """Run only the attention transformation, without an additive skip."""
+        if self.use_parallel_mlp or self.use_edgellm_asic or self.use_post_ln_attn:
+            raise ValueError("Full Attention Residuals require a sequential block without post-attention norm")
+        out = self.attn(self.pre_ln_attn(x) if self.use_pre_ln_attn else x, iter_num)
+        if self.use_peri_ln_attn:
+            out = self.peri_ln_attn(out)
+        if self.attn_resid_scaler is not None:
+            out = self.attn_resid_scaler(out)
+        return out
+
+    def attention_residual_mlp(self, x: torch.Tensor, iter_num: int) -> torch.Tensor:
+        """Run only the MLP transformation, without an additive skip."""
+        if self.use_parallel_mlp or self.use_edgellm_asic or self.use_post_ln_mlp:
+            raise ValueError("Full Attention Residuals require a sequential block without post-MLP norm")
+        out = self.mlp(self.pre_ln_mlp(x) if self.use_pre_ln_mlp else x, iter_num)
+        if self.use_peri_ln_mlp:
+            out = self.peri_ln_mlp(out)
+        if self.mlp_resid_scaler is not None:
+            out = self.mlp_resid_scaler(out)
+        return out
+
     def _combine_resid(self, kind: str, x: torch.Tensor, out: torch.Tensor) -> torch.Tensor:
         """Helper method to streamline forward block skip connections"""
         alpha = self.alpha_fns[kind](out)

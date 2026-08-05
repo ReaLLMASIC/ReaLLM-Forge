@@ -1565,6 +1565,8 @@ def _muon(param_groups, args):
             group.update(
                 lr=args.learning_rate,
                 momentum=getattr(args, "muon_momentum", 0.95),
+                ns_steps=getattr(args, "muon_ns_steps", 5),
+                nesterov=getattr(args, "muon_nesterov", True),
                 weight_decay=args.weight_decay,
                 use_muon=True,
             )

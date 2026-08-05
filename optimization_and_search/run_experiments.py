@@ -1,7 +1,8 @@
 import json
 import subprocess
+import time
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from itertools import product
 import argparse
 import os
@@ -19,6 +20,7 @@ METRICS_FILENAME = "best_val_loss_and_iter.txt"
 ZEUS_SUMMARY_FILENAME = "zeus_summary.json"
 METRIC_KEYS = [
     "best_val_loss",
+    "best_val_bits_per_byte",
     "best_val_iter",
     "best_val_tokens",
     "num_params",
@@ -40,11 +42,15 @@ METRIC_KEYS = [
     "ln_f_cosine_95",
     "rankme",
     "areq",
+    "distillation_val_loss",
+    "ntp_val_loss",
     "zeus_total_energy_j",
     "zeus_total_time_s",
     "zeus_avg_power_w",
     "zeus_train_step_energy_j",
     "zeus_energy_per_token_j",
+    "run_total_time_s",
+    "run_completed_at",
 ]
 
 
@@ -118,6 +124,22 @@ def load_configurations(path: str, fmt: str) -> list[dict]:
 
 
 RUN_NAME_VAR = "${RUN_NAME}"
+DISTILLATION_SOURCE_VAR = "${DISTILLATION_SOURCE}"
+RESERVED_CONFIG_KEYS = {
+    "distillation_source_path",
+    "distillation_source_run_name",
+    "run_name_override",
+}
+DEFAULT_SENTINEL = "default"
+
+
+def _without_default_values(config: dict) -> dict:
+    """Drop parameters whose selected sweep value is the ``default`` sentinel."""
+    return {
+        key: value
+        for key, value in config.items()
+        if value != DEFAULT_SENTINEL
+    }
 
 
 def expand_range(val):
@@ -133,14 +155,21 @@ def expand_range(val):
     return val
 
 
-def _substitute_run_name(obj, run_name: str):
-    """Recursively substitute the run name placeholder inside ``obj``."""
+def _substitute_config_vars(obj, run_name: str, distillation_source_path: str | None = None):
+    """Recursively substitute launcher-only placeholders inside ``obj``."""
     if isinstance(obj, str):
-        return obj.replace(RUN_NAME_VAR, run_name)
+        substituted = obj.replace(RUN_NAME_VAR, run_name)
+        if DISTILLATION_SOURCE_VAR in substituted:
+            if distillation_source_path is None:
+                raise ValueError(
+                    f"{DISTILLATION_SOURCE_VAR} was used but distillation_source_path was not set."
+                )
+            substituted = substituted.replace(DISTILLATION_SOURCE_VAR, distillation_source_path)
+        return substituted
     if isinstance(obj, list):
-        return [_substitute_run_name(o, run_name) for o in obj]
+        return [_substitute_config_vars(o, run_name, distillation_source_path) for o in obj]
     if isinstance(obj, dict):
-        return {k: _substitute_run_name(v, run_name) for k, v in obj.items()}
+        return {k: _substitute_config_vars(v, run_name, distillation_source_path) for k, v in obj.items()}
     return obj
 
 
@@ -407,7 +436,8 @@ def _extract_common_group(cfg: dict) -> tuple[dict, set[str]]:
             raise ValueError(
                 "Values in 'common_group' cannot contain nested option structures"
             )
-        common[key] = normalized
+        if normalized != DEFAULT_SENTINEL:
+            common[key] = normalized
 
     return common, set(common)
 
@@ -501,7 +531,7 @@ def generate_combinations(config: dict):
                 for key, value in metadata.items():
                     combo_dict[key] = deepcopy(value)
                 for final in _apply_conditionals(combo_dict, conditionals):
-                    yield final
+                    yield _without_default_values(final)
 
     for combo in recurse(cfg):
         merged = dict(common_values)
@@ -536,9 +566,9 @@ def format_run_name(
     for k, v in combo.items():
         if k in exclude_keys:
             continue
-        if k.startswith('_'):
+        if k.startswith('_') or k in RESERVED_CONFIG_KEYS:
             continue
-        if isinstance(v, str) and RUN_NAME_VAR in v:
+        if isinstance(v, str) and (RUN_NAME_VAR in v or DISTILLATION_SOURCE_VAR in v):
             continue
         parts.append(str(v))
 
@@ -561,6 +591,7 @@ def read_metrics(out_dir: str) -> dict:
 
     base_metric_keys = [
         "best_val_loss",
+        "best_val_bits_per_byte",
         "best_val_iter",
         "best_val_tokens",
         "num_params",
@@ -582,12 +613,17 @@ def read_metrics(out_dir: str) -> dict:
         "ln_f_cosine_95",
         "rankme",
         "areq",
+        "distillation_val_loss",
+        "ntp_val_loss",
     ]
     casts = [
+        float,
         float,
         int,
         int,
         int,
+        float,
+        float,
         float,
         float,
         float,
@@ -612,6 +648,9 @@ def read_metrics(out_dir: str) -> dict:
         raise ValueError(
             f"Metric schema mismatch: {len(base_metric_keys)} keys vs {len(casts)} casts."
         )
+    if len(parts) == len(base_metric_keys) - 1:
+        # Backward compatibility for runs created before best_val_bits_per_byte.
+        parts.insert(1, "")
     if len(parts) < len(base_metric_keys):
         raise ValueError(
             f"Expected at least {len(base_metric_keys)} metrics in {path}, got {len(parts)}."
@@ -652,11 +691,24 @@ def completed_runs(log_file: Path) -> set[str]:
     return runs
 
 
-def append_log(log_file: Path, name: str, combo: dict, metrics: dict) -> None:
+def append_log(
+    log_file: Path,
+    name: str,
+    combo: dict,
+    metrics: dict,
+    run_total_time_s: float,
+    run_completed_at: str,
+) -> None:
     """
     Append a YAML entry with run details and metrics.
     """
-    entry = {'formatted_name': name, 'config': combo, **metrics}
+    entry = {
+        'formatted_name': name,
+        'config': combo,
+        **metrics,
+        'run_total_time_s': run_total_time_s,
+        'run_completed_at': run_completed_at,
+    }
     with log_file.open('a') as f:
         yaml.safe_dump(entry, f, explicit_start=True)
 
@@ -674,7 +726,12 @@ def build_command(combo: dict) -> list[str]:
     """
     cmd = ['python3', 'train.py']
     for k, v in combo.items():
-        if k.startswith('_'):
+        if k.startswith('_') or k in RESERVED_CONFIG_KEYS:
+            continue
+        # A YAML null means that the Python setting should retain its None
+        # default. Omitting the CLI option is the only type-safe way to convey
+        # that through argparse (rather than passing the string "None").
+        if v is None:
             continue
         if isinstance(v, bool):
             cmd.append(f"--{'' if v else 'no-'}{k}")
@@ -710,6 +767,8 @@ def run_experiment(
         named_param_keys=named_param_keys,
         expand_named_group_values=args.expand_named_groups_in_names,
     )
+    if combo.get("run_name_override"):
+        run_name = f"{args.prefix}{combo['run_name_override']}"
     log_file = LOG_DIR / f"{base}.yaml"
     if run_name in completed_runs(log_file):
         print(f"[yellow]Skipping already-run:[/] {run_name}")
@@ -723,14 +782,33 @@ def run_experiment(
     # Prepare tensorboard run name
     combo['tensorboard_run_name'] = run_name
 
-    # Substitute special run-name token in string parameters
-    combo = _substitute_run_name(combo, run_name)
+    distillation_source_path = combo.get("distillation_source_path")
+    distillation_source_run_name = combo.get("distillation_source_run_name")
+    if distillation_source_path is None and distillation_source_run_name is not None:
+        if args.use_timestamp:
+            raise ValueError(
+                "distillation_source_run_name cannot be resolved when --use_timestamp "
+                "is enabled; set distillation_source_path explicitly instead."
+            )
+        distillation_source_path = os.path.join(
+            args.output_dir,
+            f"{args.prefix}{distillation_source_run_name}",
+            combo.get("init_from_ckpt", "ckpt.pt"),
+        )
+        combo["distillation_source_path"] = distillation_source_path
+
+    # Substitute launcher-only tokens in string parameters
+    combo = _substitute_config_vars(
+        combo,
+        run_name,
+        distillation_source_path=distillation_source_path,
+    )
 
     # Show parameters
     console = Console()
     table = Table("Parameters", show_header=False)
     for k, v in combo.items():
-        if k.startswith('_'):
+        if k.startswith('_') or k in RESERVED_CONFIG_KEYS:
             continue
         table.add_row(k, str(v))
     console.print(table)
@@ -738,18 +816,28 @@ def run_experiment(
     # Build and run
     cmd = build_command(combo)
     print(f"Running: {' '.join(cmd)}")
+    run_started_at = time.perf_counter()
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError:
         print(f"[red]Process exited with error for run:[/] {run_name}")
-
+    run_total_time_s = time.perf_counter() - run_started_at
+    run_completed_at = datetime.now(timezone.utc).isoformat()
+    
     # Read metrics (use existing or nan on failure)
     try:
         metrics = read_metrics(str(combo['out_dir']))
     except Exception:
         metrics = {k: float("nan") for k in METRIC_KEYS}
 
-    append_log(log_file, run_name, combo, metrics)
+    append_log(
+        log_file,
+        run_name,
+        combo,
+        metrics,
+        run_total_time_s=run_total_time_s,
+        run_completed_at=run_completed_at,
+    )
 
 
 def main():
@@ -763,7 +851,7 @@ def main():
         all_combos.extend(list(generate_combinations(cfg)))
 
     total = len(all_combos)
-    start_time = datetime.now()
+    start_time_monotonic = time.perf_counter()
     progress_log = LOG_DIR / f"{base}_progress.log"
     for idx, (combo, common_keys) in enumerate(all_combos, 1):
         configs_left = total - idx + 1
@@ -776,13 +864,12 @@ def main():
             print(f"[green]{message}[/]")
             append_progress(progress_log, message)
         else:
-            now = datetime.now()
-            elapsed = (now - start_time).total_seconds()
+            elapsed = time.perf_counter() - start_time_monotonic
             avg = elapsed / (idx - 1)
             eta_seconds = int(avg * configs_left)
             eta = timedelta(seconds=eta_seconds)
-            finish_time = now + timedelta(seconds=eta_seconds)
-            finish_formatted = finish_time.strftime("%Y-%m-%d %H:%M:%S")
+            finish_time = datetime.now(timezone.utc) + timedelta(seconds=eta_seconds)
+            finish_formatted = finish_time.strftime("%Y-%m-%d %H:%M:%S UTC")
             message = (
                 "Starting config "
                 f"{idx}/{total} ({configs_left} configs left). "

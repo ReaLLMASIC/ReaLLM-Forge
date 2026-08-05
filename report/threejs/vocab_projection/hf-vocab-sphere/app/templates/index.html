@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>Hugging Face Vocabulary Sphere</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <main id="scene-wrap">
+      <canvas id="scene" aria-label="Interactive token geometry sphere"></canvas>
+      <div id="toast-container" aria-live="polite"></div>
+
+      <header class="overlay-top">
+        <div class="title-card">
+          <div class="title-row">
+            <div>
+              <div class="eyebrow">Hugging Face vocabulary geometry studio</div>
+              <h1>Vocabulary Sphere</h1>
+            </div>
+            <div class="status-cluster">
+              <span class="status-pill neutral" id="modelStatusPill">No model loaded</span>
+              <span class="status-pill" id="selectionStatusPill">0 tokens</span>
+              <span class="status-pill" id="projectionStatusPill">No projection</span>
+            </div>
+          </div>
+          <div class="subtitle">
+            Search token IDs or regular expressions, assemble a semantic or ID-local neighborhood, and compare how competing projections preserve the angular geometry of a model’s vocabulary vectors on a three-dimensional sphere.
+          </div>
+        </div>
+      </header>
+
+      <div class="scene-toolbar" role="toolbar" aria-label="Scene controls">
+        <button class="icon-button" id="resetCameraBtn" title="Reset camera (R)">Reset view</button>
+        <button class="icon-button" id="toggleRotateBtn" title="Toggle auto-rotation (A)">Auto-rotate</button>
+        <button class="icon-button active" id="toggleEdgesBtn" title="Toggle edges (E)">Edges</button>
+        <button class="icon-button" id="toggleLabelsBtn" title="Toggle labels (L)">Labels</button>
+      </div>
+
+      <div id="sceneInspector" class="scene-inspector hidden">
+        <div class="scene-inspector-kicker">Hovered token</div>
+        <div class="scene-inspector-token mono" id="sceneInspectorToken"></div>
+        <div class="scene-inspector-meta" id="sceneInspectorMeta"></div>
+      </div>
+
+      <div id="tooltip" class="tooltip hidden"></div>
+
+      <div class="legend-card" id="legendCard">
+        <div class="legend-title">Color: angle from anchor</div>
+        <div class="legend-gradient"></div>
+        <div class="legend-labels"><span>near</span><span>orthogonal</span><span>far</span></div>
+      </div>
+
+      <div class="overlay-bottom">
+        Drag to rotate • Scroll to zoom • Right-drag to pan • Hover to inspect • Click a point to pin it • Press <strong>/</strong> to search
+      </div>
+
+      <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-card">
+          <div class="spinner"></div>
+          <div class="loading-title" id="loadingTitle">Working</div>
+          <div class="loading-detail" id="loadingDetail">Preparing vocabulary geometry…</div>
+        </div>
+      </div>
+    </main>
+
+    <aside id="sidebar">
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Model</h2>
+            <div class="panel-title">Vocabulary matrix</div>
+          </div>
+          <button class="small-button" id="refreshLocalBtn">Local cache</button>
+        </div>
+
+        <label class="field-label" for="modelNameInput">Hugging Face model ID or local path</label>
+        <input id="modelNameInput" type="text" value="{{ default_model }}" spellcheck="false" autocomplete="off" />
+
+        <div class="controls-row three">
+          <div>
+            <label class="field-label" for="revisionInput">Revision</label>
+            <input id="revisionInput" type="text" value="main" spellcheck="false" />
+          </div>
+          <div>
+            <label class="field-label" for="matrixSourceSelect">Vector source</label>
+            <select id="matrixSourceSelect">
+              <option value="auto">Auto</option>
+              <option value="output">LM head</option>
+              <option value="input">Input embedding</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="deviceInput">Compute</label>
+            <input id="deviceInput" type="text" value="{{ default_device }}" spellcheck="false" />
+          </div>
+        </div>
+
+        <div id="localModelWrap" class="hidden top-gap">
+          <label class="field-label" for="localModelSelect">Models already in the Hub cache</label>
+          <select id="localModelSelect"><option value="">Choose a cached model…</option></select>
+        </div>
+
+        <label class="toggle compact"><span>Allow Hub downloads</span><input id="allowDownloadInput" type="checkbox" checked /></label>
+        <div class="button-grid">
+          <button class="primary" id="loadModelBtn">Load model</button>
+          <button id="unloadModelBtn">Unload</button>
+        </div>
+
+        <div class="stat-grid top-gap" id="modelStats">
+          <div class="stat"><span>Vocabulary</span><strong id="modelVocabStat">—</strong></div>
+          <div class="stat"><span>Hidden dim</span><strong id="modelDimStat">—</strong></div>
+          <div class="stat"><span>Matrix</span><strong id="modelSourceStat">—</strong></div>
+          <div class="stat"><span>Memory</span><strong id="modelMemoryStat">—</strong></div>
+        </div>
+        <div class="small top-gap" id="modelLoadNote">The app prefers a safetensors-only matrix load so it does not need to instantiate the whole language model.</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Tokens</h2>
+            <div class="panel-title">Search and build a set</div>
+          </div>
+          <span class="count-badge" id="selectedCountBadge">0 selected</span>
+        </div>
+
+        <div class="search-grid">
+          <select id="searchModeSelect" aria-label="Search mode">
+            <option value="regex">Regex</option>
+            <option value="literal">Literal</option>
+            <option value="id">ID / ranges</option>
+          </select>
+          <input id="searchInput" type="search" placeholder="e.g. ^▁(cat|dog) or 42,90-110" spellcheck="false" />
+          <button class="primary" id="searchBtn">Search</button>
+        </div>
+        <div class="inline-options">
+          <label class="toggle compact"><span>Case-sensitive</span><input id="caseSensitiveInput" type="checkbox" /></label>
+          <label class="inline-number">Limit <input id="searchLimitInput" type="number" min="1" max="5000" value="200" /></label>
+        </div>
+
+        <div class="results-toolbar">
+          <span id="searchSummary">Load a model to search its vocabulary.</span>
+          <div class="mini-actions">
+            <button class="small-button" id="addVisibleBtn">Add shown</button>
+            <button class="small-button" id="replaceVisibleBtn">Replace</button>
+          </div>
+        </div>
+        <div class="token-table-wrap" id="searchResultsWrap">
+          <table class="token-table">
+            <thead><tr><th>ID</th><th>Token</th><th>Norm</th><th></th></tr></thead>
+            <tbody id="searchResultsBody"><tr><td colspan="4" class="empty-cell">No results yet.</td></tr></tbody>
+          </table>
+        </div>
+
+        <div class="section-divider"></div>
+        <div class="subheading">Anchor and vicinity</div>
+        <div class="anchor-row">
+          <div>
+            <label class="field-label" for="anchorIdInput">Anchor token ID</label>
+            <input id="anchorIdInput" type="number" min="0" value="0" />
+          </div>
+          <div>
+            <label class="field-label" for="vicinityCountInput">Token count</label>
+            <input id="vicinityCountInput" type="number" min="2" max="5000" value="160" />
+          </div>
+        </div>
+        <div class="button-grid">
+          <button id="semanticNeighborsBtn">Semantic vicinity</button>
+          <button id="idWindowBtn">ID window</button>
+        </div>
+        <div class="small top-gap">Semantic vicinity ranks the full vocabulary by cosine similarity. ID window selects contiguous tokenizer IDs and is useful for inspecting vocabulary construction.</div>
+
+        <div class="section-divider"></div>
+        <div class="selected-toolbar">
+          <div class="subheading">Current selection</div>
+          <div class="mini-actions">
+            <button class="small-button" id="selectAnchorOnlyBtn">Anchor only</button>
+            <button class="small-button danger" id="clearSelectionBtn">Clear</button>
+          </div>
+        </div>
+        <div id="selectedTokens" class="selected-token-list"><div class="empty-selection">No tokens selected.</div></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Projection</h2>
+            <div class="panel-title">Map geometry to S²</div>
+          </div>
+          <button class="small-button" id="benchmarkBtn">Benchmark</button>
+        </div>
+
+        <label class="field-label" for="projectionMethodSelect">Method</label>
+        <select id="projectionMethodSelect"><option value="auto">Loading methods…</option></select>
+
+        <div class="method-card" id="methodCard">
+          <div class="method-card-title" id="methodTitle">Auto / fidelity-aware</div>
+          <div class="method-card-copy" id="methodDescription">Chooses a method based on selection size and anchor availability.</div>
+          <div class="method-meta"><span id="methodFamily">adaptive</span><span id="methodComplexity">—</span></div>
+          <div class="method-caveat" id="methodCaveat"></div>
+        </div>
+
+        <div class="controls-row three">
+          <div>
+            <label class="field-label" for="centerModeSelect">Centering</label>
+            <select id="centerModeSelect">
+              <option value="mean">Mean</option>
+              <option value="anchor">Anchor</option>
+              <option value="none">None</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="projectionSeedInput">Seed</label>
+            <input id="projectionSeedInput" type="number" value="42" />
+          </div>
+          <div>
+            <label class="field-label" for="edgeKInput">Neighbor edges</label>
+            <input id="edgeKInput" type="number" min="0" max="20" value="2" />
+          </div>
+        </div>
+
+        <details class="advanced-details">
+          <summary>Nonlinear method controls</summary>
+          <div class="controls-row three top-gap">
+            <div>
+              <label class="field-label" for="manifoldNeighborsInput">Neighbors</label>
+              <input id="manifoldNeighborsInput" type="number" min="2" max="250" value="15" />
+            </div>
+            <div>
+              <label class="field-label" for="tsnePerplexityInput">t-SNE perplexity</label>
+              <input id="tsnePerplexityInput" type="number" min="2" max="250" step="1" value="30" />
+            </div>
+            <div>
+              <label class="field-label" for="umapMinDistInput">UMAP min_dist</label>
+              <input id="umapMinDistInput" type="number" min="0" max="0.99" step="0.01" value="0.1" />
+            </div>
+          </div>
+          <label class="toggle compact"><span>Align anchor to north pole</span><input id="alignAnchorInput" type="checkbox" checked /></label>
+        </details>
+
+        <button class="primary hero-button" id="projectBtn">Project selected tokens</button>
+      </section>
+
+      <section class="panel" id="diagnosticsPanel">
+        <div class="panel-heading">
+          <div>
+            <h2>Fidelity</h2>
+            <div class="panel-title">Projection diagnostics</div>
+          </div>
+          <button class="small-button" id="exportBtn" disabled>Export JSON</button>
+        </div>
+        <div class="metric-grid">
+          <div class="metric-card"><span>Angular ρ</span><strong id="metricSpearman">—</strong><small>pairwise rank preservation</small></div>
+          <div class="metric-card"><span>Stress-1</span><strong id="metricStress">—</strong><small>lower is better</small></div>
+          <div class="metric-card"><span>Angle MAE</span><strong id="metricMae">—</strong><small>degrees</small></div>
+          <div class="metric-card"><span>kNN recall</span><strong id="metricKnn">—</strong><small id="metricKnnLabel">local overlap</small></div>
+          <div class="metric-card"><span>Anchor ρ</span><strong id="metricAnchor">—</strong><small>radial ordering</small></div>
+          <div class="metric-card"><span>Runtime</span><strong id="metricRuntime">—</strong><small>server projection</small></div>
+        </div>
+        <div id="projectionWarnings" class="warning-stack"></div>
+
+        <div id="benchmarkWrap" class="hidden">
+          <div class="section-divider"></div>
+          <div class="subheading">Method benchmark</div>
+          <div class="comparison-table-wrap">
+            <table class="comparison-table">
+              <thead><tr><th>Method</th><th>ρ</th><th>Stress</th><th>MAE</th><th>kNN</th><th>ms</th></tr></thead>
+              <tbody id="benchmarkBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Inspector</h2>
+            <div class="panel-title">Pinned token</div>
+          </div>
+          <button class="small-button" id="setPinnedAnchorBtn" disabled>Use as anchor</button>
+        </div>
+        <div id="inspectorEmpty" class="empty-selection">Click a token point in the sphere.</div>
+        <div id="inspectorContent" class="hidden">
+          <div class="inspector-token mono" id="inspectorToken"></div>
+          <div class="vector-grid" id="inspectorGrid"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Appearance</h2>
+            <div class="panel-title">Scene and presentation</div>
+          </div>
+          <button class="small-button" id="screenshotBtn">PNG</button>
+        </div>
+        <div class="stack">
+          <div class="range-wrap">
+            <div class="range-row"><span>Point size</span><span id="pointSizeLabel">0.075</span></div>
+            <input id="pointSizeInput" type="range" min="0.025" max="0.18" step="0.005" value="0.075" />
+          </div>
+          <div class="stack-row">
+            <span>Color mode</span>
+            <select id="colorModeSelect">
+              <option value="anchor">Angle from anchor</option>
+              <option value="id">Token ID</option>
+              <option value="norm">Vector magnitude</option>
+            </select>
+          </div>
+          <label class="toggle"><span>Auto-rotate scene</span><input id="autoRotateInput" type="checkbox" /></label>
+          <label class="toggle"><span>Show neighbor edges</span><input id="showEdgesInput" type="checkbox" checked /></label>
+          <label class="toggle"><span>Show token labels</span><input id="showLabelsInput" type="checkbox" /></label>
+        </div>
+      </section>
+
+      <section class="panel hotkey-panel" id="hotkeyPanel">
+        <h2>Presenter hotkeys</h2>
+        <div class="hotkey-grid">
+          <kbd>/</kbd><span>Focus token search</span>
+          <kbd>Enter</kbd><span>Project current selection</span>
+          <kbd>R</kbd><span>Reset camera</span>
+          <kbd>A</kbd><span>Toggle auto-rotation</span>
+          <kbd>E</kbd><span>Toggle neighbor edges</span>
+          <kbd>L</kbd><span>Toggle token labels</span>
+          <kbd>Esc</kbd><span>Clear pinned token</span>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
