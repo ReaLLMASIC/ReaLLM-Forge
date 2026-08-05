@@ -58,8 +58,23 @@ def collect_bit_usage(module: nn.Module) -> Dict[str, torch.Tensor]:
     return usage
 
 
+def count_tracked_parameters(module: nn.Module) -> int:
+    """Count parameters covered by bit_usage modules (weight + bias if present)."""
+    total = 0
+    for child in iter_bit_usage_modules(module):
+        w = getattr(child, "weight", None)
+        b = getattr(child, "bias", None)
+        if w is not None:
+            total += w.numel()
+        if b is not None:
+            total += b.numel()
+    return total
+
+
+
 __all__ = [
     "collect_bit_usage",
     "compute_total_bit_usage",
     "iter_bit_usage_modules",
+    "count_tracked_parameters",
 ]

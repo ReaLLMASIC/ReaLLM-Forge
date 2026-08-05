@@ -22,6 +22,20 @@ def parse_args():
     model_group = parser.add_argument_group('model_group')
     training_group = parser.add_argument_group('training_group')
     logging_group = parser.add_argument_group('logging_group')
+    
+    # bit logging
+    parser.add_argument("--bit_log_every", type=int, default=20,
+                        help="Log bit/grad tables every N optimizer steps.")
+    parser.add_argument("--bit_log_dir", type=str, default=None,
+                        help="Where to write bit csv logs. Default: <out_dir>/bit_logs/<run_id>/")
+    parser.add_argument("--bit_log_overwrite", action="store_true",
+                        help="Overwrite existing bit csvs (recommended for debugging).")
+    parser.add_argument("--bit_log_run_id", type=str, default=None,
+                        help="Explicit run id for bit logs. Default: timestamp or tensorboard run name.")
+
+    parser.add_argument("--bit_grad_source_debug", action="store_true",
+                    help="Debug: compare grad from main loss vs bit penalty (slow).")
+
 
     model_group.add_argument(
         '--attention_residual_variant', default='standard', choices=['standard', 'full'],
@@ -1462,6 +1476,32 @@ def parse_args():
     model_group.add_argument('--use_gradient_checkpointing', default=False, action=argparse.BooleanOptionalAction, help="Memory efficient training, but takes longer time to train due to trading compute time for memory efficiency. For best memory tradeoff omit the --compile flag. For medium memory tradeoff add --compile.")
     model_group.add_argument('--recompute_backward_pass', default=False, action=argparse.BooleanOptionalAction, help="Recomputes for the backward pass, must use with --use_gradient_checkpointing")
 
+
+    # Learnable Gradient
+    model_group.add_argument('--use_learned_gradient', default=False, action=argparse.BooleanOptionalAction,
+                             help="Mount learned gradient on each round point")
+    model_group.add_argument('--learned_gradient_bits', type=int, default=8,
+                             help="Bit width for learned gradient")
+    model_group.add_argument('--learned_gradient_quantize_activations', default=True, action=argparse.BooleanOptionalAction,
+                             help="Quantizing Activation? Default Yes")
+    model_group.add_argument('--learned_gradient_quantize_weights', default=False, action=argparse.BooleanOptionalAction,
+                             help="Quantizing Weight? Default No")
+
+    training_group.add_argument('--outer_k', type=int, default=10,
+                                help="A outer step ever k steps")
+    training_group.add_argument('--theta_lr', type=float, default=1e-4,
+                                help="Learning Rate of MLP parameters")
+    training_group.add_argument('--gs_hidden', type=int, default=32,
+                                help="Hidden width of MLP")
+    training_group.add_argument('--gs_bound_low', type=float, default=0.5,
+                                help="MLP output lower bound")
+    training_group.add_argument('--gs_bound_high', type=float, default=1.5,
+                                help="MLP output upper bound")
+    training_group.add_argument('--use_linear_fakequant', default=False, action=argparse.BooleanOptionalAction,
+                            help="Start standard quantization (STE)")
+
+
+    
     # Optimizer args
     training_group.add_argument('--max_iters', default=3500, type=int)
     training_group.add_argument('--max_epochs', default=None, type=float, help='Optional epoch limit. Active only when selected by --training_limiters.')
