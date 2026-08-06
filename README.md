@@ -106,6 +106,31 @@ at each new saved checkpoint.
 python3 train.py --max_sample_tokens 100 --compile
 ```
 
+### Seed WTE and LM Head from a Checkpoint
+
+To initialize only the token embedding table (`transformer.wte.weight`) and the
+full language-modeling head (`lm_head.weight`) from a prior nanoGPT checkpoint
+while training the rest of the model from the current configuration, pass the
+checkpoint path with `--import_wte_lm_head_ckpt`:
+
+```bash
+python3 train.py --import_wte_lm_head_ckpt out_prior/ckpt.pt
+```
+
+To keep those imported matrices fixed during training, add
+`--import_wte_lm_head_freeze`:
+
+```bash
+python3 train.py --import_wte_lm_head_ckpt out_prior/ckpt.pt --import_wte_lm_head_freeze
+```
+
+If the source checkpoint has separate WTE and LM-head matrices, disable weight
+tying in the new run so both matrices can be imported independently:
+
+```bash
+python3 train.py --no-wte_weight_tying --import_wte_lm_head_ckpt out_prior/ckpt.pt
+```
+
 ### Train Model with MeZO (Forward-Only Updates)
 
 This repo also includes a zeroth-order optimizer script, `train_mezo.py`, that

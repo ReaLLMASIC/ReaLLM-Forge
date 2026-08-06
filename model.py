@@ -212,6 +212,13 @@ class GPT(nn.Module):
             # Replace wte with values from numpy and retie weights
             self.import_wte(self.config.import_wte_npy)
 
+        # import full wte + lm_head from an existing nanoGPT checkpoint
+        if self.config.import_wte_lm_head_ckpt:
+            self.import_wte_lm_head_from_ckpt(
+                self.config.import_wte_lm_head_ckpt,
+                freeze=self.config.import_wte_lm_head_freeze,
+            )
+
         # import scale_matrices
         if config.import_scale_matrices_npz:
             self.import_scale_matrices(config.import_scale_matrices_npz, config.n_embd_wte_scale_tying)
@@ -352,6 +359,66 @@ class GPT(nn.Module):
         embedding_table = self.transformer.wte.weight.detach().cpu().numpy()
         np.save(file_path, embedding_table)
         print(f"Embedding table saved to {file_path}")
+
+    def _checkpoint_state_dict(self, checkpoint_path):
+        """Load a checkpoint and return a prefix-normalized model state dict."""
+        checkpoint_obj = torch.load(checkpoint_path, map_location="cpu")
+        state_dict = checkpoint_obj.get("model", checkpoint_obj)
+        state_dict = dict(state_dict)
+        for key in list(state_dict.keys()):
+            normalized_key = key
+            if normalized_key.startswith("_orig_mod."):
+                normalized_key = normalized_key[len("_orig_mod."):]
+            if normalized_key.startswith("module."):
+                normalized_key = normalized_key[len("module."):]
+            if normalized_key != key:
+                state_dict[normalized_key] = state_dict.pop(key)
+        return state_dict
+
+    def _copy_imported_weight(self, source_state_dict, target_key):
+        if target_key not in source_state_dict:
+            raise KeyError(f"Checkpoint is missing required weight '{target_key}'")
+        target_state_dict = self.state_dict()
+        if target_key not in target_state_dict:
+            raise KeyError(f"Current model does not have a '{target_key}' parameter to import into")
+        source_weight = source_state_dict[target_key].detach().float()
+        target_weight = target_state_dict[target_key]
+        if source_weight.shape != target_weight.shape:
+            raise ValueError(
+                f"Shape mismatch for {target_key}: checkpoint has {tuple(source_weight.shape)} "
+                f"but current model expects {tuple(target_weight.shape)}"
+            )
+        target_weight.copy_(source_weight.to(device=target_weight.device, dtype=target_weight.dtype))
+
+    def import_wte_lm_head_from_ckpt(self, checkpoint_path, freeze=False):
+        """Import the full token embedding table and lm_head from a checkpoint."""
+        if self.config.multicontext or self.config.multidataset_wte or self.uses_numerical_multicontext:
+            raise NotImplementedError(
+                "--import_wte_lm_head_ckpt currently supports the single shared wte/lm_head path only."
+            )
+
+        source_state_dict = self._checkpoint_state_dict(checkpoint_path)
+        wte_key = "transformer.wte.weight"
+        lm_head_key = "lm_head.weight"
+
+        with torch.no_grad():
+            self._copy_imported_weight(source_state_dict, wte_key)
+            if self.wte_weight_tying:
+                if lm_head_key in source_state_dict:
+                    imported_wte = source_state_dict[wte_key].detach().float()
+                    imported_lm_head = source_state_dict[lm_head_key].detach().float()
+                    if imported_wte.shape != imported_lm_head.shape or not torch.allclose(imported_wte, imported_lm_head):
+                        raise ValueError(
+                            "Checkpoint has distinct wte and lm_head weights, but the current model has "
+                            "--wte_weight_tying enabled. Re-run with --no-wte_weight_tying to import both matrices."
+                        )
+                self.lm_head.weight = self.transformer.wte.weight
+            else:
+                self._copy_imported_weight(source_state_dict, lm_head_key)
+
+        self.transformer.wte.weight.requires_grad = not freeze
+        self.lm_head.weight.requires_grad = not freeze
+        print(f"Imported wte and lm_head from {checkpoint_path}; freeze={freeze}")
 
     def import_scale_matrices(self, file_path, weight_tying=False):
         """Import scale_up and scale_down matrices from a numpy file."""

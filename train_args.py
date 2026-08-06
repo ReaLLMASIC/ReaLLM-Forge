@@ -73,6 +73,8 @@ def parse_args():
     # Export Args
     ## Factored WTE
     model_group.add_argument('--import_wte_npy', default=None, type=str, help='Path to import the embedding table as a .npy file')
+    model_group.add_argument('--import_wte_lm_head_ckpt', default=None, type=str, help='Path to a ckpt.pt file whose full token embedding (wte) and language modeling head weights should be imported into the current model')
+    model_group.add_argument('--import_wte_lm_head_freeze', default=False, action=argparse.BooleanOptionalAction, help='Whether to freeze the wte and lm_head weights imported from --import_wte_lm_head_ckpt')
     model_group.add_argument('--export_wte_npy', default=None, type=str, help='Path to export the embedding table as a .npy file')
     model_group.add_argument('--export_wte_each_eval', default=False, action=argparse.BooleanOptionalAction, help="Requires --export_wte is not None. If this is so, will always export embedding to numpy after evaluation")
     model_group.add_argument('--import_wte_freeze', default=False, action=argparse.BooleanOptionalAction, help="Whether to freeze an imported wte")

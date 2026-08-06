@@ -1,0 +1,99 @@
+# Compare default infinite-attention runs against runs seeded with WTE/lm_head
+# weights from a prior checkpoint. Update the checkpoint path below before
+# launching imported runs.
+---
+
+named_static_groups:
+  # QK Norm
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    use_rotary_embeddings: [true]
+    use_abs_pos_embeddings: [false]
+
+  # Relu2Max
+  - named_group: "relu2max"
+    softmax_variant_attn: ["relu2max"]
+
+  # Softmax
+  - named_group: "softmax"
+    softmax_variant_attn: ["softmax"]
+
+  # Infinite Attention
+  - named_group: "infinite"
+    attention_variant: ["infinite"]
+    use_concat_heads: [true]
+
+  # Head Dimension
+  - named_group: "hd_100"
+    n_qk_head_dim: [100]
+    n_v_head_dim: [100]
+
+  - named_group: "hd_150"
+    n_qk_head_dim: [150]
+    n_v_head_dim: [150]
+
+  - named_group: "hd_200"
+    n_qk_head_dim: [200]
+    n_v_head_dim: [200]
+
+  # WTE/lm_head import modes
+  - named_group: "default_wte_lm_head"
+
+  # CHANGE THIS TO THE TARGET CHECKPOINT NAME
+  - named_group: "import_wte_lm_head"
+    import_wte_lm_head_ckpt: &prior_wte_lm_head_ckpt ["out/default_inf_prior/ckpt.pt"]
+    import_wte_lm_head_freeze: [false]
+
+  - named_group: "import_wte_lm_head_frozen"
+    import_wte_lm_head_ckpt: *prior_wte_lm_head_ckpt
+    import_wte_lm_head_freeze: [true]
+
+named_variation_groups:
+  - named_group: "head_dim"
+    named_group_alternates: ["hd_100", "hd_150", "hd_200"]
+
+  - named_group: "wte_lm_head_import_mode"
+    named_group_alternates:
+      - "default_wte_lm_head"
+      - "import_wte_lm_head"
+      - "import_wte_lm_head_frozen"
+
+common_group:
+  dataset: ["minipile"]
+  eval_interval: [2500]
+  max_iters: [10000]
+  never_save_checkpoint: [true]
+  compile: [true]
+  log_rankme: [true]
+  log_areq: [true]
+  n_head: [3]
+
+parameter_groups:
+  - named_group_static:
+      - "qk_norm"
+      - "rotary"
+      - "relu2max"
+      - "infinite"
+    named_group_variations:
+      - "head_dim"
+      - "wte_lm_head_import_mode"
+
+  - named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "softmax"
+      - "infinite"
+    named_group_variations:
+      - "head_dim"
+      - "wte_lm_head_import_mode"
