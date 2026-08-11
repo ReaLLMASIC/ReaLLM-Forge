@@ -160,6 +160,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phonetic Slang & Typo Resilience Evaluation")
     parser.add_argument("--mc_dir", type=str, default="out_mc_korean_pos", help="Multicontext checkpoint dir")
     parser.add_argument("--base_dir", type=str, default="out_baseline_korean_pos", help="Baseline checkpoint dir")
+    parser.add_argument("--mc_ckpt", type=str, default=None, help="Explicit path to Multicontext ckpt.pt")
+    parser.add_argument("--base_ckpt", type=str, default=None, help="Explicit path to Baseline ckpt.pt")
     parser.add_argument("--dataset_name", type=str, default="KETI-AIR/kor_hellaswag", help="Dataset name")
     parser.add_argument("--split", type=str, default="validation", help="Dataset split")
     parser.add_argument("--max_examples", type=int, default=100, help="Max evaluation examples")
@@ -170,8 +172,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _load_checkpoint(out_dir: str, device: str):
-    ckpt_path = os.path.join(out_dir, "ckpt.pt")
+def _load_checkpoint(out_dir: str, device: str, ckpt_path_override: str = None):
+    ckpt_path = ckpt_path_override or os.path.join(out_dir, "ckpt.pt")
     if not os.path.exists(ckpt_path):
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
 
@@ -384,13 +386,13 @@ def main():
 
     # Load Multicontext Model (HangulPosFactorizedTokenizer)
     print("\n[1/4] Loading Multicontext (HangulPosFactorizedTokenizer) model checkpoint...")
-    mc_model, mc_config = _load_checkpoint(args.mc_dir, args.device)
+    mc_model, mc_config = _load_checkpoint(args.mc_dir, args.device, ckpt_path_override=args.mc_ckpt)
     mc_model.eval().to(args.device)
     _, mc_encoder = _load_encoder(args.mc_dir, mc_config, mc_model)
 
     # Load Baseline Model
     print("[2/4] Loading Baseline (Single-Context) model checkpoint...")
-    base_model, base_config = _load_checkpoint(args.base_dir, args.device)
+    base_model, base_config = _load_checkpoint(args.base_dir, args.device, ckpt_path_override=args.base_ckpt)
     base_model.eval().to(args.device)
     _, base_tokenizer = _load_encoder(args.base_dir, base_config, base_model)
 

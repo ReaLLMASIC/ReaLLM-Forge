@@ -379,6 +379,8 @@ def parse_args():
                                     help="Optional list of loss weights corresponding to each dataset in --multicontext_datasets")
     training_group.add_argument('--structural_loss_weight', default=1.0, type=float,
                                     help="Weight for purely structural factor lanes during multicontext loss calculation (e.g. 0.1 to down-weight structural factors relative to char and pos)")
+    training_group.add_argument('--pos_loss_weight', default=None, type=float,
+                                    help="Weight for POS tag head in multicontext loss calculation (defaults to 0.5 when structural_loss_weight is set)")
 
     # Batch sampling args
     training_group.add_argument('--sampling_method', default="random",
