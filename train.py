@@ -848,6 +848,27 @@ class Trainer:
 
             # Let the first of the vocab sizes be used for calculation of btc
             self.model_args['vocab_size'] = self.model_args['vocab_sizes'][0]
+
+            if getattr(self.args, "multicontext_loss_weights", None) is not None:
+                self.multicontext_loss_weights = [float(w) for w in self.args.multicontext_loss_weights]
+            elif getattr(self.args, "structural_loss_weight", 1.0) != 1.0 or getattr(self.args, "pos_loss_weight", None) is not None:
+                self.multicontext_loss_weights = []
+                sw = float(self.args.structural_loss_weight)
+                pos_w = float(self.args.pos_loss_weight) if getattr(self.args, "pos_loss_weight", None) is not None else (0.5 if sw != 1.0 else 1.0)
+                for ds in self.args.multicontext_datasets:
+                    ds_name = ds.split('/')[-1]
+                    if ds_name == 'char':
+                        self.multicontext_loss_weights.append(1.0)
+                    elif ds_name == 'pos':
+                        self.multicontext_loss_weights.append(pos_w)
+                    else:
+                        self.multicontext_loss_weights.append(sw)
+            else:
+                self.multicontext_loss_weights = [1.0] * len(self.args.multicontext_datasets)
+
+            self.multicontext_weight_norm = sum(self.multicontext_loss_weights)
+            print(f"Multicontext loss weights: {self.multicontext_loss_weights}")
+            print(f"Multicontext weight norm: {self.multicontext_weight_norm}")
         if self.args.training_mode == 'multidataset':
             self.train_data_dict = {}
             self.val_data_dict = {}
@@ -1338,8 +1359,12 @@ class Trainer:
                         })
 
                 # general train and val losses, as well as std dev
-                out[split] = mean_avg / len(self.args.multicontext_datasets)
-                out[split + "_std"] = loss_std / len(self.args.multicontext_datasets)
+                if hasattr(self, 'multicontext_loss_weights') and self.multicontext_loss_weights is not None:
+                    out[split] = sum(w * means[f"{i}"] for i, w in enumerate(self.multicontext_loss_weights)) / self.multicontext_weight_norm
+                    out[split + "_std"] = sum(w * std_devs[f"{i}"] for i, w in enumerate(self.multicontext_loss_weights)) / self.multicontext_weight_norm
+                else:
+                    out[split] = mean_avg / len(self.args.multicontext_datasets)
+                    out[split + "_std"] = loss_std / len(self.args.multicontext_datasets)
             if target_metric_dataset is not None:
                 metric_values = {
                     'top1_prob': torch.cat(top1_probs).mean() if top1_probs else torch.tensor(float('nan')),
@@ -2260,10 +2285,9 @@ class Trainer:
             if live:
                 live.start()
 
-        if (not self.args.never_save_checkpoint and
-            self.args.save_major_ckpt_interval is not None):
-            if self.iter_num % self.args.save_major_ckpt_interval == 0:
-                major_ckpt_name = str(self.iter_num) +'.pt'
+        if not self.args.never_save_checkpoint:
+            if (self.args.save_major_ckpt_interval is not None and self.iter_num % self.args.save_major_ckpt_interval == 0) or self.iter_num in (2125, 3472, 3542, 5786, 7084, 10899, 10974, 11572, 18165, 18290, 36330, 36580):
+                major_ckpt_name = str(self.iter_num) + '.pt'
                 self.save_checkpoint(major_ckpt_name)
                 print(f"Saved major checkpoint to {self.args.out_dir}/{major_ckpt_name}")
 
@@ -2499,9 +2523,10 @@ class Trainer:
                                 loss_fn=self.loss_fn,
                             )
 
-                            # For multicontext training let loss = first dataset loss
-                            # loss = training_losses[0]
-                            loss = sum(training_losses) / len(training_losses)
+                            if hasattr(self, 'multicontext_loss_weights') and self.multicontext_loss_weights is not None:
+                                loss = sum(w * l for w, l in zip(self.multicontext_loss_weights, training_losses)) / self.multicontext_weight_norm
+                            else:
+                                loss = sum(training_losses) / len(training_losses)
                         else:
                             idx_ds = self.args.dataset_list.index(current_dataset) if self.args.dataset_list else None
                             logits, loss = self.model(
@@ -2633,6 +2658,10 @@ class Trainer:
                 self.iter_num += 1
                 local_iter_num += 1
 
+                if self.iter_num in (3472, 5786, 8100, 11572) and not self.args.never_save_checkpoint:
+                    self.save_checkpoint(f"{self.iter_num}.pt")
+                    print(f"Saved epoch checkpoint to {self.args.out_dir}/{self.iter_num}.pt")
+
                 if self.iter_num % self.args.log_interval == 0 and self.master_process:
                     lossf = loss.item() * self.args.gradient_accumulation_steps
                     if local_iter_num >= 5:
@@ -2661,7 +2690,7 @@ class Trainer:
                 if stop_reasons:
                     print(f"Stopping training due to: {', '.join(stop_reasons)}")
                     print(self.best_val_loss, self.best_iter, self.best_tokens)
-                    if self.args.only_save_checkpoint_at_end:
+                    if self.args.only_save_checkpoint_at_end or self.args.always_save_checkpoint or not os.path.exists(os.path.join(self.args.out_dir, 'ckpt.pt')):
                         if not self.args.never_save_checkpoint:
                             self.save_checkpoint('ckpt.pt')
                             print(f"Saved checkpoint to {self.args.out_dir}")
