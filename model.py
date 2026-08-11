@@ -411,12 +411,17 @@ class GPT(nn.Module):
             return embeddings + noise
         return embeddings
 
-    def forward(self, idx, targets=None, iter_num=None, token_dict=None, target_dict=None, dataset_idx=None, loss_fn=None):
-        if token_dict is not None:
-            token_list = list(token_dict.values())
+    def forward(self, idx=None, targets=None, iter_num=None, token_dict=None, target_dict=None, dataset_idx=None, loss_fn=None):
+        if token_dict is not None or isinstance(idx, (list, tuple)):
+            if token_dict is not None:
+                token_list = list(token_dict.values())
+            else:
+                token_list = idx
             # If target_dict is None (typical for inference), set target_list = None
             if target_dict is not None:
                 target_list = list(target_dict.values())
+            elif isinstance(targets, (list, tuple)):
+                target_list = targets
             else:
                 target_list = None
             device = token_list[0].device

@@ -1,0 +1,23 @@
+{
+  "dataset": "KETI-AIR/kor_hellaswag",
+  "split": "validation",
+  "max_examples": 0,
+  "corruption_rate": 0.8,
+  "baseline": {
+    "clean_accuracy": 0.25851424019119695,
+    "corrupted_accuracy": 0.24387572196773552,
+    "accuracy_drop": 0.014638518223461433,
+    "clean_logprob": -3.116889135833044,
+    "corrupted_logprob": -4.701323254682752,
+    "logprob_degradation": 1.5844341188497078
+  },
+  "multicontext": {
+    "clean_accuracy": 0.2548297151961761,
+    "corrupted_accuracy": 0.24287990440151364,
+    "accuracy_drop": 0.011949810794662452,
+    "clean_logprob": -3.279402141838975,
+    "corrupted_logprob": -4.653083825643806,
+    "logprob_degradation": 1.3736816838048314
+  },
+  "robustness_gain_acc_delta": 0.002688707428798981
+}

@@ -375,6 +375,10 @@ def parse_args():
                                     help="List of datasets to train on in multi-context mode (e.g., --multicontext_datasets shakespeare wikitext103 openwebtext)")
     model_group.add_argument('--vocab_sizes', default=None, nargs='+', type=int,
                                     help="List of vocabulary sizes for each dataset in --multicontext_datasets")
+    training_group.add_argument('--multicontext_loss_weights', default=None, nargs='+', type=float,
+                                    help="Optional list of loss weights corresponding to each dataset in --multicontext_datasets")
+    training_group.add_argument('--structural_loss_weight', default=1.0, type=float,
+                                    help="Weight for purely structural factor lanes during multicontext loss calculation (e.g. 0.1 to down-weight structural factors relative to char and pos)")
 
     # Batch sampling args
     training_group.add_argument('--sampling_method', default="random",

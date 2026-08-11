@@ -1,0 +1,62 @@
+{
+  "out_baseline_korean_pos": {
+    "model_type": "Baseline (Single Context)",
+    "total": 10042,
+    "accuracies": {
+      "length": 0.256821,
+      "prior_length": 0.240191,
+      "unigram_length": 0.263394,
+      "none": 0.254730,
+      "prior": 0.246067,
+      "unigram": 0.252340
+    },
+    "correct_counts": {
+      "length": 2579,
+      "prior_length": 2412,
+      "unigram_length": 2645,
+      "none": 2558,
+      "prior": 2471,
+      "unigram": 2534
+    }
+  },
+  "out_mc_korean_pos": {
+    "model_type": "HangulPosFactorizedTokenizer (Multicontext)",
+    "total": 10042,
+    "accuracies": {
+      "length": 0.247262,
+      "prior_length": 0.256523,
+      "unigram_length": 0.244274,
+      "none": 0.248855,
+      "prior": 0.251444,
+      "unigram": 0.242979
+    },
+    "correct_counts": {
+      "length": 2483,
+      "prior_length": 2576,
+      "unigram_length": 2453,
+      "none": 2499,
+      "prior": 2525,
+      "unigram": 2440
+    }
+  },
+  "out_mc_korean_pos_weighted": {
+    "model_type": "HangulPosFactorizedTokenizer (Multicontext Weighted)",
+    "total": 10042,
+    "accuracies": {
+      "length": 0.255726,
+      "prior_length": 0.247660,
+      "unigram_length": 0.258614,
+      "none": 0.251743,
+      "prior": 0.249851,
+      "unigram": 0.250349
+    },
+    "correct_counts": {
+      "length": 2568,
+      "prior_length": 2487,
+      "unigram_length": 2597,
+      "none": 2528,
+      "prior": 2509,
+      "unigram": 2514
+    }
+  }
+}
