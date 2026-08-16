@@ -154,7 +154,8 @@ class MulticontextHangulPosEncoder:
     def __init__(self, lane_paths: List[str]):
         if HangulPosFactorizedTokenizer is None:
             raise ImportError("HangulPosFactorizedTokenizer could not be imported.")
-        self.tok = HangulPosFactorizedTokenizer(use_pos=True)
+        pos_mode = "full" if any("pos_full" in lp for lp in lane_paths) else "coarse"
+        self.tok = HangulPosFactorizedTokenizer(use_pos=True, pos_mode=pos_mode)
         self.lane_stois = []
         for lane_path in lane_paths:
             meta_path = os.path.join(REPO_ROOT, "data", lane_path, "meta.pkl")
@@ -176,7 +177,8 @@ class MulticontextHangulPosEncoder:
                 token_char = self.tok.token_for(i, indices[i])
                 token_lists[i].append(self.lane_stois[i].get(token_char, 0))
             # 25th lane is char lane
-            token_lists[24].append(self.lane_stois[24].get(ch, 0))
+            byte_id = self.lane_stois[24].get(ch, ch.encode("utf-8")[0] if len(ch) > 0 and ord(ch) > 255 else 0)
+            token_lists[24].append(byte_id)
         return token_lists
 
 
@@ -289,8 +291,12 @@ def _score_example_singlecontext(
                 scores.append(-math.inf)
             continue
 
-        input_ids = torch.tensor(full[:-1], device=device).unsqueeze(0)
-        target_ids = torch.tensor(full[1:], device=device).unsqueeze(0)
+        input_ids = torch.tensor(full[:-1], device=device, dtype=torch.long).unsqueeze(0)
+        target_ids = torch.tensor(full[1:], device=device, dtype=torch.long).unsqueeze(0)
+        vocab_size = getattr(model.config, "vocab_size", None)
+        if vocab_size is not None:
+            input_ids = torch.clamp(input_ids, 0, vocab_size - 1)
+            target_ids = torch.clamp(target_ids, 0, vocab_size - 1)
         ending_start = max(len(ctx_trim) - 1, 0)
 
         with ctx_autocast:
@@ -309,8 +315,11 @@ def _score_example_singlecontext(
             uncond_ctx_trim = uncond_ctx_tokens[-uncond_max_ctx_len:] if uncond_max_ctx_len > 0 else []
             uncond_full = uncond_ctx_trim + end_tokens
             if len(uncond_full) >= 2:
-                uncond_input_ids = torch.tensor(uncond_full[:-1], device=device).unsqueeze(0)
-                uncond_target_ids = torch.tensor(uncond_full[1:], device=device).unsqueeze(0)
+                uncond_input_ids = torch.tensor(uncond_full[:-1], device=device, dtype=torch.long).unsqueeze(0)
+                uncond_target_ids = torch.tensor(uncond_full[1:], device=device, dtype=torch.long).unsqueeze(0)
+                if vocab_size is not None:
+                    uncond_input_ids = torch.clamp(uncond_input_ids, 0, vocab_size - 1)
+                    uncond_target_ids = torch.clamp(uncond_target_ids, 0, vocab_size - 1)
                 uncond_ending_start = max(len(uncond_ctx_trim) - 1, 0)
 
                 with ctx_autocast:
@@ -414,6 +423,13 @@ def _score_example_multicontext(
 
         input_lanes = [torch.tensor(lane[:-1], device=device).unsqueeze(0) for lane in full_lanes]
         target_lanes = [torch.tensor(lane[1:], device=device).unsqueeze(0) for lane in full_lanes]
+
+        vocab_sizes = getattr(model.config, "vocab_sizes", None)
+        if vocab_sizes is not None and len(vocab_sizes) == len(input_lanes):
+            for i in range(len(input_lanes)):
+                input_lanes[i] = torch.clamp(input_lanes[i], 0, vocab_sizes[i] - 1).to(torch.long)
+                target_lanes[i] = torch.clamp(target_lanes[i], 0, vocab_sizes[i] - 1).to(torch.long)
+
         token_dict = {f"lane_{i}": lane for i, lane in enumerate(input_lanes)}
         target_dict = {f"lane_{i}": lane for i, lane in enumerate(target_lanes)}
         ending_start = max(ctx_trim_len - 1, 0)
@@ -444,6 +460,10 @@ def _score_example_multicontext(
             if uncond_seq_len >= 2:
                 uncond_input_lanes = [torch.tensor(lane[:-1], device=device).unsqueeze(0) for lane in uncond_lanes]
                 uncond_target_lanes = [torch.tensor(lane[1:], device=device).unsqueeze(0) for lane in uncond_lanes]
+                if vocab_sizes is not None and len(vocab_sizes) == len(uncond_input_lanes):
+                    for i in range(len(uncond_input_lanes)):
+                        uncond_input_lanes[i] = torch.clamp(uncond_input_lanes[i], 0, vocab_sizes[i] - 1).to(torch.long)
+                        uncond_target_lanes[i] = torch.clamp(uncond_target_lanes[i], 0, vocab_sizes[i] - 1).to(torch.long)
                 uncond_token_dict = {f"lane_{i}": lane for i, lane in enumerate(uncond_input_lanes)}
                 uncond_target_dict = {f"lane_{i}": lane for i, lane in enumerate(uncond_target_lanes)}
                 uncond_ending_start = max(uncond_ctx_trim_len - 1, 0)

@@ -75,9 +75,10 @@ class Encoder:
         if is_mc:
             if HangulPosFactorizedTokenizer is None:
                 raise ImportError("HangulPosFactorizedTokenizer not available.")
-            self.tok = HangulPosFactorizedTokenizer(use_pos=True)
-            self.stois = []
             lane_paths = lane_paths or DEFAULT_LANES
+            pos_mode = "full" if any("pos_full" in lp for lp in lane_paths) else "coarse"
+            self.tok = HangulPosFactorizedTokenizer(use_pos=True, pos_mode=pos_mode)
+            self.stois = []
             for lp in lane_paths:
                 mp = os.path.join(REPO_ROOT, "data", lp, "meta.pkl")
                 if not os.path.exists(mp):
@@ -107,7 +108,8 @@ class Encoder:
                     t_char = self.tok.token_for(i, indices[i])
                     token_lists[i].append(self.stois[i].get(t_char, 0))
                 if n_lanes > 24:
-                    token_lists[24].append(self.stois[24].get(ch, 0))
+                    byte_id = self.stois[24].get(ch, ch.encode("utf-8")[0] if len(ch) > 0 and ord(ch) > 255 else 0)
+                    token_lists[24].append(byte_id)
             return token_lists
         else:
             return [self.stoi.get(c, 0) for c in text]

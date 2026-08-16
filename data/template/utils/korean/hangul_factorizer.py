@@ -46,17 +46,55 @@ FINAL_COMPONENTS = {
     "K": ("K", PAD, PAD), "T": ("T", PAD, PAD), "P": ("P", PAD, PAD), "H": ("H", PAD, PAD),
 }
 
-POS_TAGS = [
-    "NNG", "NNP", "NNB", "NR", "NP", 
-    "VV", "VA", "VX", "VCP", "VCN", 
-    "MM", "MAG", "MAJ", "IC", 
-    "JKS", "JKC", "JKG", "JKO", "JKB", "JKV", "JKQ", "JX", "JC", 
-    "EP", "EF", "EC", "ETN", "ETM", 
-    "XPN", "XSN", "XSV", "XSA", "XR", 
-    "SF", "SP", "SS", "SE", "SO", "SW",
-    "SL", "SH", "SN", 
-    "W_URL", "W_EMAIL", "W_HASHTAG", "W_MENTION"
+POS_TAG_MAP: Dict[str, str] = {
+    # Nominals
+    "NNG": "NOUN", "NNP": "NOUN", "NNB": "NOUN",
+    "NP": "PRON",
+    "NR": "NUM", "SN": "NUM",
+    # Predicates
+    "VV": "VERB", "VX": "VERB",
+    "VA": "ADJ",
+    "VCP": "COP", "VCN": "COP",
+    # Modifiers
+    "MM": "DET",
+    "MAG": "ADV", "MAJ": "ADV",
+    # Interjection
+    "IC": "INTJ",
+    # Particles (Josa)
+    "JKS": "JOSA", "JKC": "JOSA", "JKG": "JOSA", "JKO": "JOSA",
+    "JKB": "JOSA", "JKV": "JOSA", "JKQ": "JOSA", "JX": "JOSA", "JC": "JOSA",
+    # Endings (Eomi)
+    "EP": "EOMI_PRE",
+    "EF": "EOMI_FINAL",
+    "EC": "EOMI_CONN",
+    "ETM": "EOMI_MOD", "ETN": "EOMI_MOD",
+    # Affixes & Roots
+    "XPN": "AFFIX", "XSN": "AFFIX", "XSV": "AFFIX", "XSA": "AFFIX", "XR": "AFFIX",
+    # Punctuation & Symbols
+    "SF": "PUNCT", "SP": "PUNCT", "SS": "PUNCT", "SE": "PUNCT", "SO": "PUNCT", "SW": "PUNCT",
+    # Foreign & Special Web
+    "SL": "FOREIGN", "SH": "FOREIGN",
+    "W_URL": "PUNCT", "W_EMAIL": "PUNCT", "W_HASHTAG": "PUNCT", "W_MENTION": "PUNCT",
+}
+
+POS_TAGS_COARSE = [
+    "NOUN", "PRON", "NUM", "VERB", "ADJ", "COP", "ADV", "DET", "INTJ",
+    "JOSA", "EOMI_PRE", "EOMI_FINAL", "EOMI_CONN", "EOMI_MOD", "AFFIX",
+    "PUNCT", "FOREIGN",
 ]
+
+POS_TAGS_FULL = [
+    "NNG", "NNP", "NNB", "NP", "NR", "SN",
+    "VV", "VA", "VX", "VCP", "VCN",
+    "MM", "MAG", "MAJ", "IC",
+    "JKS", "JKC", "JKG", "JKO", "JKB", "JKV", "JKQ", "JX", "JC",
+    "EP", "EF", "EC", "ETN", "ETM",
+    "XPN", "XSN", "XSV", "XSA", "XR",
+    "SF", "SP", "SS", "SE", "SO", "SW",
+    "SL", "SH", "W_URL", "W_EMAIL", "W_HASHTAG", "W_MENTION",
+]
+
+POS_TAGS = POS_TAGS_COARSE
 
 @dataclass(frozen=True)
 class Lane:
@@ -99,10 +137,13 @@ class HangulFactorizedTokenizer:
     lanes = LANES
     lane_names = LANE_NAMES
 
-    def __init__(self, use_pos: bool = False) -> None:
+    def __init__(self, use_pos: bool = False, pos_mode: str = "coarse") -> None:
         self.use_pos = use_pos
-        self.lanes = LANES_WITH_POS if use_pos else LANES
-        self.lane_names = LANE_NAMES_WITH_POS if use_pos else LANE_NAMES
+        self.pos_mode = pos_mode.lower()
+        self.pos_tags = POS_TAGS_FULL if self.pos_mode == "full" else POS_TAGS_COARSE
+        pos_lane = Lane("pos", [PAD, "UNK", *self.pos_tags], f"Part-of-speech tag from Kiwi ({self.pos_mode}).")
+        self.lanes = [*LANES, pos_lane] if use_pos else LANES
+        self.lane_names = [lane.name for lane in self.lanes]
         self.value_to_id = [{v: i for i, v in enumerate(lane.values)} for lane in self.lanes]
         self.id_to_value = [list(lane.values) for lane in self.lanes]
         self._encode_cache: Dict[Any, tuple[int, ...]] = {}
@@ -118,11 +159,15 @@ class HangulFactorizedTokenizer:
         return s // N_COUNT, (s % N_COUNT) // T_COUNT, s % T_COUNT
 
     def _features(self, char: str, pos_tag: str = "UNK") -> List[str]:
-        if self.use_pos and pos_tag not in POS_TAGS:
-            pos_tag = "UNK"
+        if self.pos_mode == "full":
+            mapped_pos = pos_tag
+        else:
+            mapped_pos = POS_TAG_MAP.get(pos_tag, pos_tag)
+        if self.use_pos and mapped_pos not in self.pos_tags:
+            mapped_pos = "UNK"
         if not self.is_hangul_syllable(char):
             base_features = [NON_HANGUL] + [PAD] * 22
-            return base_features + [pos_tag] if self.use_pos else base_features
+            return base_features + [mapped_pos] if self.use_pos else base_features
         l, v, t = self._decompose(char)
         cho, jung, jong = CHOSEONG[l], JUNGSEONG[v], JONGSEONG[t]
         vb1, vb2 = VOWEL_COMPONENTS[jung]
@@ -131,15 +176,19 @@ class HangulFactorizedTokenizer:
         height = "low" if "A" in jung else "high" if jung in {"O","YO","U","YU","EU","YI","I","WI"} else "mid"
         back = "front" if jung in {"AE","E","YAE","YE","OE","WE","WI","I"} else "back" if jung in {"O","WA","WAE","YO","U","WEO","YU"} else "central"
         base_features = ["HANGUL", cho, jung, jong, vb1, vb2, str(int(jung in {"WA","WAE","OE","WEO","WE","WI"})), str(int(jung.startswith("Y"))), str(int("I" in (vb1, vb2) or jung in {"AE","E","OE","WE","WI","YI","I"})), jb1, jb2, jb3, str(int(cho in {"GG","DD","BB","SS","JJ"})), str(int(cho in {"CH","K","T","P","H"})), str(int(cho in {"N","R","M","NG"})), place, height, back, str(int(jung in {"O","WA","WAE","OE","YO","U","WEO","WE","WI","YU"})), str(int(t in {2,3,5,6,9,10,11,12,13,14,15,18,20})), str(int(t != 0)), str(t), str(ord(char) % 64)]
-        return base_features + [pos_tag] if self.use_pos else base_features
+        return base_features + [mapped_pos] if self.use_pos else base_features
 
     def encode_char(self, char: str, pos_tag: str = "UNK", return_tags: bool = False) -> List[Any]:
-        if self.use_pos and pos_tag not in POS_TAGS:
-            pos_tag = "UNK"
-        cache_key = (char, pos_tag) if self.use_pos else char
+        if self.pos_mode == "full":
+            mapped_pos = pos_tag
+        else:
+            mapped_pos = POS_TAG_MAP.get(pos_tag, pos_tag)
+        if self.use_pos and mapped_pos not in self.pos_tags:
+            mapped_pos = "UNK"
+        cache_key = (char, mapped_pos) if self.use_pos else char
         cached = self._encode_cache.get(cache_key)
         if cached is None:
-            vals = self._features(char, pos_tag=pos_tag)
+            vals = self._features(char, pos_tag=mapped_pos)
             cached = tuple(self.value_to_id[i].get(v, 0) for i, v in enumerate(vals))
             self._encode_cache[cache_key] = cached
         if return_tags:
@@ -160,13 +209,17 @@ class HangulFactorizedTokenizer:
             if self.kiwi is not None:
                 tokens = self.kiwi.tokenize(text)
                 for token in tokens:
+                    if self.pos_mode == "full":
+                        mapped_tag = token.tag
+                    else:
+                        mapped_tag = POS_TAG_MAP.get(token.tag, token.tag)
                     for i in range(token.start, token.start + token.len):
-                        char_idx_to_pos[i] = token.tag
+                        char_idx_to_pos[i] = mapped_tag
                         
         encoded_sequence = []
         for i, char in enumerate(text):
             pos_tag = char_idx_to_pos.get(i, "UNK")
-            if pos_tag not in POS_TAGS:
+            if pos_tag not in self.pos_tags:
                 pos_tag = "UNK"
                 
             encoded = self.encode_char(char, pos_tag=pos_tag, return_tags=return_tags)
@@ -205,15 +258,37 @@ class HangulFactorizedTokenizer:
 
 class HangulPosFactorizedTokenizer(HangulFactorizedTokenizer):
     """Hangul factorized tokenizer equipped with the 24th part-of-speech (POS) lane."""
-    lanes = LANES_WITH_POS
-    lane_names = LANE_NAMES_WITH_POS
+    def __init__(self, use_pos: bool = True, pos_mode: str = "coarse") -> None:
+        super().__init__(use_pos=use_pos, pos_mode=pos_mode)
 
+
+class HangulFullPosFactorizedTokenizer(HangulFactorizedTokenizer):
+    """Hangul factorized tokenizer equipped with the full 46-tag Sejong POS lane."""
     def __init__(self, use_pos: bool = True) -> None:
-        super().__init__(use_pos=use_pos)
+        super().__init__(use_pos=use_pos, pos_mode="full")
+
+
+class HangulCoarsePosFactorizedTokenizer(HangulFactorizedTokenizer):
+    """Hangul factorized tokenizer equipped with the 17-tag coarse POS lane."""
+    def __init__(self, use_pos: bool = True) -> None:
+        super().__init__(use_pos=use_pos, pos_mode="coarse")
 
 
 HangulFactorizedPosTokenizer = HangulPosFactorizedTokenizer
 
 
+def make_byte_fallback_meta() -> Dict[str, Any]:
+    """Create meta.pkl dictionary for 256-byte fallback companion stream."""
+    stoi = {chr(i): i for i in range(256)}
+    itos = {i: chr(i) if 32 <= i < 127 else f"<0x{i:02X}>" for i in range(256)}
+    return {
+        "vocab_size": 256,
+        "tokenizer": "byte_fallback",
+        "stoi": stoi,
+        "itos": itos,
+    }
+
+
 def dump_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+

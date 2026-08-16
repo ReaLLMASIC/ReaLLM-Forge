@@ -2658,7 +2658,7 @@ class Trainer:
                 self.iter_num += 1
                 local_iter_num += 1
 
-                if self.iter_num in (3472, 5786, 8100, 11572) and not self.args.never_save_checkpoint:
+                if self.iter_num in (3472, 5786, 8100, 11572, 10899, 18165, 36330) and not self.args.never_save_checkpoint:
                     self.save_checkpoint(f"{self.iter_num}.pt")
                     print(f"Saved epoch checkpoint to {self.args.out_dir}/{self.iter_num}.pt")
 
