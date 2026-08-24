@@ -193,23 +193,24 @@ def _load_tokenizer_or_encoder(args: argparse.Namespace, checkpoint_config: dict
         return True, encoder
 
     # Baseline single-context model tokenizer
-    meta_paths: List[str] = [
+    ckpt_dir = os.path.dirname(args.ckpt_path) if getattr(args, "ckpt_path", None) else ""
+    meta_paths: List[str] = []
+    if ckpt_dir:
+        meta_paths.append(os.path.join(ckpt_dir, "meta.pkl"))
+    meta_paths.extend([
         os.path.join(args.out_dir, "meta.pkl"),
         os.path.join("data", "korean_pos_mc", "char", "meta.pkl"),
-    ]
+    ])
     dataset_name = checkpoint_config.get("dataset") if isinstance(checkpoint_config, dict) else None
     if dataset_name:
-        meta_paths.append(os.path.join("data", dataset_name, "meta.pkl"))
+        meta_paths.insert(0, os.path.join("data", dataset_name, "meta.pkl"))
 
     for meta_path in meta_paths:
         if os.path.exists(meta_path):
             with open(meta_path, "rb") as f:
                 meta = pickle.load(f)
-            encode, decode = get_tokenizer_functions(meta)
-            stoi = meta.get("stoi", {})
-            def safe_encode(s: str) -> List[int]:
-                return [stoi.get(c, 0) for c in s]
-            return False, safe_encode
+            encode, _ = get_tokenizer_functions(meta)
+            return False, encode
 
     raise FileNotFoundError("No meta.pkl found for baseline model tokenizer.")
 

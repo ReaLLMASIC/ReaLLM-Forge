@@ -9,6 +9,10 @@ exploration_logs/
 *.bin
 *.txt
 
+# Benchmark & evaluation prompt files
+!benchmarks/prompts/*.txt
+!benchmarks/prompts/*.json
+
 # audio file extensions
 *.wav
 *.mp3

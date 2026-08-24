@@ -243,9 +243,8 @@ def _load_encoder(out_dir: str, config: dict, model: GPT):
         meta_path = os.path.join("data", "korean_pos_mc", "char", "meta.pkl")
     with open(meta_path, "rb") as f:
         meta = pickle.load(f)
-    _, _ = get_tokenizer_functions(meta)
-    stoi = meta.get("stoi", {})
-    return False, lambda s: [stoi.get(c, 0) for c in s]
+    encode_fn, _ = get_tokenizer_functions(meta)
+    return False, encode_fn
 
 
 def _build_context(example: dict) -> str:

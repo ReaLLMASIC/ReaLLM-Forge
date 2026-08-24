@@ -28,6 +28,7 @@ sys.path.insert(0, REPO_ROOT)
 sys.path.insert(0, os.path.join(REPO_ROOT, "data", "template", "utils", "korean"))
 
 from model import GPT, GPTConfig
+from sample import get_tokenizer_functions
 
 try:
     from hangul_factorizer import HangulPosFactorizedTokenizer
@@ -70,7 +71,7 @@ def load_ckpt(ckpt_path: str, device: str):
 
 
 class Encoder:
-    def __init__(self, is_mc: bool, lane_paths: List[str] = None):
+    def __init__(self, is_mc: bool, lane_paths: List[str] = None, ckpt_path: str = None):
         self.is_mc = is_mc
         if is_mc:
             if HangulPosFactorizedTokenizer is None:
@@ -89,12 +90,15 @@ class Encoder:
                     m = pickle.load(f)
                 self.stois.append(m["stoi"])
         else:
-            mp = os.path.join(REPO_ROOT, "data", "korean_pos_mc", "char", "meta.pkl")
+            ckpt_dir = os.path.dirname(ckpt_path) if ckpt_path else ""
+            mp = os.path.join(ckpt_dir, "meta.pkl") if ckpt_dir and os.path.exists(os.path.join(ckpt_dir, "meta.pkl")) else None
+            if not mp:
+                mp = os.path.join(REPO_ROOT, "data", "korean_pos_mc", "char", "meta.pkl")
             if not os.path.exists(mp):
                 mp = os.path.join(REPO_ROOT, "out_baseline_korean_pos", "meta.pkl")
             with open(mp, "rb") as f:
                 m = pickle.load(f)
-            self.stoi = m["stoi"]
+            self.encode_fn, _ = get_tokenizer_functions(m)
 
     def encode(self, text: str):
         if self.is_mc:
@@ -112,7 +116,7 @@ class Encoder:
                     token_lists[24].append(byte_id)
             return token_lists
         else:
-            return [self.stoi.get(c, 0) for c in text]
+            return self.encode_fn(text)
 
 
 def eval_sequence_logprob(model: GPT, encoder: Encoder, text: str, device: str, block_size: int = 256) -> float:
@@ -201,7 +205,7 @@ def run_evaluations_for_ckpt(ckpt_name: str, ckpt_path: str, device: str, max_ex
     model, config = load_ckpt(ckpt_path, device)
     is_mc = getattr(model.config, "multicontext", False)
     lanes = config.get("multicontext_datasets") or DEFAULT_LANES
-    encoder = Encoder(is_mc=is_mc, lane_paths=lanes)
+    encoder = Encoder(is_mc=is_mc, lane_paths=lanes, ckpt_path=ckpt_path)
 
     results = {"checkpoint": ckpt_name, "is_multicontext": is_mc}
 

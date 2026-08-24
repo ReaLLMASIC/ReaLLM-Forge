@@ -673,37 +673,51 @@ class CharBPETokenizerWithByteFallback(Tokenizer):
         data_len = len(data)
         pbar = tqdm(total=data_len, desc="Tokenizing Char BPE")
 
+        multi_tokens = {k: self.stoi[k] for k in self.char_tokens if isinstance(k, str) and len(k) > 1}
+        max_len = max([len(k) for k in multi_tokens], default=1)
+        single_tokens = {k: self.stoi[k] for k in self.char_tokens if isinstance(k, str) and len(k) == 1}
+
+        update_interval = 200000
+        last_update = 0
         while i < data_len:
             matched = False
-            for token in self.sorted_char_tokens:
-                if data.startswith(token, i):
-                    token_id = self.stoi[token]
-                    ids.append(token_id)
-                    self.record_token(token_id)
-                    i += len(token)
-                    pbar.update(len(token))
-                    matched = True
-                    break
+            if max_len > 1:
+                for l in range(min(max_len, data_len - i), 1, -1):
+                    sub = data[i:i+l]
+                    if sub in multi_tokens:
+                        token_id = multi_tokens[sub]
+                        ids.append(token_id)
+                        self.record_token(token_id)
+                        i += l
+                        matched = True
+                        break
 
             if matched:
+                if i - last_update >= update_interval:
+                    pbar.update(i - last_update)
+                    last_update = i
                 continue
 
             ch = data[i]
-            if ch in self.stoi:
-                token_id = self.stoi[ch]
+            if ch in single_tokens:
+                token_id = single_tokens[ch]
                 ids.append(token_id)
                 self.record_token(token_id)
-                i += len(ch)
-                pbar.update(len(ch))
+                i += 1
             else:
                 ch_bytes = ch.encode('utf-8')
                 for b in ch_bytes:
                     token_id = self.stoi[bytes([b])]
                     ids.append(token_id)
                     self.record_token(token_id)
-                    pbar.update(1)
                 i += 1
 
+            if i - last_update >= update_interval:
+                pbar.update(i - last_update)
+                last_update = i
+
+        if last_update < data_len:
+            pbar.update(data_len - last_update)
         pbar.close()
 
         meta = {

@@ -1,0 +1,271 @@
+{
+  "title": "ReaLLM-Forge OOV (Out-Of-Vocabulary) & Unicode Stress-Test Prompt Suite",
+  "description": "A comprehensive benchmark suite of 20 evaluation prompts designed to rigorously stress-test vocabulary coverage, character fallback, BPE byte fallback, and multicontext factorization models across rare Korean syllables, archaic Hangul, rare Hanja, ancient scripts, mathematical symbols, and complex emojis.",
+  "total_prompts": 20,
+  "categories": {
+    "foreign_loanwords_and_rare_syllables": "Foreign dish names (e.g. Thai) and non-standard Korean syllables.",
+    "internet_slang_and_rare_syllables": "Korean internet slang, rare syllables (e.g. 쀍, 아햏햏).",
+    "archaic_middle_korean": "Old Hangul characters (ㅿ, ᄠ, ᆞ) from 15th-century Hunminjeongeum texts.",
+    "mathematical_and_scientific_symbols": "Mathematical calculus operators, formulas, and scientific notations (∫, ∇, ∂, ∑, ∞, ≠, ≈).",
+    "modern_emojis_and_tech": "Standard modern emojis and alphanumeric technical terminology.",
+    "rare_hanja_cjk": "High-stroke rare CJK ideographs absent from typical subword sets (龘, 爨).",
+    "ancient_smp_scripts": "Supplementary Multilingual Plane 4-byte ancient scripts (Phoenician, Egyptian Hieroglyphs).",
+    "complex_emojis_and_zwj_sequences": "Regional indicator flag ligatures and multi-codepoint Zero-Width Joiner (ZWJ) family emoji sequences."
+  },
+  "prompts": [
+    {
+      "id": 1,
+      "category": "foreign_loanwords_and_latin",
+      "subcategory": "Thai Cuisine & Transliteration",
+      "source_file": "oov_prompts.txt",
+      "prompt": "오늘 저녁은 태국 식당에서 똠얌꿍(Tom Yum Goong)과 팟타이를 주문해서 먹자.",
+      "target_phenomena": [
+        "Non-standard Hangul syllables (똠, 꿍)",
+        "Latin alphabet in parentheses",
+        "Foreign loanword context"
+      ],
+      "description": "Tests tokenizer handling of foreign loanword transliterations alongside English glosses in parentheses."
+    },
+    {
+      "id": 2,
+      "category": "internet_slang_and_rare_syllables",
+      "subcategory": "2000s Web Culture & Memes",
+      "source_file": "oov_prompts.txt",
+      "prompt": "2000년대 초반 디시인사이드 아햏햏 시절에는 '즐드삼 쀍' 같은 신조어와 은어가 유행했었다.",
+      "target_phenomena": [
+        "Slang syllables (햏, 쀍)",
+        "Historical internet slang vocabulary"
+      ],
+      "description": "Tests handling of extremely rare non-standard Korean syllables with irregular codepoints and phonology."
+    },
+    {
+      "id": 3,
+      "category": "archaic_middle_korean",
+      "subcategory": "Hunminjeongeum Old Hangul",
+      "source_file": "oov_prompts.txt",
+      "prompt": "훈민정음 언해본 서문에서 '나랏말ᄊᆞ미'와 'ᄠᅳᆮ'의 의미, 그리고 반시옷(ㅿ)의 음가를 설명해줘.",
+      "target_phenomena": [
+        "Archaic consonants (ㅿ Bansiot, ᄠ Ssangbieup-digeut)",
+        "Arae-a vowel (ᆞ)",
+        "Historical text analysis"
+      ],
+      "description": "Tests Middle Korean historical Hangul characters and archaic phonological symbols."
+    },
+    {
+      "id": 4,
+      "category": "mathematical_and_scientific_symbols",
+      "subcategory": "Calculus & Mathematical Logic",
+      "source_file": "oov_prompts.txt",
+      "prompt": "다음 정적분 식 ∫ sin(x) dx ≈ 2 를 증명하고, 조건 x ≠ 0 및 y ≥ 1 일 때의 해를 구하시오.",
+      "target_phenomena": [
+        "Integral symbol (∫)",
+        "Mathematical operators (≈, ≠, ≥)",
+        "Inline formula notation"
+      ],
+      "description": "Tests preservation and generation of standard mathematical operators and Unicode symbols."
+    },
+    {
+      "id": 5,
+      "category": "modern_emojis_and_tech",
+      "subcategory": "AI Announcements & Emojis",
+      "source_file": "oov_prompts.txt",
+      "prompt": "새로운 AI 모델 출시 공지: '차세대 ReaLLM 엔진이 공개되었습니다! 🚀🔥 성능이 이전보다 2배 향상되었습니다 🤖✨'",
+      "target_phenomena": [
+        "Alphanumeric brand/technical terms (ReaLLM)",
+        "Standard emojis (🚀, 🔥, 🤖, ✨)"
+      ],
+      "description": "Tests alphanumeric model identifiers alongside modern Unicode emojis."
+    },
+    {
+      "id": 6,
+      "category": "rare_hanja_cjk",
+      "subcategory": "Complex CJK Ideographs",
+      "source_file": "bpe_oov_prompts.txt",
+      "prompt": "조선시대 문헌에서 삼룡구름용(龘)과 부엌 화로(爨) 같은 희귀 한자 표기를 발견했다.",
+      "target_phenomena": [
+        "Rare Hanja: 龘 (U+9F98, 48 strokes)",
+        "Rare Hanja: 爨 (U+7228, 29 strokes)",
+        "Historical Hanja terminology"
+      ],
+      "description": "Tests ultra-rare, high-stroke Chinese characters that are absent from typical subword vocabularies."
+    },
+    {
+      "id": 7,
+      "category": "rare_onomatopoeia_and_complex_batchim",
+      "subcategory": "Comic Sound Effects",
+      "source_file": "bpe_oov_prompts.txt",
+      "prompt": "만화 주인공이 당황하자 \"믰믰거리며 괋괋 웃다\"라는 기괴한 의성어가 말풍선에 적혀 있었다.",
+      "target_phenomena": [
+        "Complex final consonants: 믰 (ㅆ), 괋 (ㅀ)",
+        "Non-dictionary onomatopoeia"
+      ],
+      "description": "Tests rare Hangul syllables composed of complex vowel diphthongs and multi-consonant patchim."
+    },
+    {
+      "id": 8,
+      "category": "mathematical_and_scientific_symbols",
+      "subcategory": "Vector Calculus & Electromagnetism",
+      "source_file": "bpe_oov_prompts.txt",
+      "prompt": "맥스웰 방정식의 미분형 ∇ × E = -∂B/∂t 와 폐곡면 적분 ∮ B · dA = 0 을 유도하시오.",
+      "target_phenomena": [
+        "Nabla (∇)",
+        "Partial derivative (∂)",
+        "Contour integral (∮)",
+        "Vector cross product (×)",
+        "Dot product (·)"
+      ],
+      "description": "Tests multivariable vector calculus notation and Maxwell field equations."
+    },
+    {
+      "id": 9,
+      "category": "modern_emojis_and_tech",
+      "subcategory": "Mobile App Milestones",
+      "source_file": "bpe_oov_prompts.txt",
+      "prompt": "앱스토어 실시간 차트 1위 달성! 🎉🏆 누적 다운로드 100만 건을 돌파하며 매출이 급상승 중입니다 📈✨",
+      "target_phenomena": [
+        "Celebratory emojis (🎉, 🏆)",
+        "Business growth emojis (📈, ✨)"
+      ],
+      "description": "Tests commercial and celebratory social media text with emoji clusters."
+    },
+    {
+      "id": 10,
+      "category": "foreign_loanwords_and_rare_syllables",
+      "subcategory": "Night Market Food Culture",
+      "source_file": "bpe_oov_prompts.txt",
+      "prompt": "방콕 야시장에서 매콤새콤한 똠얌꿍과 바삭한 뽧뽧 튀김을 함께 주문해서 맛있게 먹었다.",
+      "target_phenomena": [
+        "Thai food syllables (똠, 꿍)",
+        "Intensified slang syllables (뽧)"
+      ],
+      "description": "Tests combination of foreign food names and expressive reduplicated syllables with complex consonant clusters."
+    },
+    {
+      "id": 11,
+      "category": "foreign_loanwords_and_rare_syllables",
+      "subcategory": "Street Food Conversational",
+      "source_file": "all_baseline_oov_prompts.txt",
+      "prompt": "오늘 저녁은 태국 야시장에서 매콤한 똠얌꿍과 바삭하게 튀긴 뽧뽧 치킨을 주문해서 먹자.",
+      "target_phenomena": [
+        "Loanwords (똠얌꿍)",
+        "Slang adjective modifier (뽧뽧 치킨)"
+      ],
+      "description": "Tests natural colloquial invitation structure embedding rare syllables and loanwords."
+    },
+    {
+      "id": 12,
+      "category": "rare_hanja_cjk",
+      "subcategory": "Historical Document Analysis",
+      "source_file": "all_baseline_oov_prompts.txt",
+      "prompt": "조선시대 고문서에서 용 세 마리가 승천하는 형상의 龘(답) 자와 부엌 화로를 뜻하는 爨(산) 자를 발견했다.",
+      "target_phenomena": [
+        "Rare Hanja (龘, 爨)",
+        "Korean pronunciation glosses (답, 산)"
+      ],
+      "description": "Tests historical philology contexts pairing rare Hanja glyphs with Hangul phonetic readings."
+    },
+    {
+      "id": 13,
+      "category": "mathematical_and_scientific_symbols",
+      "subcategory": "Multivariable Calculus Analysis",
+      "source_file": "all_baseline_oov_prompts.txt",
+      "prompt": "다변수 해석학에서 보존장의 선적분 ∫ F · dr = 0 과 그래디언트 ∇f(x, y) ≠ 0 인 조건을 만족하는 영역을 구하시오.",
+      "target_phenomena": [
+        "Line integral (∫)",
+        "Dot product (·)",
+        "Gradient (∇)",
+        "Inequality (≠)"
+      ],
+      "description": "Tests formal Korean mathematics problems with dense vector calculus equations."
+    },
+    {
+      "id": 14,
+      "category": "modern_emojis_and_tech",
+      "subcategory": "Open Source Release Announcement",
+      "source_file": "all_baseline_oov_prompts.txt",
+      "prompt": "차세대 오픈소스 AI 프로젝트 출시 공지: \"ReaLLM 엔진 v2.0이 정식 공개되었습니다! 🚀🔥 커뮤니티 기여에 감사드립니다 🎉✨\"",
+      "target_phenomena": [
+        "Version numbering (v2.0)",
+        "Combined multi-category emoji set (🚀🔥🎉✨)"
+      ],
+      "description": "Tests developer community announcement text with version strings and diverse emojis."
+    },
+    {
+      "id": 15,
+      "category": "archaic_and_ancient_scripts",
+      "subcategory": "Historical Linguistics & Ancient Alphabets",
+      "source_file": "all_baseline_oov_prompts.txt",
+      "prompt": "훈민정음 초기 문헌의 반시옷(ㅿ) 표기법과 고대 페니키아 비문의 첫 글자인 알레프(𐤀)의 음운학적 변천사를 비교하시오.",
+      "target_phenomena": [
+        "Middle Korean Bansiot (ㅿ, U+317F)",
+        "Phoenician Letter Alep (𐤀, U+10900, 4-byte SMP)"
+      ],
+      "description": "Tests cross-linguistic comparative historical linguistics across archaic Hangul and Supplementary Multilingual Plane (SMP) scripts."
+    },
+    {
+      "id": 16,
+      "category": "foreign_loanwords_and_rare_syllables",
+      "subcategory": "Casual Dining & Dessert",
+      "source_file": "pure_byte_prompts.txt",
+      "prompt": "오늘 점심은 매콤한 똠얌꿍과 바삭한 뽧뽧 치킨을 먹고 후식으로 달콤한 팥빙수를 즐겼다.",
+      "target_phenomena": [
+        "Food loanwords (똠얌꿍)",
+        "Slang reduplication (뽧뽧)",
+        "Traditional dessert terms (팥빙수)"
+      ],
+      "description": "Tests casual multi-clause compound sentences combining rare syllables with standard Korean nouns."
+    },
+    {
+      "id": 17,
+      "category": "rare_hanja_cjk",
+      "subcategory": "Etymological Query",
+      "source_file": "pure_byte_prompts.txt",
+      "prompt": "옛 고문서에 기록된 용 세 마리가 날아오르는 글자(龘)와 밥을 짓는 부엌 화로(爨)의 음훈을 밝혀라.",
+      "target_phenomena": [
+        "Rare Hanja (龘, 爨)",
+        "Etymological questioning imperative tone"
+      ],
+      "description": "Tests direct imperative requests concerning obscure CJK ideograph etymology."
+    },
+    {
+      "id": 18,
+      "category": "mathematical_and_scientific_symbols",
+      "subcategory": "Fundamental Theorem of Calculus & Series",
+      "source_file": "pure_byte_prompts.txt",
+      "prompt": "미적분학 기본정리 ∫ f(x) dx 와 다변수 함수의 그래디언트 ∇f(x, y) 및 부분합 수렴 조건 ∑ a_n < ∞ 을 분석하시오.",
+      "target_phenomena": [
+        "Integral (∫)",
+        "Gradient (∇)",
+        "Summation (∑)",
+        "Infinity (∞)",
+        "Inequality (<)"
+      ],
+      "description": "Tests comprehensive mathematical analysis prompts with series convergence symbols and calculus theorems."
+    },
+    {
+      "id": 19,
+      "category": "ancient_smp_scripts",
+      "subcategory": "Phoenician & Egyptian Hieroglyphs",
+      "source_file": "pure_byte_prompts.txt",
+      "prompt": "고대 페니키아 문자(𐤀𐤁𐤂)와 이집트 상형문자(𓀀𓀁𓀂)의 기원을 비교하는 언어학 강의를 수강했다.",
+      "target_phenomena": [
+        "Phoenician script: 𐤀𐤁𐤂 (U+10900-U+10902, 4-byte)",
+        "Egyptian Hieroglyphs: 𓀀𓀁𓀂 (U+13000-U+13002, 4-byte)"
+      ],
+      "description": "Tests extreme SMP Unicode scripts (Egyptian Hieroglyphs and Phoenician) requiring 4 UTF-8 bytes per character."
+    },
+    {
+      "id": 20,
+      "category": "complex_emojis_and_zwj_sequences",
+      "subcategory": "Flags & Multi-person ZWJ Sequences",
+      "source_file": "pure_byte_prompts.txt",
+      "prompt": "대한민국 국가대표팀의 승리를 축하합니다! 🇰🇷 화목한 가족 👨‍👩‍👧‍👦 모두가 함께 열렬히 응원했습니다 🔥✨",
+      "target_phenomena": [
+        "Regional Indicator Flag: 🇰🇷 (U+1F1F0 + U+1F1F7)",
+        "Zero-Width Joiner (ZWJ) Family: 👨‍👩‍👧‍👦 (U+1F468+200D+1F469+200D+1F467+200D+1F466)",
+        "Elemental emojis (🔥, ✨)"
+      ],
+      "description": "Tests complex compound Unicode emoji sequences including two-codepoint regional flag pairs and 7-codepoint ZWJ family sequences."
+    }
+  ]
+}
