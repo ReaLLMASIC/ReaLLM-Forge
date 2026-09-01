@@ -38,3 +38,4 @@ optimization_and_search/nsga_search/search_space_def/
 optimization_and_search/nsga_search/plots_paper/
 
 venv/*
+dist/digits-3d-site/

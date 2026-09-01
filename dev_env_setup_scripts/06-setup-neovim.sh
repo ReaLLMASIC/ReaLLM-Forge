@@ -21,7 +21,7 @@ log "Installing Neovim and its configuration..."
 
 # 1. Install Neovim (latest stable) via AppImage
 log "Downloading latest Neovim AppImage..."
-wget -O nvim.appimage https://github.com/neovim/neovim/releases/download/v0.11.4/nvim-linux-x86_64.appimage
+wget -O nvim.appimage https://github.com/neovim/neovim/releases/download/v0.12.4/nvim-linux-x86_64.appimage
 chmod u+x nvim.appimage
 mkdir -p ~/.local/bin
 mv nvim.appimage ~/.local/bin/nvim
@@ -174,6 +174,7 @@ EOF
 cat > ~/.config/nvim/lua/plugins/treesitter.lua << 'EOF'
 return {
   "nvim-treesitter/nvim-treesitter",
+  branch = "master",
   build = ":TSUpdate",
   config = function()
     require("nvim-treesitter.configs").setup({

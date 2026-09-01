@@ -70,6 +70,7 @@ from utils.model_stats import (
     compute_activation_stats,
     print_model_stats_table,
 )
+from utils.per_token_metrics import PerTokenMetrics
 
 from sample import (
     sample_with_existing_model,
@@ -98,7 +99,6 @@ import torch.onnx
 import torch.nn.functional as F
 from torch.distributed import destroy_process_group, init_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.tensorboard import SummaryWriter
 
 from variations.model_variations import model_variation_dictionary
 
@@ -262,7 +262,7 @@ class Trainer:
             self.seed_offset = self.ddp_rank
             self.args.gradient_accumulation_steps //= self.ddp_world_size
         else:
-            self.device = self.args.device
+            self.device = self.args.device if ":" in self.args.device or self.args.device == "cpu" else self.args.device + ":0"
             self.master_process = True
             self.seed_offset = 0
             self.ddp_world_size = 1
@@ -499,6 +499,11 @@ class Trainer:
 
         # Tensorboard
         if self.args.tensorboard_log:
+            # Import lazily so --no-tensorboard_log works even when an optional
+            # TensorBoard/TensorFlow installation is binary-incompatible with
+            # the active NumPy version.
+            from torch.utils.tensorboard import SummaryWriter
+
             # 1) Give the run a safe default name when the user did not supply one
             if self.args.tensorboard_run_name is None:
                 self.args.tensorboard_run_name = f"{timestamp_prefix}"
@@ -520,6 +525,31 @@ class Trainer:
             self.args.csv_name = wandb_run_name
             wandb.init(project=self.args.wandb_project, name=self.args.wandb_run_name, config=self.args)
         self.load_tokenizer()
+        self.per_token_metrics = None
+        if self.args.log_per_token_metrics:
+            if self.args.training_mode == 'multicontext':
+                sizes = dict(zip(self.args.multicontext_datasets, self.vocab_sizes))
+            elif self.args.dataset_list:
+                sizes = dict(zip(self.args.dataset_list, self.vocab_sizes))
+            else:
+                sizes = {self.args.dataset: int(self.model_args['vocab_size'])}
+            report_dir = (self.args.per_token_metrics_dir
+                          or os.path.join(self.args.out_dir, 'per_token_metrics'))
+            token_texts = {}
+            for dataset, vocab_size in sizes.items():
+                decode = (self.decode_dict.get(dataset, self.decode)
+                          if hasattr(self, 'decode_dict') else self.decode)
+                rendered = {}
+                for token_id in range(vocab_size):
+                    try:
+                        token_text = decode([token_id])
+                    except (KeyError, IndexError, TypeError, ValueError):
+                        token_text = ''
+                    rendered[token_id] = json.dumps(
+                        token_text, ensure_ascii=False
+                    )[1:-1]
+                token_texts[dataset] = rendered
+            self.per_token_metrics = PerTokenMetrics(report_dir, sizes, token_texts)
 
 
     def _initialize_teacher_if_needed(self):
@@ -577,7 +607,10 @@ class Trainer:
 
             def _use_muon_for_param(name, param):
                 if self.args.muon_include_all_weights:
-                    return True
+                    # Newton-Schulz orthogonalization is defined for matrices.
+                    # "All weights" includes embeddings/heads, but leaves
+                    # scalar/vector parameters on Muon's auxiliary Adam path.
+                    return param.ndim >= muon_min_ndim
                 if force_include and any(token in name for token in force_include):
                     return True
                 if param.ndim < muon_min_ndim:
@@ -1098,6 +1131,8 @@ class Trainer:
     @torch.no_grad()
     def estimate_loss(self):
         out = {'datasets':{}}
+        if self.per_token_metrics is not None:
+            self.per_token_metrics.begin_evaluation()
         compute_rankme = self.args.log_rankme or self.args.log_areq
 
         self.model.eval()
@@ -1126,6 +1161,8 @@ class Trainer:
                                 dataset_idx=idx if self.args.multidataset_wte else None,
                                 loss_fn=self.loss_fn,
                             )
+                        if self.per_token_metrics is not None:
+                            self.per_token_metrics.add_evaluation_batch(dataset, split, logits, Y)
                         handle.remove()
                         dataset_losses[split][k] = loss.item()
                         if split == 'val':
@@ -1272,6 +1309,11 @@ class Trainer:
                             iter_num=self.iter_num,
                             loss_fn=self.loss_fn,
                         )
+                    if self.per_token_metrics is not None:
+                        for i, dataset in enumerate(self.args.multicontext_datasets):
+                            self.per_token_metrics.add_evaluation_batch(
+                                dataset, split, logits[i], y_dict[dataset]
+                            )
                     if handle is not None:
                         handle.remove()
                     for i in range(len(self.args.multicontext_datasets)):
@@ -1393,6 +1435,10 @@ class Trainer:
                             dataset_idx=0 if self.args.multidataset_wte else None,
                             loss_fn=self.loss_fn,
                         )
+                    if self.per_token_metrics is not None:
+                        self.per_token_metrics.add_evaluation_batch(
+                            self.args.dataset, split, logits, Y
+                        )
                     handle.remove()
                     losses[k] = loss.item()
                     if split == 'val':
@@ -1513,6 +1559,35 @@ class Trainer:
                             self.iter_num,
                             )
 
+        if self.per_token_metrics is not None:
+            if self.args.training_mode == 'multicontext':
+                for i, dataset in enumerate(self.args.multicontext_datasets):
+                    self.per_token_metrics.set_token_geometry(
+                        dataset, self.raw_model.transformer[f'lm_head_{i}'].weight,
+                        self.args.export_min_angle_graph_block_size,
+                        self.args.export_min_angle_graph_device,
+                    )
+            elif self.args.dataset_list and self.args.multidataset_wte:
+                for i, dataset in enumerate(self.args.dataset_list):
+                    self.per_token_metrics.set_token_geometry(
+                        dataset, self.raw_model.transformer[f'lm_head_{i}'].weight,
+                        self.args.export_min_angle_graph_block_size,
+                        self.args.export_min_angle_graph_device,
+                    )
+            elif self.args.dataset_list:
+                for dataset in self.args.dataset_list:
+                    self.per_token_metrics.set_token_geometry(
+                        dataset, self.raw_model.lm_head.weight,
+                        self.args.export_min_angle_graph_block_size,
+                        self.args.export_min_angle_graph_device,
+                    )
+            else:
+                self.per_token_metrics.set_token_geometry(
+                    self.args.dataset, self.raw_model.lm_head.weight,
+                    self.args.export_min_angle_graph_block_size,
+                    self.args.export_min_angle_graph_device,
+                )
+            self.per_token_metrics.export(self.iter_num)
         self.model.train()
         return out
 
@@ -2104,6 +2179,7 @@ class Trainer:
                 'best_iter': self.best_iter,
                 'best_tokens': self.best_tokens,
                 'config': vars(self.args),
+                'metrics': getattr(self, 'latest_checkpoint_metrics', None),
                 }
         torch.save(checkpoint, os.path.join(self.args.out_dir, filename))
 
@@ -2156,6 +2232,10 @@ class Trainer:
 
     def run_validation_step(self, running_mfu, current_epoch, current_dataset, num_steps_with_worse_loss, live=None):
         losses = self.estimate_loss()
+        self.latest_checkpoint_metrics = {
+            'train_loss': self._to_scalar(losses.get('train', float('nan'))),
+            'val_loss': self._to_scalar(losses.get('val', float('nan'))),
+        }
 
         self.latest_top1_prob = losses.get('top1_prob', float('nan'))
         self.latest_top1_correct = losses.get('top1_correct', float('nan'))
@@ -2502,6 +2582,11 @@ class Trainer:
                             # For multicontext training let loss = first dataset loss
                             # loss = training_losses[0]
                             loss = sum(training_losses) / len(training_losses)
+                            if self.per_token_metrics is not None:
+                                for dataset in self.args.multicontext_datasets:
+                                    self.per_token_metrics.count_training_batch(
+                                        dataset, self.Y_dict[dataset]
+                                    )
                         else:
                             idx_ds = self.args.dataset_list.index(current_dataset) if self.args.dataset_list else None
                             logits, loss = self.model(
@@ -2511,6 +2596,10 @@ class Trainer:
                                 dataset_idx=idx_ds if self.args.multidataset_wte else None,
                                 loss_fn=self.loss_fn,
                             )
+                            if self.per_token_metrics is not None:
+                                self.per_token_metrics.count_training_batch(
+                                    current_dataset, self.Y
+                                )
 
                     if hasattr(self.optimizer, "set_entropy") and not isinstance(logits, (list, tuple)):
                         with torch.no_grad():
@@ -2596,6 +2685,9 @@ class Trainer:
 
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
+                if self.model_args.get("wte_fixed_norm", False):
+                    base_model = getattr(self.raw_model, "_orig_mod", self.raw_model)
+                    base_model.reproject_token_embeddings()
                 if self.scheduler:
                     if isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                         self.scheduler.step(losses["val"])

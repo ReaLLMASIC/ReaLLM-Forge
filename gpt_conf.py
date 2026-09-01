@@ -140,6 +140,8 @@ class GPTConfig:
     # weight tying
     n_embd_wte_scale_tying: bool = True
     wte_weight_tying: bool = True # Non-factorized wte weight tying
+    wte_fixed_norm: bool = False
+    wte_fixed_norm_value: float | None = None
 
     # wte import/export
     import_wte_freeze: bool = False

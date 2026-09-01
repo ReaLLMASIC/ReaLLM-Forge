@@ -212,6 +212,9 @@ class GPT(nn.Module):
             # Replace wte with values from numpy and retie weights
             self.import_wte(self.config.import_wte_npy)
 
+        if self.config.wte_fixed_norm:
+            self.reproject_token_embeddings()
+
         # import scale_matrices
         if config.import_scale_matrices_npz:
             self.import_scale_matrices(config.import_scale_matrices_npz, config.n_embd_wte_scale_tying)
@@ -223,6 +226,24 @@ class GPT(nn.Module):
 
         # report number of parameters
         print("number of parameters: %.2fM" % (self.get_num_params()/1e6,))
+
+    @torch.no_grad()
+    def reproject_token_embeddings(self):
+        """Project each token vector onto the configured fixed-radius sphere."""
+        if self.config.quantize_wte:
+            raise ValueError("wte_fixed_norm is not supported with quantized token embeddings")
+        radius = self.config.wte_fixed_norm_value
+        if radius is None:
+            radius = math.sqrt(self.config.n_embd_wte or self.config.n_embd)
+        if radius <= 0:
+            raise ValueError("wte_fixed_norm_value must be greater than zero")
+
+        embedding_names = ["wte"]
+        if (self.config.multicontext or self.config.multidataset_wte) and not self.uses_numerical_multicontext:
+            embedding_names = [name for name in self.transformer if name.startswith("wte_")]
+        for name in embedding_names:
+            weight = self.transformer[name].weight
+            weight.mul_(float(radius) / weight.norm(dim=-1, keepdim=True).clamp_min(1e-12))
 
     def get_num_params(self, non_embedding=True):
         """

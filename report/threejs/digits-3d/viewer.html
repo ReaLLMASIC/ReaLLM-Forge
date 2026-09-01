@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>3D token trajectories: seen digits vs unseen letters</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0f172a;--panel:rgba(15,23,42,.88);--line:#334155;--text:#f8fafc;--muted:#94a3b8}
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font:14px system-ui;color:var(--text)}
+    canvas{display:block;width:100%;height:100%}.panel{position:absolute;top:18px;left:18px;width:min(410px,calc(100% - 36px));padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--panel);backdrop-filter:blur(10px)}
+    h1{margin:0 0 8px;font-size:20px}.copy{color:var(--muted);line-height:1.45}.row{display:flex;justify-content:space-between;margin-top:15px}input{width:100%;accent-color:#f59e0b}.legend{display:flex;gap:18px;margin-top:12px}.key:before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--c)}
+    #error{color:#fca5a5;margin-top:10px}.hint{position:absolute;bottom:16px;left:18px;color:var(--muted)}#lossChart{width:100%;height:92px;display:block;margin-top:10px;border:1px solid var(--line);border-radius:8px}.loss-key{font-size:12px;color:var(--muted)}
+  </style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<section class="panel">
+  <h1>Where token embeddings move during training</h1>
+  <div id="projection" class="copy">Loading projection details…</div>
+  <div class="row"><strong>Training time</strong><span id="step">loading…</span></div>
+  <canvas id="lossChart" width="740" height="184"></canvas>
+  <div id="lossValues" class="loss-key">Train loss — · validation loss —</div>
+  <input id="time" type="range" min="0" max="0" value="0" disabled aria-label="Training checkpoint">
+  <div class="legend"><span class="key" style="--c:#f59e0b">trained</span><span class="key" style="--c:#e879f9">dropped</span><span class="key" style="--c:#38bdf8">held-out</span></div>
+  <div id="error"></div>
+</section>
+<div class="hint">Drag to orbit · scroll to zoom · Space to play/pause · ←/→ to step</div>
+<script type="module">
+import * as THREE from 'https://esm.sh/three@0.160.0';
+import {OrbitControls} from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+const canvas=document.querySelector('#scene'), slider=document.querySelector('#time'), stepLabel=document.querySelector('#step');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0f172a);const camera=new THREE.PerspectiveCamera(48,1,.01,100);camera.position.set(3,2.5,4);
+const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;scene.add(new THREE.AmbientLight(0xffffff,1.5));
+scene.add(new THREE.GridHelper(5,10,0x475569,0x1e293b));const axes=new THREE.AxesHelper(1.2);scene.add(axes);
+let data,frame=0,playing=false,lastAdvance=0;const objects=[];
+function label(text,color){const c=document.createElement('canvas');c.width=128;c.height=128;const x=c.getContext('2d');x.font='bold 72px system-ui';x.textAlign='center';x.textBaseline='middle';x.fillStyle='#fff';x.fillText(text,64,64);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),color,transparent:true,depthWrite:false}));sprite.scale.set(.22,.22,1);return sprite}
+function build(){const p=data.projection||{method:'native',input_dimensions:3},tying=data.wte_weight_tying===false?'untied':'tied',optimizer=data.optimizer?.name||'legacy optimizer',projectionCopy=p.method==='pca'?`${p.input_dimensions}D embeddings projected to 3D with one global PCA basis (${p.fit}).`:p.method==='native_2d'?'Native 2D embeddings shown in the XY plane—no PCA is applied.':'Native 3D embeddings—no PCA is applied.';document.querySelector('#projection').textContent=projectionCopy+` WTE and LM-head weights are ${tying}; optimizer is ${optimizer} with weight decay ${data.optimizer?.weight_decay??'unknown'}. Trails remain comparable across training time.`;if(data.fixed_norm&&p.method==='native'){const shell=new THREE.Mesh(new THREE.SphereGeometry(data.fixed_norm,32,20),new THREE.MeshBasicMaterial({color:0x64748b,wireframe:true,transparent:true,opacity:.13}));scene.add(shell)}if(data.fixed_norm&&p.method==='native_2d'){const points=[];for(let i=0;i<=64;i++){const angle=2*Math.PI*i/64;points.push(new THREE.Vector3(data.fixed_norm*Math.cos(angle),data.fixed_norm*Math.sin(angle),0))}scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0x64748b,transparent:true,opacity:.5})))}data.tokens.forEach((token,i)=>{const trained=data.trained_tokens.includes(token),color=trained?0xf59e0b:0x38bdf8;const dot=new THREE.Mesh(new THREE.SphereGeometry(.045,16,12),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.2}));const text=label(token,color),trailGroup=new THREE.Group();scene.add(dot,text,trailGroup);objects.push({dot,text,trailGroup,index:i,token,baseColor:color})});slider.max=data.frames.length-1;slider.disabled=false;slider.value=0;renderFrame()}
+function drawLosses(){const c=document.querySelector('#lossChart'),x=c.getContext('2d'),series=['train_loss','val_loss'],colors=['#f59e0b','#38bdf8'],values=data.frames.flatMap(f=>series.map(k=>f.metrics?.[k])).filter(Number.isFinite);x.clearRect(0,0,c.width,c.height);if(!values.length){x.fillStyle='#94a3b8';x.fillText('Loss metrics unavailable in these legacy checkpoints',16,28);return}const lo=Math.min(...values),hi=Math.max(...values),range=Math.max(hi-lo,1e-9),px=i=>12+i*(c.width-24)/Math.max(1,data.frames.length-1),py=v=>c.height-12-(v-lo)*(c.height-24)/range;series.forEach((key,s)=>{x.strokeStyle=colors[s];x.lineWidth=3;x.beginPath();let started=false;data.frames.forEach((f,i)=>{const v=f.metrics?.[key];if(Number.isFinite(v)){started?x.lineTo(px(i),py(v)):x.moveTo(px(i),py(v));started=true}});x.stroke()});x.strokeStyle='rgba(255,255,255,.55)';x.lineWidth=2;x.beginPath();x.moveTo(px(frame),0);x.lineTo(px(frame),c.height);x.stroke()}
+function includedAt(iteration){const transitions=data.transition_iterations||[],phase=transitions.filter(value=>value<=iteration).length;if(data.transition_mode==='add')return phase%2===1;if(data.transition_mode==='drop')return phase%2===0;if(data.transition_mode==='duty_cycle')return phase%2===0;return true}
+function renderFrame(){frame=Number(slider.value);const current=data.frames[frame],metrics=current.metrics||{},fmt=v=>Number.isFinite(v)?v.toFixed(4):'—',available=includedAt(current.iteration);stepLabel.textContent=`iteration ${current.iteration} · ${frame+1}/${data.frames.length}${data.transition_mode?` · affected token ${available?'included':'excluded'}`:''}`;document.querySelector('#lossValues').textContent=`Train loss ${fmt(metrics.train_loss)} · validation loss ${fmt(metrics.val_loss)}`;drawLosses();objects.forEach(o=>{const p=current.positions[o.index],affected=(data.dropped_tokens||[]).includes(o.token),activeExcluded=affected&&!available,liveFrames=data.frames.slice(0,frame+1);o.dot.position.fromArray(p);o.text.position.fromArray(p).add(new THREE.Vector3(0,.1,0));o.dot.material.color.setHex(activeExcluded?0xe879f9:o.baseColor);o.dot.material.emissive.setHex(activeExcluded?0xe879f9:o.baseColor);o.text.material.color.setHex(activeExcluded?0xe879f9:o.baseColor);for(const child of [...o.trailGroup.children]){child.geometry.dispose();child.material.dispose();o.trailGroup.remove(child)}let segment=[],lastStatus=null;const flush=()=>{if(segment.length<2)return;const color=lastStatus?o.baseColor:0xe879f9;o.trailGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(segment),new THREE.LineBasicMaterial({color,transparent:true,opacity:lastStatus ? .55 : .82})))};liveFrames.forEach(f=>{const status=!affected||includedAt(f.iteration),point=new THREE.Vector3().fromArray(f.positions[o.index]);if(lastStatus!==null&&status!==lastStatus){segment.push(point);flush();segment=[point]}else segment.push(point);lastStatus=status});flush()})}
+slider.addEventListener('input',renderFrame);document.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();playing=!playing}if(e.code==='ArrowRight'||e.code==='ArrowLeft'){playing=false;slider.value=Math.max(0,Math.min(+slider.max,frame+(e.code==='ArrowRight'?1:-1)));renderFrame()}});
+function tick(now){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();if(playing&&now-lastAdvance>180){slider.value=(frame+1)%data.frames.length;renderFrame();lastAdvance=now}controls.update();renderer.render(scene,camera);requestAnimationFrame(tick)}requestAnimationFrame(tick);
+const dataFile=new URLSearchParams(location.search).get('data')||'token_trajectories.json';fetch(dataFile).then(r=>{if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json()}).then(value=>{data=value;if(!data.frames.length)throw new Error('trajectory has no frames');build()}).catch(error=>{document.querySelector('#error').textContent=`Could not load ${dataFile} (${error.message}). Run the demo and serve the repository over HTTP.`});
+</script>
+</body>
+</html>
