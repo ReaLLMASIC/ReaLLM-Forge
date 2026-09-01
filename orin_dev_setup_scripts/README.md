@@ -4,7 +4,7 @@
 ./00-setup-jetson-pytorch.sh  
 ```
   
-This will install the Jetson AI Lab community kept versions of pytorch. Only way I've found with out having to jump through hoops for setup
+This will install the Jetson AI Lab community kept versions of pytorch. Straight forward, hassle-free.
 
 ```
 ./01-setup-shakespeare-pip-dependencies.sh  

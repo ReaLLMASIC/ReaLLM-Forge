@@ -5,4 +5,4 @@ cp .run-orin.sh ~/
 cp desktop/Run-LLM.desktop ~/Desktop/
 cp desktop/Jetson-stats.desktop ~/Desktop/
 ## Copy Icons to picture folder
-cp pictures/squishmallow.png /usr/share/backgrounds/
+sudo cp pictures/squishmallow.png /usr/share/backgrounds/

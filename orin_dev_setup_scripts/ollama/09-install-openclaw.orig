@@ -9,5 +9,5 @@ node -v
 npm -v
 
 #Installing Openclaw through Ollama
-ollama launch openclaw
+sudo ollama launch openclaw
 

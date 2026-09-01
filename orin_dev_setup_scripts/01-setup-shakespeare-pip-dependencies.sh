@@ -2,7 +2,7 @@
 
 ## Update Apt list and install python-pip
 sudo apt update
-sudo apt install python-pip python3-pip -y
+sudo apt install python3-pip -y
 
 ## Install pip dependencies
 pip install sentencepiece tiktoken tqdm rich torchinfo plotly seaborn tensorboard pyyaml textual
