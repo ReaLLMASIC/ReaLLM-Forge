@@ -110,6 +110,8 @@ class GPTConfig:
     # Depth-wise residual routing. "full" stores every attention/MLP output.
     attention_residual_variant: str = "standard"
     attention_residual_eps: float = 1e-6
+    attention_residual_weight_variant: str = "softmax"
+    attention_residual_relu2max_shift: float = 1.0
 
     # Attention Variation Specific
 
