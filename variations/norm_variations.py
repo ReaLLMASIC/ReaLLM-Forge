@@ -224,6 +224,28 @@ class IdentityNorm(nn.Module):
         return self.identity(x)
 
 
+class StraightThroughNorm(nn.Module):
+    """Apply a norm forward while differentiating through an activation."""
+
+    def __init__(self, config):
+        super().__init__()
+        forward_variant = config.ste_norm_forward_variant
+        if forward_variant == "ste_norm":
+            raise ValueError("ste_norm cannot wrap itself")
+
+        self.forward_norm = norm_dictionary[forward_variant](config)
+        self.backward_activation = activation_dictionary[
+            config.ste_norm_backward_activation
+        ](config)
+
+    def forward(self, x):
+        forward_value = self.forward_norm(x.detach())
+        backward_value = self.backward_activation(x)
+        # Forward uses the norm's value, but gradients to x follow the activation.
+        # Gradients to the norm parameters are preserved via forward_norm(x.detach()).
+        return forward_value + (backward_value - backward_value.detach())
+
+
 norm_dictionary = {
     "layernorm": LayerNorm,
     "rmsnorm": RMSNorm,
@@ -233,4 +255,5 @@ norm_dictionary = {
     "dact": DynamicActivation,
     "identity": IdentityNorm,
     "cappedhyperspherenorm": CappedHyperSphereNorm,
+    "ste_norm": StraightThroughNorm,
 }
