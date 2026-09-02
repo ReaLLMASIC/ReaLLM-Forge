@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orin Nano Roomba Controller</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1e1e24;
+            color: #fff;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+        }
+        .stream-box {
+            background: #000;
+            border: 3px solid #4a4a5a;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .stream-box img {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            display: block;
+            margin: auto;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 80px);
+            grid-gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        button {
+            width: 80px;
+            height: 60px;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            user-select: none;
+        }
+        button:active {
+            background-color: #0056b3;
+        }
+        .stop-btn {
+            background-color: #dc3545;
+        }
+        .stop-btn:active {
+            background-color: #bd2130;
+        }
+        .info {
+            margin-top: 15px;
+            color: #aaa;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Jetson Orin Nano - Roomba Command Center</h2>
+    
+    <div class="stream-box">
+        <img src="/video_feed" alt="CSI Camera Live Stream">
+    </div>
+
+    <div class="controls">
+        <td></td>
+        <button onmousedown="sendCommand('forward')" onmouseup="sendCommand('stop')" ontouchstart="sendCommand('forward')" ontouchend="sendCommand('stop')">▲</button>
+        <td></td>
+        
+        <button onmousedown="sendCommand('left')" onmouseup="sendCommand('stop')" ontouchstart="sendCommand('left')" ontouchend="sendCommand('stop')">◀</button>
+        <button class="stop-btn" onclick="sendCommand('stop')">STOP</button>
+        <button onmousedown="sendCommand('right')" onmouseup="sendCommand('stop')" ontouchstart="sendCommand('right')" ontouchend="sendCommand('stop')">▶</button>
+        
+        <td></td>
+        <button onmousedown="sendCommand('backward')" onmouseup="sendCommand('stop')" ontouchstart="sendCommand('backward')" ontouchend="sendCommand('stop')">▼</button>
+        <td></td>
+    </div>
+
+    <div class="info">
+        <p>Use UI buttons, or press/hold <strong>W, A, S, D</strong> on your keyboard to drive.</p>
+    </div>
+</div>
+
+<script>
+    // Send command to Flask backend
+    function sendCommand(action) {
+        let formData = new FormData();
+        formData.append('command', action);
+
+        fetch('/control', {
+            method: 'POST',
+            body: formData
+        }).catch(err => console.error("Error sending command:", err));
+    }
+
+    // Keyboard controls (WASD)
+    let activeKey = null;
+
+    window.addEventListener('keydown', function(event) {
+        if (activeKey) return; // Prevent spamming requests when key is held down
+        
+        switch(event.key.toLowerCase()) {
+            case 'w': activeKey = 'forward'; break;
+            case 's': activeKey = 'backward'; break;
+            case 'a': activeKey = 'left'; break;
+            case 'd': activeKey = 'right'; break;
+        }
+        if (activeKey) sendCommand(activeKey);
+    });
+
+    window.addEventListener('keyup', function(event) {
+        if (['w', 's', 'a', 'd'].includes(event.key.toLowerCase())) {
+            activeKey = null;
+            sendCommand('stop');
+        }
+    });
+</script>
+
+</body>
+</html>
