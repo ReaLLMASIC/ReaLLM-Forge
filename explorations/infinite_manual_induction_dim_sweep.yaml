@@ -1,0 +1,104 @@
+# Sweep manual-induction head dimensionality for Infinite Attention
+---
+
+named_static_groups:
+  # QK Norm
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type (guided by explorations/default.yaml peri_ln setup)
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    named_group_settings:
+      use_rotary_embeddings: [true]
+      use_abs_pos_embeddings: [false]
+
+  # Embedding Norm
+  - named_group: "rmsnorm_wte"
+    named_group_settings:
+      norm_variant_wte: ["rmsnorm"]
+
+  # MLP Activation
+  - named_group: "squared_relu"
+    named_group_settings:
+      activation_variant: ["squared_relu"]
+
+  # Infinite Attention + manual induction heads
+  - named_group: "infinite"
+    attention_variant: ["infinite"]
+    use_concat_heads: [true]
+    n_qk_head_dim: [200]
+    n_v_head_dim: [200]
+    n_layer: [6]
+
+
+
+
+
+# Higher Level Groupings
+named_variation_groups:
+  - named_group: "th6_head_ratios"
+    parameter_groups:
+      - n_induction_head: [1]
+        n_head: [5]
+      - n_induction_head: [2]
+        n_head: [4]
+      - n_induction_head: [3]
+        n_head: [3]
+      - n_induction_head: [4]
+        n_head: [2]
+      - n_induction_head: [5]
+        n_head: [1]
+      - n_induction_head: [6]
+        n_head: [0]
+  - named_group: "th3_head_ratios"
+    parameter_groups:
+      - n_induction_head: [1]
+        n_head: [2]
+      - n_induction_head: [2]
+        n_head: [1]
+      - n_induction_head: [3]
+        n_head: [0]
+  - named_group: "ind_dim_sizes"
+    parameter_groups:
+      - n_ind_head_dim: [32]
+      - n_ind_head_dim: [64]
+      - n_ind_head_dim: [128]
+      - n_ind_head_dim: [256]
+      - n_ind_head_dim: [384]
+
+common_group:
+  dataset: ["minipile"]
+  eval_interval: [1000]
+  max_iters: [10000]
+  never_save_checkpoint: [true]
+  compile: [true]
+
+parameter_groups:
+  # Induction Head Variations
+  - named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "rmsnorm_wte"
+      - "squared_relu"
+      - "infinite"
+    named_group_variations:
+      - "ind_dim_sizes"
+    named_group_alternates:
+      ["th6_head_ratios", "th3_head_ratios"]
+  # Baseline without induction heads
+  - named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "rmsnorm_wte"
+      - "squared_relu"
+      - "infinite"
+    n_head: [3,6]
