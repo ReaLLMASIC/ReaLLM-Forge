@@ -12,6 +12,9 @@ from .model_service import (
     DEFAULT_DEVICE,
     DEFAULT_MODEL_NAME,
     angle_degrees,
+    attention_head_catalog,
+    attention_dot_sweep,
+    attention_all_norm_sweep,
     common_close_tokens,
     get_current_assets,
     get_model_status,
@@ -19,12 +22,14 @@ from .model_service import (
     linear_transform_neighbors,
     list_local_models,
     load_active_model,
+    layernorm_analysis,
     minimum_angular_distances,
     nearest_neighbors,
     pairwise_angle_bin_tokens,
     pairwise_angle_distribution,
     recursive_angle_group,
     search_tokens,
+    regex_search_tokens,
 )
 from .schemas import (
     AngleResponse,
@@ -168,6 +173,82 @@ def token_by_id(token_id: int) -> TokenRecord:
     /api/tokens/search from being parsed as token IDs.
     """
     return _token_record(token_id)
+
+
+@app.get("/api/layernorms")
+def layernorm_list():
+    assets = _load_assets_or_500()
+    names = list(assets.layernorms)
+    final = next((name for name in reversed(names) if any(part in name for part in ("model.norm", "final_layernorm", "ln_f"))), names[-1] if names else None)
+    return {"layernorms": names, "default": final, "norm_kind": assets.norm_kind, "epsilon": assets.norm_epsilon, "attention_layers": attention_head_catalog(assets)}
+
+
+@app.get("/api/layernorm/tokens/search", response_model=TokenSearchResponse)
+def layernorm_token_search(q: str = Query(""), limit: int = Query(200, ge=1, le=2000)):
+    assets = _load_assets_or_500()
+    try:
+        matches = regex_search_tokens(assets, q, limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return TokenSearchResponse(query=q, results=[TokenRecord(token_id=x.token_id, raw=x.raw, display=x.display) for x in matches])
+
+
+@app.get("/api/layernorm/analysis")
+def analyze_layernorm(
+    layernorm: str,
+    token_a: int = Query(..., ge=0),
+    token_b: int = Query(..., ge=0),
+    attention_layer: str | None = Query(None),
+    attention_head: int | None = Query(None, ge=0),
+    attention_operator: str = Query("qk", pattern="^(qk|ov)$"),
+):
+    try:
+        return layernorm_analysis(
+            _load_assets_or_500(), layernorm, [token_a, token_b], attention_layer, attention_head, attention_operator
+        )
+    except IndexError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/layernorm/attention-sweep")
+def layernorm_attention_sweep(
+    layernorm: str,
+    token_id: int | None = Query(None, ge=0, description="Backward-compatible single-token input."),
+    token_a: int | None = Query(None, ge=0),
+    token_b: int | None = Query(None, ge=0),
+    attention_operator: str = Query("qk", pattern="^(qk|ov)$"),
+):
+    try:
+        first = token_a if token_a is not None else token_id
+        if first is None:
+            raise ValueError("token_a (or legacy token_id) is required.")
+        if token_a is not None and token_b is None:
+            raise ValueError("token_b is required when token_a is supplied.")
+        return attention_dot_sweep(
+            _load_assets_or_500(), layernorm, first, token_b, attention_operator
+        )
+    except IndexError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/layernorm/all-norm-attention-sweep")
+def layernorm_all_norm_attention_sweep(
+    token_a: int = Query(..., ge=0),
+    token_b: int = Query(..., ge=0),
+    include_final: bool = Query(False),
+):
+    try:
+        return attention_all_norm_sweep(
+            _load_assets_or_500(), [token_a, token_b], include_final=include_final
+        )
+    except IndexError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/angle", response_model=AngleResponse)
