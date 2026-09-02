@@ -80,13 +80,18 @@ def parallel_mlp_forward(block, x: torch.Tensor, iter_num: int) -> torch.Tensor:
     # Make sure not to override skip connection
     x_in = x
 
-    # Pre-LN
-    if block.use_pre_ln:
-        x_in = block.pre_ln(x_in)
+    # Pre-LN. Keep the historical shared pre_ln path when available, but
+    # allow attention and MLP to deliberately choose different input norms.
+    if hasattr(block, "pre_ln"):
+        x_attn_in = block.pre_ln(x_in)
+        x_mlp_in = x_attn_in
+    else:
+        x_attn_in = block.pre_ln_attn(x_in) if block.use_pre_ln_attn else x_in
+        x_mlp_in = block.pre_ln_mlp(x_in) if block.use_pre_ln_mlp else x_in
 
     # Perform Operations
-    attn_out = block.attn(x_in, iter_num)
-    mlp_out = block.mlp(x_in, iter_num)
+    attn_out = block.attn(x_attn_in, iter_num)
+    mlp_out = block.mlp(x_mlp_in, iter_num)
 
     # Peri-LN
     if block.use_peri_ln_attn:
@@ -104,9 +109,15 @@ def parallel_mlp_forward(block, x: torch.Tensor, iter_num: int) -> torch.Tensor:
     combined = attn_out + mlp_out
     x = block._combine_resid("attn", x, combined)
 
-    # Post-LN
-    if block.use_post_ln:
+    # Post-LN. Keep shared legacy post_ln when present; otherwise apply the
+    # branch-specific post norms after the combined parallel residual update.
+    if hasattr(block, "post_ln"):
         x = block.post_ln(x)
+    else:
+        if block.use_post_ln_attn:
+            x = block.post_ln_attn(x)
+        if block.use_post_ln_mlp:
+            x = block.post_ln_mlp(x)
 
     return x
 
@@ -283,42 +294,62 @@ def _resolve_unit_norm_flags(self, config) -> None:
             setattr(self, granular_key, granular_val if (granular_val is not None) else general_val)
 
 
-def _setup_norms_parallel(self, config, norm_cls) -> None:
+def _setup_norms_parallel(self, config, norm_classes) -> None:
     """Norm layout for the 'parallel_mlp' variation."""
-    # Pre-LN
-    if getattr(self, "use_pre_ln", False):
-        self.pre_ln = norm_cls(config)
+    attn_input_norm_cls = norm_classes["attn_input"]
+    attn_output_norm_cls = norm_classes["attn_output"]
+    mlp_input_norm_cls = norm_classes["mlp_input"]
+    mlp_output_norm_cls = norm_classes["mlp_output"]
+
+    # Pre-LN. If both branches use the same norm variant through the legacy
+    # global flag, keep a shared ``pre_ln`` module for checkpoint compatibility.
+    if getattr(self, "use_pre_ln_attn", False) and getattr(self, "use_pre_ln_mlp", False) and attn_input_norm_cls is mlp_input_norm_cls:
+        self.pre_ln = attn_input_norm_cls(config)
+    else:
+        if getattr(self, "use_pre_ln_attn", False):
+            self.pre_ln_attn = attn_input_norm_cls(config)
+        if getattr(self, "use_pre_ln_mlp", False):
+            self.pre_ln_mlp = mlp_input_norm_cls(config)
 
     # Peri-LN
     if getattr(self, "use_peri_ln_attn", False):
-        self.peri_ln_attn = norm_cls(config)
+        self.peri_ln_attn = attn_output_norm_cls(config)
     if getattr(self, "use_peri_ln_mlp", False):
-        self.peri_ln_mlp = norm_cls(config)
+        self.peri_ln_mlp = mlp_output_norm_cls(config)
 
-    # Post-LN
-    if getattr(self, "use_post_ln", False):
-        self.post_ln = norm_cls(config)
+    # Post-LN. Preserve the historical shared post_ln when possible.
+    if getattr(self, "use_post_ln_attn", False) and getattr(self, "use_post_ln_mlp", False) and attn_output_norm_cls is mlp_output_norm_cls:
+        self.post_ln = attn_output_norm_cls(config)
+    else:
+        if getattr(self, "use_post_ln_attn", False):
+            self.post_ln_attn = attn_output_norm_cls(config)
+        if getattr(self, "use_post_ln_mlp", False):
+            self.post_ln_mlp = mlp_output_norm_cls(config)
 
-def _setup_norms_sequential(self, config, norm_cls) -> None:
+def _setup_norms_sequential(self, config, norm_classes) -> None:
     """Norm layout for the 'attn_then_mlp' variation."""
+    attn_input_norm_cls = norm_classes["attn_input"]
+    attn_output_norm_cls = norm_classes["attn_output"]
+    mlp_input_norm_cls = norm_classes["mlp_input"]
+    mlp_output_norm_cls = norm_classes["mlp_output"]
 
     # Pre-Norm
     if getattr(self, "use_pre_ln_attn", False):
-        self.pre_ln_attn = norm_cls(config)
+        self.pre_ln_attn = attn_input_norm_cls(config)
     if getattr(self, "use_pre_ln_mlp", False):
-        self.pre_ln_mlp = norm_cls(config)
+        self.pre_ln_mlp = mlp_input_norm_cls(config)
 
     # Peri-LN
     if getattr(self, "use_peri_ln_attn", False):
-        self.peri_ln_attn = norm_cls(config)
+        self.peri_ln_attn = attn_output_norm_cls(config)
     if getattr(self, "use_peri_ln_mlp", False):
-        self.peri_ln_mlp = norm_cls(config)
+        self.peri_ln_mlp = mlp_output_norm_cls(config)
 
     # Post-LN
     if getattr(self, "use_post_ln_attn", False):
-        self.post_ln_attn = norm_cls(config)
+        self.post_ln_attn = attn_output_norm_cls(config)
     if getattr(self, "use_post_ln_mlp", False):
-        self.post_ln_mlp = norm_cls(config)
+        self.post_ln_mlp = mlp_output_norm_cls(config)
 
 
 normalization_setup_variations = {
@@ -374,8 +405,18 @@ class Block(nn.Module):
     def __init__(self, config, mlp=None, attn=None):
         super().__init__()
 
-        # Choose norm class for attention/MLP blocks
-        norm_cls = norm_dictionary[config.norm_variant_attn]
+        # Choose norm classes for attention and MLP block norms. Granular
+        # input/output variants fall back to their component defaults;
+        # ``norm_variant_mlp=None`` falls back to the attention default for
+        # older configs and checkpoints.
+        attn_norm_variant = config.norm_variant_attn
+        mlp_norm_variant = getattr(config, "norm_variant_mlp", None) or attn_norm_variant
+        norm_classes = {
+            "attn_input": norm_dictionary[getattr(config, "norm_variant_attn_input", None) or attn_norm_variant],
+            "attn_output": norm_dictionary[getattr(config, "norm_variant_attn_output", None) or attn_norm_variant],
+            "mlp_input": norm_dictionary[getattr(config, "norm_variant_mlp_input", None) or mlp_norm_variant],
+            "mlp_output": norm_dictionary[getattr(config, "norm_variant_mlp_output", None) or mlp_norm_variant],
+        }
 
         # Resolve per-unit norm flags from config (pre/post/peri × attn/mlp)
         _resolve_unit_norm_flags(self, config)
@@ -412,7 +453,7 @@ class Block(nn.Module):
         self.block_forward = partial(block_forward_variations[variant], self)
 
         ## Instantiate norms for Block Forward Variant
-        normalization_setup_variations[variant](self, config, norm_cls)
+        normalization_setup_variations[variant](self, config, norm_classes)
 
         ## Instantiate (Optional) learned residual scalers for Block Forward Variant
         resid_scaler_setup_variations[variant](self, config)

@@ -1,0 +1,83 @@
+# muon_granular_norm_explore.yaml
+# Based on muon_norm_explore.yaml. Sweeps all 2^4 RMSNorm/HyperSphereNorm
+# combinations across the attention and MLP input/output normalization sites.
+---
+
+named_static_groups:
+  # QK Norm
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm placement
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+
+  # Position embeddings
+  - named_group: "rotary"
+    use_rotary_embeddings: [true]
+    use_abs_pos_embeddings: [false]
+
+  # MLP activation
+  - named_group: "squared_relu"
+    activation_variant: ["squared_relu"]
+
+  # Infinite attention
+  - named_group: "infinite"
+    attention_variant: ["infinite"]
+    use_concat_heads: [true]
+
+  # MQA
+  - named_group: "mqa"
+    n_kv_group: [1]
+
+  # Fixed architecture requested for this norm sweep
+  - named_group: "hd_100_three_heads"
+    n_head: [3]
+    n_qk_head_dim: [100]
+    n_v_head_dim: [100]
+
+  # Optimizer
+  - named_group: "muon_default"
+    optimizer: ["muon"]
+    muon_momentum: [0.95]
+    muon_ns_steps: [5]
+    muon_nesterov: [true]
+    muon_include_all_weights: [false]
+    muon_min_ndim: [2]
+    muon_exclude_substrings: [["embed", "wte", "wpe", "lm_head"]]
+
+common_group:
+  dataset: ["minipile"]
+  eval_interval: [2500]
+  max_iters: [10000]
+  never_save_checkpoint: [true]
+  compile: [true]
+  log_rankme: [true]
+  log_areq: [true]
+
+parameter_groups:
+  - named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "squared_relu"
+      - "infinite"
+      - "mqa"
+      - "hd_100_three_heads"
+      - "muon_default"
+
+    # Retain both attention activations from muon_norm_explore.yaml. For each
+    # activation, the four lists below form the complete 2^4 norm matrix.
+    softmax_variant_attn: ["relu2max", "softmax"]
+    norm_variant_attn_input: ["rmsnorm", "hyperspherenorm"]
+    norm_variant_attn_output: ["rmsnorm", "hyperspherenorm"]
+    norm_variant_mlp_input: ["rmsnorm", "hyperspherenorm"]
+    norm_variant_mlp_output: ["rmsnorm", "hyperspherenorm"]
+
+    # Match the HyperSphereNorm settings used by muon_norm_explore.yaml.
+    hsnorm_scale: [1.0]
+    hsnorm_gain: [false]
+    hsnorm_radius_learning: [false]
