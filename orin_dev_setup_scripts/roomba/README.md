@@ -51,7 +51,6 @@ or build-up history (see below).
 | `roomba-webui/v2-controller.py` | Previous version — same core feature set, no wake-pulse, 32×32 pixel grid instead of 25×25. Kept for reference, not actively used |
 | `roomba-webui/examples/` | Build-up history, roughly in order of complexity: `teleop_streamer.py` → `overlay_streamer.py` → `chase_streamer.py` → `simon-says.py` → `uni-controller.py`. Useful for understanding how a specific feature was added, not meant to be run as-is |
 | `roomba-webui/v1-code/` | Older snapshots of `overlay_streamer.py` and `uni-controller.py` |
-| `roomba-webui/templates/index.html` | **Dead code.** Every script renders its HTML inline via `render_template_string()` — nothing actually loads this file. Safe to delete, or repurpose if you want to move off inline HTML |
 
 ## Controls
 
