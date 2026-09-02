@@ -10,6 +10,23 @@ class SquaredReLU(nn.Module):
     def forward(self, x):
         return torch.pow(torch.relu(x), 2)
 
+
+class SquaredReLULinear(nn.Module):
+    """Squared ReLU with its tangent line used above a configurable cutoff."""
+
+    def __init__(self, config):
+        super().__init__()
+        self.cutoff = config.squared_relu_linear_cutoff
+        if self.cutoff <= 0:
+            raise ValueError("squared_relu_linear_cutoff must be greater than zero")
+
+    def forward(self, x):
+        relu_x = torch.relu(x)
+        # The tangent to x^2 at c is 2cx-c^2.  Matching both value and slope
+        # makes this transition C1 continuous while preventing quadratic growth.
+        linear_tail = 2 * self.cutoff * relu_x - self.cutoff**2
+        return torch.where(relu_x <= self.cutoff, relu_x**2, linear_tail)
+
 class ReLUPower(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -366,6 +383,7 @@ activation_dictionary = {
     "softshrink": Softshrink_Config,
     "relu_power": ReLUPower,
     "squared_relu": SquaredReLU,
+    "squared_relu_linear": SquaredReLULinear,
     "squared_gelu": SquaredGELU,
     "tanh": Tanh_Config,
     "identity": Identity_Config,

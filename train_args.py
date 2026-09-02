@@ -912,6 +912,7 @@ def parse_args():
             "softsign",
             "softshrink",
             "squared_relu",
+            "squared_relu_linear",
             "squared_gelu",
             "tanh",
             "identity",
@@ -933,6 +934,9 @@ def parse_args():
 
     ## ReLUPower
     model_group.add_argument("--relu_power", type=float, default=2.0)
+
+    ## Squared ReLU with a linear tail
+    model_group.add_argument("--squared_relu_linear_cutoff", type=float, default=10.0)
 
     ## Shifted Gelu
     model_group.add_argument("--shifted_gelu_learnable_shift",  type=bool, default=True, action=argparse.BooleanOptionalAction)
@@ -1325,6 +1329,7 @@ def parse_args():
         "polymax",
         "relumax",
         "relu2max",
+        "relu2max_linear",
         "sigmoidmax",
         "vpolymax",
         "exppolymax",
@@ -1374,6 +1379,7 @@ def parse_args():
 
     ### ReLU2Max Options
     model_group.add_argument("--relu2max_divisor", type=float, default=256.0)
+    model_group.add_argument("--relu2max_linear_cutoff", type=float, default=10.0)
 
     ### SimgoidMax Options
     model_group.add_argument("--sigmoidmax_divisor", type=float, default=256.0)
