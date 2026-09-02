@@ -63,6 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max_examples", type=int, default=500, help="Max evaluation examples (0 for full)")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device")
     parser.add_argument("--seed", type=int, default=1337, help="Random seed")
+    parser.add_argument("--sample_syllables_per_decile", type=int, default=50, help="Number of representative syllables to evaluate per decile (0 for all)")
     parser.add_argument("--output_json", type=str, default="vocab_tail_perplexity_results.json", help="Output JSON")
     return parser.parse_args()
 
@@ -141,10 +142,17 @@ def _load_checkpoint(out_dir: str, device: str, ckpt_path_override: str = None):
 
 class MulticontextEncoder:
     def __init__(self, lane_paths: List[str]):
-        if HangulPosFactorizedTokenizer is None:
-            raise ImportError("HangulPosFactorizedTokenizer not available.")
+        self.is_hybrid = any("korean_pos_mc_nochar" in lp for lp in lane_paths)
         pos_mode = "full" if any("pos_full" in lp for lp in lane_paths) else "coarse"
-        self.tok = HangulPosFactorizedTokenizer(use_pos=True, pos_mode=pos_mode)
+        if self.is_hybrid:
+            from hangul_pos_hybrid_tokenizer import HangulHybridPosTokenizer
+            spm_path = os.path.join(REPO_ROOT, "data", "korean_pos_mc_nochar", "spm_non_korean.model")
+            self.tok = HangulHybridPosTokenizer(spm_path, use_pos=True, pos_mode=pos_mode)
+        else:
+            if HangulPosFactorizedTokenizer is None:
+                raise ImportError("HangulPosFactorizedTokenizer not available.")
+            self.tok = HangulPosFactorizedTokenizer(use_pos=True, pos_mode=pos_mode)
+
         self.lane_stois = []
         for lane_path in lane_paths:
             meta_path = os.path.join(REPO_ROOT, "data", lane_path, "meta.pkl")
@@ -157,17 +165,26 @@ class MulticontextEncoder:
             self.lane_stois.append(meta["stoi"])
 
     def encode(self, text: str) -> List[List[int]]:
-        encoded_seq = self.tok.encode_text(text)
-        token_lists = [[] for _ in range(25)]
-        for item in encoded_seq:
-            ch = item["char"]
-            indices = item["indices"]
-            for i in range(24):
-                token_char = self.tok.token_for(i, indices[i])
-                token_lists[i].append(self.lane_stois[i].get(token_char, 0))
-            byte_id = self.lane_stois[24].get(ch, ch.encode("utf-8")[0] if len(ch) > 0 and ord(ch) > 255 else 0)
-            token_lists[24].append(byte_id)
-        return token_lists
+        if self.is_hybrid:
+            steps = self.tok.encode_text(text)
+            n_lanes = len(self.lane_stois)
+            token_lists = [[] for _ in range(n_lanes)]
+            for step in steps:
+                for i in range(min(n_lanes, len(step))):
+                    token_lists[i].append(step[i])
+            return token_lists
+        else:
+            encoded_seq = self.tok.encode_text(text)
+            token_lists = [[] for _ in range(25)]
+            for item in encoded_seq:
+                ch = item["char"]
+                indices = item["indices"]
+                for i in range(24):
+                    token_char = self.tok.token_for(i, indices[i])
+                    token_lists[i].append(self.lane_stois[i].get(token_char, 0))
+                byte_id = self.lane_stois[24].get(ch, ch.encode("utf-8")[0] if len(ch) > 0 and ord(ch) > 255 else 0)
+                token_lists[24].append(byte_id)
+            return token_lists
 
 
 def _load_encoder(out_dir: str, config: dict, model: GPT):
@@ -200,6 +217,19 @@ def extract_texts_from_example(example: dict) -> List[str]:
     return texts
 
 
+def _safe_encode(encode_fn, text):
+    try:
+        return encode_fn(text)
+    except KeyError:
+        tokens = []
+        for c in text:
+            try:
+                tokens.extend(encode_fn(c))
+            except KeyError:
+                tokens.append(0)
+        return tokens
+
+
 def evaluate_decile_perplexity_baseline(
     model: GPT,
     encode_fn,
@@ -211,7 +241,7 @@ def evaluate_decile_perplexity_baseline(
     decile_losses: Dict[int, List[float]] = {d: [] for d in range(1, 11)}
 
     for text in texts:
-        tokens = encode_fn(text)
+        tokens = _safe_encode(encode_fn, text)
         if len(tokens) < 2:
             continue
         if len(tokens) > block_size:
@@ -226,7 +256,6 @@ def evaluate_decile_perplexity_baseline(
         target_slice = target_ids.squeeze(0)  # [L]
         target_logprobs = logprobs.squeeze(0).gather(-1, target_slice.unsqueeze(-1)).squeeze(-1)  # [L]
 
-        # Map targets back to characters in string
         for idx in range(len(target_slice)):
             char_idx = idx + 1
             if char_idx < len(text):
@@ -234,7 +263,7 @@ def evaluate_decile_perplexity_baseline(
                 if ch in char_to_decile:
                     d = char_to_decile[ch]
                     lp = target_logprobs[idx].item()
-                    decile_losses[d].append(-lp)  # Cross-entropy loss = -logprob
+                    decile_losses[d].append(-lp)
 
     return decile_losses
 
@@ -263,14 +292,26 @@ def evaluate_decile_perplexity_multicontext(
         token_dict = {f"lane_{i}": lane for i, lane in enumerate(input_lanes)}
         target_dict = {f"lane_{i}": lane for i, lane in enumerate(target_lanes)}
 
-        logits_list, _ = model(token_dict=token_dict, target_dict=target_dict)
-        char_logits = logits_list[-1]  # Lane 24: char lane
-        logprobs = torch.log_softmax(char_logits, dim=-1)
+        with torch.no_grad():
+            logits_list, _ = model(token_dict=token_dict, target_dict=target_dict)
 
-        target_char_ids = target_lanes[-1].squeeze(0)  # [L]
-        target_logprobs = logprobs.squeeze(0).gather(-1, target_char_ids.unsqueeze(-1)).squeeze(-1)  # [L]
+        if getattr(mc_encoder, "is_hybrid", False):
+            # Joint logprob across script, cho, jung, jong heads for Hangul
+            l0_probs = torch.log_softmax(logits_list[0], dim=-1).squeeze(0).gather(-1, target_lanes[0].squeeze(0).unsqueeze(-1)).squeeze(-1)
+            l1_probs = torch.log_softmax(logits_list[1], dim=-1).squeeze(0).gather(-1, target_lanes[1].squeeze(0).unsqueeze(-1)).squeeze(-1)
+            l2_probs = torch.log_softmax(logits_list[2], dim=-1).squeeze(0).gather(-1, target_lanes[2].squeeze(0).unsqueeze(-1)).squeeze(-1)
+            l3_probs = torch.log_softmax(logits_list[3], dim=-1).squeeze(0).gather(-1, target_lanes[3].squeeze(0).unsqueeze(-1)).squeeze(-1)
 
-        for idx in range(len(target_char_ids)):
+            # Sum of logprobs for the syllable
+            target_logprobs = l0_probs + l1_probs + l2_probs + l3_probs
+        else:
+            char_logits = logits_list[-1]
+            logprobs = torch.log_softmax(char_logits, dim=-1)
+            target_char_ids = target_lanes[-1].squeeze(0)
+            target_logprobs = logprobs.squeeze(0).gather(-1, target_char_ids.unsqueeze(-1)).squeeze(-1)
+
+        # Map to deciles
+        for idx in range(len(target_logprobs)):
             char_idx = idx + 1
             if char_idx < len(text):
                 ch = text[char_idx]
@@ -325,12 +366,25 @@ def main():
     for example in ds:
         all_texts.extend(extract_texts_from_example(example))
 
-    # Also construct Zero-Shot Syllable Prompt Texts for ALL 11,172 Hangul Syllables
-    print("Constructing Zero-Shot evaluation prompts for all 11,172 modern Hangul syllables...")
-    syllable_prompts = [f"글자: {c}" for c in char_to_decile.keys()]
+    # Construct Zero-Shot Syllable Prompt Texts
+    sample_per_decile = getattr(args, "sample_syllables_per_decile", 50)
+    if sample_per_decile > 0:
+        decile_to_chars = {}
+        for c, d in char_to_decile.items():
+            decile_to_chars.setdefault(d, []).append(c)
+        rng = random.Random(args.seed)
+        sampled_chars = []
+        for d in range(1, 11):
+            chars_d = decile_to_chars.get(d, [])
+            sampled_chars.extend(rng.sample(chars_d, min(sample_per_decile, len(chars_d))))
+        print(f"Constructing Zero-Shot evaluation prompts for {len(sampled_chars)} representative Hangul syllables ({sample_per_decile}/decile)...")
+        syllable_prompts = [f"글자: {c}" for c in sampled_chars]
+    else:
+        print("Constructing Zero-Shot evaluation prompts for all 11,172 modern Hangul syllables...")
+        syllable_prompts = [f"글자: {c}" for c in char_to_decile.keys()]
     all_texts.extend(syllable_prompts)
 
-    print(f"Extracted {len(all_texts)} total evaluation text blocks (including all 11,172 Hangul syllables).")
+    print(f"Extracted {len(all_texts)} total evaluation text blocks.")
 
     # 4. Evaluate Decile Losses
     print("\nEvaluating Baseline model across vocabulary deciles...")

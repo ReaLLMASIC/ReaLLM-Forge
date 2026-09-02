@@ -149,13 +149,20 @@ def _load_checkpoint(args: argparse.Namespace):
 
 
 class MulticontextHangulPosEncoder:
-    """Encoder for multicontext models with HangulPosFactorizedTokenizer (25 lanes)."""
+    """Encoder for multicontext models (24 lanes hybrid or 25 lanes factorized + char)."""
 
     def __init__(self, lane_paths: List[str]):
-        if HangulPosFactorizedTokenizer is None:
-            raise ImportError("HangulPosFactorizedTokenizer could not be imported.")
+        self.is_hybrid = any("korean_pos_mc_nochar" in lp for lp in lane_paths)
         pos_mode = "full" if any("pos_full" in lp for lp in lane_paths) else "coarse"
-        self.tok = HangulPosFactorizedTokenizer(use_pos=True, pos_mode=pos_mode)
+        if self.is_hybrid:
+            from hangul_pos_hybrid_tokenizer import HangulHybridPosTokenizer
+            spm_path = os.path.join(REPO_ROOT, "data", "korean_pos_mc_nochar", "spm_non_korean.model")
+            self.tok = HangulHybridPosTokenizer(spm_path, use_pos=True, pos_mode=pos_mode)
+        else:
+            if HangulPosFactorizedTokenizer is None:
+                raise ImportError("HangulPosFactorizedTokenizer could not be imported.")
+            self.tok = HangulPosFactorizedTokenizer(use_pos=True, pos_mode=pos_mode)
+
         self.lane_stois = []
         for lane_path in lane_paths:
             meta_path = os.path.join(REPO_ROOT, "data", lane_path, "meta.pkl")
@@ -168,18 +175,27 @@ class MulticontextHangulPosEncoder:
             self.lane_stois.append(meta["stoi"])
 
     def encode(self, text: str) -> List[List[int]]:
-        encoded_seq = self.tok.encode_text(text)
-        token_lists = [[] for _ in range(25)]
-        for item in encoded_seq:
-            ch = item["char"]
-            indices = item["indices"]
-            for i in range(24):
-                token_char = self.tok.token_for(i, indices[i])
-                token_lists[i].append(self.lane_stois[i].get(token_char, 0))
-            # 25th lane is char lane
-            byte_id = self.lane_stois[24].get(ch, ch.encode("utf-8")[0] if len(ch) > 0 and ord(ch) > 255 else 0)
-            token_lists[24].append(byte_id)
-        return token_lists
+        if self.is_hybrid:
+            steps = self.tok.encode_text(text)
+            n_lanes = len(self.lane_stois)
+            token_lists = [[] for _ in range(n_lanes)]
+            for step in steps:
+                for i in range(min(n_lanes, len(step))):
+                    token_lists[i].append(step[i])
+            return token_lists
+        else:
+            encoded_seq = self.tok.encode_text(text)
+            token_lists = [[] for _ in range(25)]
+            for item in encoded_seq:
+                ch = item["char"]
+                indices = item["indices"]
+                for i in range(24):
+                    token_char = self.tok.token_for(i, indices[i])
+                    token_lists[i].append(self.lane_stois[i].get(token_char, 0))
+                # 25th lane is char lane
+                byte_id = self.lane_stois[24].get(ch, ch.encode("utf-8")[0] if len(ch) > 0 and ord(ch) > 255 else 0)
+                token_lists[24].append(byte_id)
+            return token_lists
 
 
 def _load_tokenizer_or_encoder(args: argparse.Namespace, checkpoint_config: dict, model: GPT):
@@ -438,10 +454,11 @@ def _score_example_multicontext(
         with ctx_autocast:
             logits_list, _ = model(token_dict=token_dict, target_dict=target_dict)
 
-        # Logits for target character head (lane 24, last lane)
-        char_logits = logits_list[-1]
+        # Logits for target head (lane 0 for hybrid script_bpe, or lane -1 for char/char_byte)
+        head_idx = 0 if getattr(mc_encoder, "is_hybrid", False) else -1
+        char_logits = logits_list[head_idx]
         logprobs = torch.log_softmax(char_logits, dim=-1)
-        target_char_ids = target_lanes[-1][:, ending_start:]
+        target_char_ids = target_lanes[head_idx][:, ending_start:]
         lp_cond = logprobs[:, ending_start:, :].gather(-1, target_char_ids.unsqueeze(-1)).squeeze(-1)
 
         need_prior = prior_norm or eval_all_norms
@@ -472,9 +489,9 @@ def _score_example_multicontext(
                 with ctx_autocast:
                     uncond_logits_list, _ = model(token_dict=uncond_token_dict, target_dict=uncond_target_dict)
 
-                uncond_char_logits = uncond_logits_list[-1]
+                uncond_char_logits = uncond_logits_list[head_idx]
                 uncond_logprobs = torch.log_softmax(uncond_char_logits, dim=-1)
-                uncond_target_char_ids = uncond_target_lanes[-1][:, uncond_ending_start:]
+                uncond_target_char_ids = uncond_target_lanes[head_idx][:, uncond_ending_start:]
                 lp_uncond = uncond_logprobs[:, uncond_ending_start:, :].gather(-1, uncond_target_char_ids.unsqueeze(-1)).squeeze(-1)
 
         lp_unigram = None

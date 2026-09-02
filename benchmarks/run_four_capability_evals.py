@@ -74,11 +74,17 @@ class Encoder:
     def __init__(self, is_mc: bool, lane_paths: List[str] = None, ckpt_path: str = None):
         self.is_mc = is_mc
         if is_mc:
-            if HangulPosFactorizedTokenizer is None:
-                raise ImportError("HangulPosFactorizedTokenizer not available.")
             lane_paths = lane_paths or DEFAULT_LANES
+            self.is_hybrid = any("korean_pos_mc_nochar" in lp for lp in lane_paths)
             pos_mode = "full" if any("pos_full" in lp for lp in lane_paths) else "coarse"
-            self.tok = HangulPosFactorizedTokenizer(use_pos=True, pos_mode=pos_mode)
+            if self.is_hybrid:
+                from hangul_pos_hybrid_tokenizer import HangulHybridPosTokenizer
+                spm_path = os.path.join(REPO_ROOT, "data", "korean_pos_mc_nochar", "spm_non_korean.model")
+                self.tok = HangulHybridPosTokenizer(spm_path, use_pos=True, pos_mode=pos_mode)
+            else:
+                if HangulPosFactorizedTokenizer is None:
+                    raise ImportError("HangulPosFactorizedTokenizer not available.")
+                self.tok = HangulPosFactorizedTokenizer(use_pos=True, pos_mode=pos_mode)
             self.stois = []
             for lp in lane_paths:
                 mp = os.path.join(REPO_ROOT, "data", lp, "meta.pkl")
@@ -90,6 +96,7 @@ class Encoder:
                     m = pickle.load(f)
                 self.stois.append(m["stoi"])
         else:
+            self.is_hybrid = False
             ckpt_dir = os.path.dirname(ckpt_path) if ckpt_path else ""
             mp = os.path.join(ckpt_dir, "meta.pkl") if ckpt_dir and os.path.exists(os.path.join(ckpt_dir, "meta.pkl")) else None
             if not mp:
@@ -102,19 +109,28 @@ class Encoder:
 
     def encode(self, text: str):
         if self.is_mc:
-            seq = self.tok.encode_text(text)
-            n_lanes = len(self.stois)
-            token_lists = [[] for _ in range(n_lanes)]
-            for item in seq:
-                ch = item["char"]
-                indices = item["indices"]
-                for i in range(min(24, n_lanes - 1)):
-                    t_char = self.tok.token_for(i, indices[i])
-                    token_lists[i].append(self.stois[i].get(t_char, 0))
-                if n_lanes > 24:
-                    byte_id = self.stois[24].get(ch, ch.encode("utf-8")[0] if len(ch) > 0 and ord(ch) > 255 else 0)
-                    token_lists[24].append(byte_id)
-            return token_lists
+            if self.is_hybrid:
+                steps = self.tok.encode_text(text)
+                n_lanes = len(self.stois)
+                token_lists = [[] for _ in range(n_lanes)]
+                for step in steps:
+                    for i in range(min(n_lanes, len(step))):
+                        token_lists[i].append(step[i])
+                return token_lists
+            else:
+                seq = self.tok.encode_text(text)
+                n_lanes = len(self.stois)
+                token_lists = [[] for _ in range(n_lanes)]
+                for item in seq:
+                    ch = item["char"]
+                    indices = item["indices"]
+                    for i in range(min(24, n_lanes - 1)):
+                        t_char = self.tok.token_for(i, indices[i])
+                        token_lists[i].append(self.stois[i].get(t_char, 0))
+                    if n_lanes > 24:
+                        byte_id = self.stois[24].get(ch, ch.encode("utf-8")[0] if len(ch) > 0 and ord(ch) > 255 else 0)
+                        token_lists[24].append(byte_id)
+                return token_lists
         else:
             return self.encode_fn(text)
 
@@ -150,11 +166,18 @@ def eval_sequence_logprob(model: GPT, encoder: Encoder, text: str, device: str, 
 
         with torch.no_grad():
             logits_list, _ = model(token_dict=token_dict, target_dict=target_dict)
-            char_logits = logits_list[-1]
-            log_probs = F.log_softmax(char_logits, dim=-1)
-            target_ids = target_lanes[-1].squeeze(0)
-            target_log_probs = log_probs.squeeze(0).gather(-1, target_ids.unsqueeze(-1)).squeeze(-1)
-            return target_log_probs.mean().item()
+            if getattr(encoder, "is_hybrid", False):
+                primary_logits = logits_list[0]
+                log_probs = F.log_softmax(primary_logits, dim=-1)
+                target_ids = target_lanes[0].squeeze(0)
+                target_log_probs = log_probs.squeeze(0).gather(-1, target_ids.unsqueeze(-1)).squeeze(-1)
+                return target_log_probs.mean().item()
+            else:
+                char_logits = logits_list[-1]
+                log_probs = F.log_softmax(char_logits, dim=-1)
+                target_ids = target_lanes[-1].squeeze(0)
+                target_log_probs = log_probs.squeeze(0).gather(-1, target_ids.unsqueeze(-1)).squeeze(-1)
+                return target_log_probs.mean().item()
     else:
         tokens = encoder.encode(text)
         seq_len = len(tokens)

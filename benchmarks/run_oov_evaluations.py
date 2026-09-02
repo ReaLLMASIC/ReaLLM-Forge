@@ -89,6 +89,30 @@ MODELS_CONFIG: Dict[str, Dict[str, Any]] = {
         "type": "mc_byte_coarse",
         "pos_mode": "coarse",
     },
+    "nochar_coarse_pos_weighted": {
+        "display_name": "No-Char Coarse POS (Weighted, ws=0.05)",
+        "ckpt_path": "out_mc_nochar_coarse_pos_weighted/ckpt.pt",
+        "type": "mc_hybrid_nochar",
+        "pos_mode": "coarse",
+    },
+    "nochar_coarse_pos_unweighted": {
+        "display_name": "No-Char Coarse POS (Unweighted, w=1.0)",
+        "ckpt_path": "out_mc_nochar_coarse_pos_unweighted/ckpt.pt",
+        "type": "mc_hybrid_nochar",
+        "pos_mode": "coarse",
+    },
+    "nochar_full_pos_weighted": {
+        "display_name": "No-Char Full POS (Weighted, ws=0.05)",
+        "ckpt_path": "out_mc_nochar_full_pos_weighted/ckpt.pt",
+        "type": "mc_hybrid_nochar",
+        "pos_mode": "full",
+    },
+    "nochar_full_pos_unweighted": {
+        "display_name": "No-Char Full POS (Unweighted, w=1.0)",
+        "ckpt_path": "out_mc_nochar_full_pos_unweighted/ckpt.pt",
+        "type": "mc_hybrid_nochar",
+        "pos_mode": "full",
+    },
 }
 
 DEFAULT_LANES_COARSE = [
@@ -315,41 +339,52 @@ def main() -> None:
             else:
                 # Multicontext encoding
                 pos_mode = mcfg["pos_mode"]
-                tok = tok_full if pos_mode == "full" else tok_coarse
-                stois = mc_stois_full if pos_mode == "full" else mc_stois_coarse
                 is_byte_companion = ("byte" in m_type)
+                is_hybrid_nochar = (m_type == "mc_hybrid_nochar")
 
-                seq = tok.encode_text(prompt_text)
-                n_lanes = len(stois)
-                token_lists: List[List[int]] = [[] for _ in range(n_lanes)]
-                for item in seq:
-                    ch = item["char"]
-                    indices = item["indices"]
-                    for i in range(min(24, n_lanes - 1)):
-                        t_char = tok.token_for(i, indices[i])
-                        token_lists[i].append(stois[i].get(t_char, 0))
-                    if n_lanes > 24:
-                        if is_byte_companion:
-                            # 256-byte fallback stream
-                            code = ord(ch) if len(ch) > 0 else 0
-                            byte_val = code if code < 256 else ch.encode("utf-8")[0]
-                            token_lists[24].append(byte_val)
-                        else:
-                            # character stream
-                            token_lists[24].append(stois[24].get(ch, 0))
+                if is_hybrid_nochar:
+                    from hangul_pos_hybrid_tokenizer import HangulHybridPosTokenizer
+                    spm_path = os.path.join(REPO_ROOT, "data", "korean_pos_mc_nochar", "spm_non_korean.model")
+                    tok_hybrid = HangulHybridPosTokenizer(spm_path, use_pos=True, pos_mode=pos_mode)
+                    steps = tok_hybrid.encode_text(prompt_text)
+                    n_lanes = 24
+                    token_lists: List[List[int]] = [[] for _ in range(n_lanes)]
+                    for step in steps:
+                        for i in range(24):
+                            token_lists[i].append(step[i])
+                    record["byte_fallback_active"] = True
+                    record["encoding_status"] = "24-lane hybrid BPE/Factorized (0% OOV, native byte fallback)"
+                else:
+                    tok = tok_full if pos_mode == "full" else tok_coarse
+                    stois = mc_stois_full if pos_mode == "full" else mc_stois_coarse
+                    seq = tok.encode_text(prompt_text)
+                    n_lanes = len(stois)
+                    token_lists = [[] for _ in range(n_lanes)]
+                    for item in seq:
+                        ch = item["char"]
+                        indices = item["indices"]
+                        for i in range(min(24, n_lanes - 1)):
+                            t_char = tok.token_for(i, indices[i])
+                            token_lists[i].append(stois[i].get(t_char, 0))
+                        if n_lanes > 24:
+                            if is_byte_companion:
+                                code = ord(ch) if len(ch) > 0 else 0
+                                byte_val = code if code < 256 else ch.encode("utf-8")[0]
+                                token_lists[24].append(byte_val)
+                            else:
+                                token_lists[24].append(stois[24].get(ch, 0))
+
+                    if not is_byte_companion:
+                        oov_chars = [c for c in prompt_text if c not in stois[24]]
+                        record["oov_characters"] = oov_chars
+                        record["num_oov_characters"] = len(oov_chars)
+                        record["encoding_status"] = f"{len(oov_chars)} character lane OOV replaced with 0" if oov_chars else "Clean"
+                    else:
+                        record["byte_fallback_active"] = True
+                        record["encoding_status"] = "25-lane synchronous encoding with 256-byte fallback (0% OOV)"
 
                 seq_len = len(token_lists[0])
                 record["prompt_token_count"] = seq_len
-                
-                # Check for OOV / byte fallback
-                if not is_byte_companion:
-                    oov_chars = [c for c in prompt_text if c not in stois[24]]
-                    record["oov_characters"] = oov_chars
-                    record["num_oov_characters"] = len(oov_chars)
-                    record["encoding_status"] = f"{len(oov_chars)} character lane OOV replaced with 0" if oov_chars else "Clean"
-                else:
-                    record["byte_fallback_active"] = True
-                    record["encoding_status"] = "25-lane synchronous encoding with 256-byte fallback (0% OOV)"
 
                 # Tensors
                 tensors = [torch.tensor(lane, dtype=torch.long, device=device).unsqueeze(0) for lane in token_lists]
@@ -363,7 +398,8 @@ def main() -> None:
                         inp_list = [t[:, :-1] for t in tensors]
                         tgt_list = [t[:, 1:] for t in tensors]
                         logits_list, losses = model(idx=inp_list, targets=tgt_list)
-                        loss = losses[-1].item() if isinstance(losses, list) else losses.item()
+                        head_idx = 0 if is_hybrid_nochar else -1
+                        loss = losses[head_idx].item() if isinstance(losses, list) else losses.item()
                         ppl = math.exp(min(loss, 50))
                     else:
                         loss = 0.0
@@ -386,23 +422,26 @@ def main() -> None:
 
                     # Decode generated tokens
                     gen_len = args.max_new_tokens
-                    chars_generated = []
-                    for s_step in range(seq_len, seq_len + gen_len):
-                        step_indices = [curr_state[i][0, s_step].item() for i in range(min(24, n_lanes - 1))]
-                        decoded_char = tok.decode_indices(step_indices)
-                        if decoded_char is None or decoded_char == "":
-                            last_id = curr_state[-1][0, s_step].item()
-                            if is_byte_companion:
-                                try:
-                                    decoded_char = bytes([last_id]).decode("utf-8", errors="replace")
-                                except:
-                                    decoded_char = chr(last_id) if last_id < 256 else "?"
-                            else:
-                                itos_char = {v: k for k, v in stois[-1].items()}
-                                decoded_char = itos_char.get(last_id, "")
-                        chars_generated.append(decoded_char)
-
-                    response_text = "".join(chars_generated)
+                    if is_hybrid_nochar:
+                        gen_steps = [[curr_state[i][0, s_step].item() for i in range(24)] for s_step in range(seq_len, seq_len + gen_len)]
+                        response_text = tok_hybrid.decode_sequence(gen_steps)
+                    else:
+                        chars_generated = []
+                        for s_step in range(seq_len, seq_len + gen_len):
+                            step_indices = [curr_state[i][0, s_step].item() for i in range(min(24, n_lanes - 1))]
+                            decoded_char = tok.decode_indices(step_indices)
+                            if decoded_char is None or decoded_char == "":
+                                last_id = curr_state[-1][0, s_step].item()
+                                if is_byte_companion:
+                                    try:
+                                        decoded_char = bytes([last_id]).decode("utf-8", errors="replace")
+                                    except:
+                                        decoded_char = chr(last_id) if last_id < 256 else "?"
+                                else:
+                                    itos_char = {v: k for k, v in stois[-1].items()}
+                                    decoded_char = itos_char.get(last_id, "")
+                            chars_generated.append(decoded_char)
+                        response_text = "".join(chars_generated)
 
                 record["prompt_loss"] = round(loss, 4)
                 record["prompt_perplexity"] = round(ppl, 2)
