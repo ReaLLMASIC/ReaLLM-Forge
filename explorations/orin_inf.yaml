@@ -1,0 +1,83 @@
+# default.yaml using named group mechanisms from sample.yaml
+---
+
+named_static_groups:
+  # QK Norm
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    use_rotary_embeddings: [true]
+    use_abs_pos_embeddings: [false]
+
+  # Embedding Norm
+  - named_group: "rmsnorm_wte"
+    norm_variant_wte: ["rmsnorm"]
+
+  # MLP Activation
+  - named_group: "squared_relu"
+    activation_variant: ["squared_relu"]
+
+  # Relu2Max
+  - named_group: "relu2max"
+    softmax_variant_attn: ["relu2max"]
+
+  # Softmax
+  - named_group: "softmax"
+    softmax_variant_attn: ["softmax"]
+
+  # Infinite Attention
+  - named_group: "infinite"
+    attention_variant: ["infinite"]
+    use_concat_heads: [true]
+
+  # Head Dimension
+  - named_group: "hd_100"
+    n_qk_head_dim: [100]
+    n_v_head_dim: [100]
+
+  - named_group: "hd_150"
+    n_qk_head_dim: [150]
+    n_v_head_dim: [150]
+
+  - named_group: "hd_200"
+    n_qk_head_dim: [200]
+    n_v_head_dim: [200]
+
+  # MQA
+  - named_group: "mqa"
+    n_kv_group: [1]
+
+common_group:
+  dataset: ["shakespeare_char"]
+  max_sample_tokens: [200]
+  n_layer: [2]
+  eval_interval: [250]
+  max_iters: [1000]
+  never_save_checkpoint: [true]
+  compile: [true]
+  log_rankme: [true]
+  log_areq: [true]
+
+parameter_groups:
+  - named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "relu2max"
+      - "infinite"
+      - "mqa"
+    n_head:
+      range:
+        start: 1
+        end: 12
+        step: 1
+    named_group_alternates: ["hd_100", "hd_150", "hd_200"]

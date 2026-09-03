@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Jetson Stats
+Terminal=true
+Exec=jtop
+Icon=/usr/share/backgrounds/NVIDIA_Logo.png

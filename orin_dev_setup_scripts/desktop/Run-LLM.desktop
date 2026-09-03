@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Run ReaLLM
+Terminal=true
+Exec=/bin/bash -c '/home/$USER/.run-orin.sh'
+Icon=/usr/share/backgrounds/squishmallow.png
