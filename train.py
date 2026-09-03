@@ -157,6 +157,8 @@ class Trainer:
         self.latest_areq = float('nan')
         self.latest_bits_per_byte = float('nan')
         self.bits_per_byte_scales = {}
+        self.latest_lm_head_magnitude_stats = self._empty_lm_head_magnitude_stats()
+        self.latest_post_norm_lm_head_magnitude_stats = self._empty_lm_head_magnitude_stats()
 
         # store overall statistics for weights and activations
         self.latest_overall_weight_stats = {
@@ -1711,6 +1713,88 @@ class Trainer:
             return 0.0
         return vocab_size / math.exp(loss_value)
 
+    @staticmethod
+    def _empty_lm_head_magnitude_stats() -> dict[str, float]:
+        return {
+            "max": float('nan'),
+            "avg": float('nan'),
+            "median": float('nan'),
+            "std": float('nan'),
+            "min": float('nan'),
+        }
+
+    def _iter_lm_head_modules(self):
+        if getattr(self.raw_model.config, "multicontext", False):
+            idx = 0
+            while f'lm_head_{idx}' in self.raw_model.transformer:
+                yield self.raw_model.transformer[f'lm_head_{idx}']
+                idx += 1
+        elif hasattr(self.raw_model, 'lm_head'):
+            yield self.raw_model.lm_head
+
+    def _compute_lm_head_magnitude_stats(self, apply_lm_head_norm: bool = False) -> dict[str, float]:
+        vectors = []
+        with torch.no_grad():
+            for lm_head in self._iter_lm_head_modules():
+                weight = lm_head.weight.detach()
+                if apply_lm_head_norm:
+                    weight = self.raw_model.apply_lm_head_norm(weight)
+                vectors.append(weight.float())
+            if not vectors:
+                return self._empty_lm_head_magnitude_stats()
+            magnitudes = torch.linalg.vector_norm(torch.cat(vectors, dim=0), ord=2, dim=1)
+            return {
+                "max": magnitudes.max().item(),
+                "avg": magnitudes.mean().item(),
+                "median": magnitudes.median().item(),
+                "std": magnitudes.std(unbiased=False).item(),
+                "min": magnitudes.min().item(),
+            }
+
+    def _update_lm_head_magnitude_stats(self) -> None:
+        if self.args.log_lm_head_vector_stats:
+            self.latest_lm_head_magnitude_stats = self._compute_lm_head_magnitude_stats(False)
+        if (
+            self.args.log_post_norm_lm_head_vector_stats
+            and getattr(self.raw_model.config, "norm_variant_lm_head", None) is not None
+        ):
+            self.latest_post_norm_lm_head_magnitude_stats = self._compute_lm_head_magnitude_stats(True)
+
+    def _log_lm_head_magnitude_stats_tensorboard(self, target_dataset: str, tokens_trained: float) -> None:
+        if not self.args.tensorboard_log or self.writer is None:
+            return
+        stat_groups = []
+        if self.args.log_lm_head_vector_stats:
+            stat_groups.append(("lm_head_magnitude", self.latest_lm_head_magnitude_stats))
+        if (
+            self.args.log_post_norm_lm_head_vector_stats
+            and getattr(self.raw_model.config, "norm_variant_lm_head", None) is not None
+        ):
+            stat_groups.append(("post_norm_lm_head_magnitude", self.latest_post_norm_lm_head_magnitude_stats))
+        for tag, stats in stat_groups:
+            for stat_name, stat_value in stats.items():
+                self.writer.add_scalar(f"{target_dataset}/{tag}_{stat_name}_iters", stat_value, self.iter_num)
+                self.writer.add_scalar(f"{target_dataset}/{tag}_{stat_name}_tokens", stat_value, tokens_trained)
+
+    def _lm_head_magnitude_csv_values(self) -> list[float]:
+        values = []
+        for enabled, stats in (
+            (self.args.log_lm_head_vector_stats, self.latest_lm_head_magnitude_stats),
+            (self.args.log_post_norm_lm_head_vector_stats, self.latest_post_norm_lm_head_magnitude_stats),
+        ):
+            if enabled:
+                values.extend(stats[name] for name in ("max", "avg", "median", "std", "min"))
+        return values
+
+    def _format_lm_head_magnitude_best_values(self) -> list[str]:
+        values = []
+        for stats in (
+            self.latest_lm_head_magnitude_stats,
+            self.latest_post_norm_lm_head_magnitude_stats,
+        ):
+            values.extend(f"{stats[name]:.6f}" for name in ("max", "avg", "median", "std", "min"))
+        return values
+
     def log_metrics(self, losses, running_mfu, epoch, tokens_trained, target_dataset, val_better_than_chance):
         compute_rankme = self.args.log_rankme or self.args.log_areq
 
@@ -1847,6 +1931,7 @@ class Trainer:
 
             self._log_zeus_tensorboard(target_dataset, tokens_trained)
             self._log_bit_metrics(target_dataset, tokens_trained)
+            self._log_lm_head_magnitude_stats_tensorboard(target_dataset, tokens_trained)
 
 
         if self.args.csv_log:
@@ -1863,6 +1948,7 @@ class Trainer:
                 losses['val'].item(),
                 rankme_value,
                 areq_value,
+                *self._lm_head_magnitude_csv_values(),
                 prefix=f"{target_dataset}_",
             )
 
@@ -1874,6 +1960,7 @@ class Trainer:
                 rankme_value,
                 areq_value,
                 running_mfu,
+                *self._lm_head_magnitude_csv_values(),
                 prefix="bulk_",
             )
 
@@ -2250,6 +2337,7 @@ class Trainer:
         self.latest_areq = self._to_scalar(losses.get('areq', float('nan')))
         self.latest_distillation_val_loss = self._to_scalar(losses.get('distillation_val_loss', float('nan')))
         self.latest_ntp_val_loss = self._to_scalar(losses.get('ntp_val_loss', float('nan')))
+        self._update_lm_head_magnitude_stats()
 
         if self.args.gns_type is not None:
             self.gns = self.gns_ema.get_gns()
@@ -2395,6 +2483,7 @@ class Trainer:
                             f"{self.latest_overall_activation_stats['max']:.6f}",
                             f"{self.latest_overall_activation_stats['min']:.6f}",
                             f"{self.latest_overall_activation_stats['abs_max']:.6f}",
+                            *self._format_lm_head_magnitude_best_values(),
                     ]
                     best_loss_file.write(", ".join(metrics) + "\n")
                 num_steps_with_worse_loss = 0
