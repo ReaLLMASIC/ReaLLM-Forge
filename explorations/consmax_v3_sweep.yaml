@@ -1,0 +1,32 @@
+max_iters: 10000
+eval_interval: 5000
+eta_variant: ["iteration"]
+n_layer: [12]
+n_head: [12]
+n_embd: [768]
+block_size: [256]
+device: [cuda]
+dtype: [bfloat16]
+dataset: [minipile]
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+compile: [true]
+use_qk_norm: [true]
+use_qk_norm_scale: [true, false]
+softmax_variant_attn: [consmax_v2]
+consmax_v2_clamping: [false]
+# conditional options
+consmax_per_head:
+  conditions:
+    - ["softmax_variant_attn", "consmax_v2"]
+  options: [true, false]
+consmax_initial_beta:
+  conditions:
+    - ["softmax_variant_attn", "consmax_v2"]
+  options: ["2.5", "5.0", "10.0"]
+consmax_initial_gamma:
+  conditions:
+    - ["softmax_variant_attn", "consmax_v2"]
+  options: ["100"]
+
+use_post_ln: [false]
