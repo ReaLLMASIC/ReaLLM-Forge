@@ -462,6 +462,7 @@ class GPTConfig:
 
     ## LearnedSplineActivation - lsa
     lsa_num_knots: int = 30
+    lsa_init_activation: str = "gelu"
 
 
     # Linear Alternatives
