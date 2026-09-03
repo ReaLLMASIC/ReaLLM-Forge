@@ -173,17 +173,40 @@ class LearnedSplineActivation(nn.Module):
 
     def __init__(self, config, num_knots=10, init_x_range=(-5, 5)):
         super().__init__()
-        self.num_knots = config.lsa_num_knots
+        self.num_knots = getattr(config, "lsa_num_knots", num_knots)
+        self.init_activation_name = getattr(config, "lsa_init_activation", "gelu")
+
+        if self.init_activation_name == "learned_spline":
+            raise ValueError(
+                "lsa_init_activation cannot be 'learned_spline' because it would recurse during initialization."
+            )
+
+        init_activation_cls = activation_dictionary.get(self.init_activation_name)
+        if init_activation_cls is None:
+            raise ValueError(
+                f"Unknown lsa_init_activation '{self.init_activation_name}'. "
+                f"Expected one of: {sorted(activation_dictionary.keys())}"
+            )
 
         # Initialize learnable x_vals and y_vals
-        x_init = torch.linspace(init_x_range[0], init_x_range[1], num_knots)
+        x_init = torch.linspace(init_x_range[0], init_x_range[1], self.num_knots)
+        init_activation = init_activation_cls(config)
 
-        # Create an instance of GELU
-        gelu = nn.GELU()
-        y_init = gelu(x_init)  # Use the GELU instance here
+        with torch.no_grad():
+            if self.init_activation_name == "glu":
+                # GLU halves the last dimension, so feed a 2-channel input and squeeze back.
+                y_init = init_activation(torch.stack((x_init, x_init), dim=-1)).squeeze(-1)
+            else:
+                y_init = init_activation(x_init)
+
+        if y_init.shape != x_init.shape:
+            raise ValueError(
+                f"lsa_init_activation='{self.init_activation_name}' must preserve shape. "
+                f"Got output shape {tuple(y_init.shape)} for input shape {tuple(x_init.shape)}."
+            )
 
         self.x_vals = nn.Parameter(x_init)
-        self.y_vals = nn.Parameter(y_init)
+        self.y_vals = nn.Parameter(y_init.detach().clone())
 
     def forward(self, x):
         # Compute spline coefficients
