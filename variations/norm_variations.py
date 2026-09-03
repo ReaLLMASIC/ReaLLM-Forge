@@ -208,12 +208,20 @@ class CappedHyperSphereNorm(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        self.radius = math.sqrt(config.n_embd)
+
+        ndim = config.n_embd
+
+        self.radius = math.sqrt(ndim)
+
+        if config.hsnorm_gain:
+            self.gain = nn.Parameter(torch.ones(ndim))
+        else:
+            self.gain = 1.0
 
     def forward(self, x):
         norms = x.norm(2, dim=-1, keepdim=True)
         scale = torch.where(norms > self.radius, self.radius / (norms + 1e-8), torch.ones_like(norms))
-        return x * scale
+        return x * scale * self.gain
 
 class IdentityNorm(nn.Module):
     def __init__(self, config=None):  # Accept config for API consistency
