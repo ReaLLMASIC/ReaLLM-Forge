@@ -2,27 +2,38 @@
 # espeak2ipa.py
 #
 # Generic IPA transcription using espeak-ng for ANY supported voice.
-# Defaults to "shan" (you can override with --lang).
+# Defaults to "shn" (override with --lang).
 #
-# Features (modeled after your en2ipa.py):
-# - JSON list mode (--mode json): in-place update of a JSON list file
-# - Text mode (--mode text): line-by-line transcription to output file (or overwrite input)
+# Features:
+# - JSON list mode (--mode json):
+#     - default: overwrite input JSON file adding output_json_key per item
+#     - with --text_output: emit a text file (sentence<sep>ipa OR ipa-only via --text_no_sentence)
+# - Text mode (--mode text): input is one sentence per line
+#     - default: emits IPA-only (backward-compatible with your existing espeak2ipa.py)
+#     - with --text_output: emits sentence<sep>ipa (JP-like), unless --text_no_sentence
 # - Optional wrapping for untranscribed/unparseable tokens: [[[[[...]]]]]
 # - Multithreading with ordered output
 # - Rich progress bar
 # - Byte coverage stats (based on ORIGINAL tokens; wrapper overhead excluded)
 #
 # Notes:
-# - "transcribed_bytes" counts bytes of ORIGINAL tokens we ATTEMPT to send to espeak
+# - "transcribed_bytes" counts UTF-8 bytes of ORIGINAL tokens we ATTEMPT to send to espeak
 #   (tokens that contain at least one Unicode letter). Digits/punct count as not_transcribed.
-# - espeak-ng voices vary; if a voice is unavailable, you'll get an error/empty output.
+# - If espeak-ng outputs empty text for a token, we treat it as "unparseable" and optionally wrap it.
 
 import subprocess
 import argparse
 import re
 import json
-from typing import List, Tuple, Optional, Dict, Any
-from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn, TimeElapsedColumn, MofNCompleteColumn
+from typing import List, Optional, Dict, Any, Tuple
+from rich.progress import (
+    Progress,
+    BarColumn,
+    TextColumn,
+    TimeRemainingColumn,
+    TimeElapsedColumn,
+    MofNCompleteColumn,
+)
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import threading
@@ -55,7 +66,7 @@ def transcribe_espeak(token: str, lang: str, wrapper: bool = False) -> str:
         result = subprocess.run(
             ["espeak-ng", "-q", "-v", lang, "--ipa", token],
             capture_output=True,
-            text=True
+            text=True,
         )
         out = (result.stdout or "").strip().replace("ㆍ", " ")
         if not out:
@@ -97,12 +108,18 @@ def tokens_to_ipa_string(tokens: List[str], lang: str, wrapper: bool) -> str:
     return " ".join(out)
 
 
-def _worker_sentence(sentence: str, lang: str, wrapper: bool, stats: Optional[Dict[str, int]] = None) -> str:
+def _worker_sentence(
+    sentence: str,
+    lang: str,
+    wrapper: bool,
+    stats: Optional[Dict[str, int]] = None,
+) -> str:
     """
     Tokenize & transcribe one sentence/line.
+
     If stats is provided, updates byte counts based on ORIGINAL tokens:
       - transcribed_bytes: tokens containing at least one letter
-      - not_transcribed_bytes: digits + punctuation/symbols + other \w tokens with no letters
+      - not_transcribed_bytes: digits + punctuation/symbols + other \\w tokens with no letters
     """
     tokens = _WORD_RE.findall(sentence)
 
@@ -134,97 +151,19 @@ def _progress() -> Progress:
     )
 
 
-def transcribe_json_list(
-    json_text_or_obj,
-    input_json_key: str,
-    output_json_key: str,
+def transcribe_sentences(
+    sentences: List[str],
     lang: str,
     wrapper: bool,
     multithread: bool,
     workers: int,
     stats: Optional[Dict[str, int]] = None,
-) -> Optional[str]:
-    """
-    JSON list mode: reads a JSON list of objects, writes output_json_key for each object.
-    Returns JSON string (pretty printed).
-    """
-    try:
-        data = json.loads(json_text_or_obj) if isinstance(json_text_or_obj, str) else json_text_or_obj
-        if not isinstance(data, list):
-            raise ValueError("JSON data should be a list of objects.")
-    except Exception as e:
-        print(f"Error: {e}")
-        return None
-
-    n = len(data)
-    if stats is None:
-        stats = {"transcribed_bytes": 0, "not_transcribed_bytes": 0}
-    else:
-        stats.setdefault("transcribed_bytes", 0)
-        stats.setdefault("not_transcribed_bytes", 0)
-
-    if n == 0:
-        return json.dumps(data, ensure_ascii=False, indent=4)
-
-    if not multithread or workers <= 1:
-        with _progress() as progress:
-            task = progress.add_task("Processing JSON items", total=n)
-            for item in data:
-                if input_json_key in item:
-                    sentence = item[input_json_key]
-                    item[output_json_key] = _worker_sentence(sentence, lang=lang, wrapper=wrapper, stats=stats)
-                progress.update(task, advance=1)
-    else:
-        # ordered results
-        results: List[Tuple[int, str]] = [None] * n  # type: ignore
-        per_item_stats: List[Dict[str, int]] = [None] * n  # type: ignore
-
-        jobs = [(i, data[i].get(input_json_key, "")) for i in range(n)]
-
-        with _progress() as progress:
-            task = progress.add_task(f"Processing JSON items (mt x{workers})", total=n)
-            with ThreadPoolExecutor(max_workers=workers) as ex:
-                future_to_idx = {}
-                for idx, sentence in jobs:
-                    local_stats = {"transcribed_bytes": 0, "not_transcribed_bytes": 0}
-                    per_item_stats[idx] = local_stats
-                    fut = ex.submit(_worker_sentence, sentence, lang, wrapper, local_stats)
-                    future_to_idx[fut] = idx
-
-                for fut in as_completed(future_to_idx):
-                    idx = future_to_idx[fut]
-                    try:
-                        res = fut.result()
-                    except Exception as e:
-                        res = f"Error: {e}"
-                    results[idx] = (idx, res)
-                    progress.update(task, advance=1)
-
-        # merge stats
-        for st in per_item_stats:
-            stats["transcribed_bytes"] += st.get("transcribed_bytes", 0)
-            stats["not_transcribed_bytes"] += st.get("not_transcribed_bytes", 0)
-
-        # write back in original order
-        for idx, item in enumerate(data):
-            if input_json_key in item:
-                item[output_json_key] = results[idx][1]
-
-    return json.dumps(data, ensure_ascii=False, indent=4)
-
-
-def transcribe_text_lines(
-    lines: List[str],
-    lang: str,
-    wrapper: bool,
-    multithread: bool,
-    workers: int,
-    stats: Optional[Dict[str, int]] = None,
+    progress_label: str = "Processing",
 ) -> List[str]:
     """
-    Text mode: input is one sentence per line. Output is one IPA line per input line.
+    Transcribe a list of sentences into IPA, returning results in the same order.
     """
-    n = len(lines)
+    n = len(sentences)
     if stats is None:
         stats = {"transcribed_bytes": 0, "not_transcribed_bytes": 0}
     else:
@@ -235,41 +174,52 @@ def transcribe_text_lines(
         return []
 
     if not multithread or workers <= 1:
-        out_lines: List[str] = []
+        out: List[str] = []
         with _progress() as progress:
-            task = progress.add_task("Processing text lines", total=n)
-            for line in lines:
-                raw = line.rstrip("\n")
-                out_lines.append(_worker_sentence(raw, lang=lang, wrapper=wrapper, stats=stats))
+            task = progress.add_task(progress_label, total=n)
+            for s in sentences:
+                out.append(_worker_sentence(s, lang=lang, wrapper=wrapper, stats=stats))
                 progress.update(task, advance=1)
-        return out_lines
+        return out
 
-    out_lines: List[str] = [None] * n  # type: ignore
+    # Multithreaded path: per-item stats then merge at end
+    out: List[str] = ["" for _ in range(n)]
     per_item_stats: List[Dict[str, int]] = [None] * n  # type: ignore
 
     with _progress() as progress:
-        task = progress.add_task(f"Processing text lines (mt x{workers})", total=n)
+        task = progress.add_task(f"{progress_label} (mt x{workers})", total=n)
         with ThreadPoolExecutor(max_workers=workers) as ex:
             future_to_idx = {}
-            for i in range(n):
+            for i, s in enumerate(sentences):
                 local_stats = {"transcribed_bytes": 0, "not_transcribed_bytes": 0}
                 per_item_stats[i] = local_stats
-                fut = ex.submit(_worker_sentence, lines[i].rstrip("\n"), lang, wrapper, local_stats)
+                fut = ex.submit(_worker_sentence, s, lang, wrapper, local_stats)
                 future_to_idx[fut] = i
 
             for fut in as_completed(future_to_idx):
                 i = future_to_idx[fut]
                 try:
-                    out_lines[i] = fut.result()
+                    out[i] = fut.result()
                 except Exception as e:
-                    out_lines[i] = f"Error: {e}"
+                    out[i] = f"Error: {e}"
                 progress.update(task, advance=1)
 
     for st in per_item_stats:
         stats["transcribed_bytes"] += st.get("transcribed_bytes", 0)
         stats["not_transcribed_bytes"] += st.get("not_transcribed_bytes", 0)
 
-    return out_lines
+    return out
+
+
+def format_text_lines(
+    sentences: List[str],
+    ipa_lines: List[str],
+    include_sentence: bool,
+    sep: str,
+) -> List[str]:
+    if not include_sentence:
+        return ipa_lines
+    return [f"{s}{sep}{ipa}" for s, ipa in zip(sentences, ipa_lines)]
 
 
 def finalize_and_print_stats(stats: Dict[str, int], stats_json_path: Optional[str] = None) -> Dict[str, Any]:
@@ -306,42 +256,99 @@ def finalize_and_print_stats(stats: Dict[str, int], stats_json_path: Optional[st
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generic IPA transcription using espeak-ng for any supported voice (default: shan). "
-                    "Supports JSON list mode and plain-text line mode, with byte coverage stats."
+        description=(
+            "Generic IPA transcription using espeak-ng for any supported voice (default: shn). "
+            "Supports JSON list mode and plain-text line mode, with byte coverage stats.\n\n"
+            "NEW: --text_output and --text_no_sentence (JP-style) to optionally emit only IPA."
+        )
     )
     parser.add_argument("input_file", type=str, help="Path to the input file (JSON list or plain text).")
 
     # Language / voice
-    parser.add_argument("--lang", default="shan",
-                        help="espeak-ng voice/language code (default: shan). Example: en, fr, de, es, ja, zh, etc.")
+    parser.add_argument(
+        "--lang",
+        default="shn",
+        help="espeak-ng voice/language code (default: shn). Example: en, fr, de, es, ja, zh, etc.",
+    )
 
     # Mode selection
-    parser.add_argument("--mode", choices=["json", "text"], default="json",
-                        help='Processing mode. "json" expects a JSON list; "text" treats file as plain text.')
+    parser.add_argument(
+        "--mode",
+        choices=["json", "text"],
+        default="json",
+        help='Processing mode. "json" expects a JSON list; "text" treats file as plain text.',
+    )
 
     # JSON mode params
-    parser.add_argument("--input_json_key", type=str,
-                        help="JSON key to read sentences from (required for --mode json).")
-    parser.add_argument("--output_json_key", type=str, default="ipa",
-                        help='JSON key to store IPA (default: "ipa").')
+    parser.add_argument(
+        "--input_json_key",
+        type=str,
+        help="JSON key to read sentences from (required for --mode json).",
+    )
+    parser.add_argument(
+        "--output_json_key",
+        type=str,
+        default="ipa",
+        help='JSON key to store IPA (default: "ipa").',
+    )
 
-    # Text mode params
-    parser.add_argument("--output_file", type=str, default=None,
-                        help="Output file path for text mode. Defaults to overwriting input.")
+    # Output path (used for text outputs; in JSON update mode we overwrite input_file)
+    parser.add_argument(
+        "--output_file",
+        type=str,
+        default=None,
+        help="Output file path for text outputs. In --mode text, defaults to overwriting input.",
+    )
 
     # Wrapper option
-    parser.add_argument("--wrapper", default=False, action=argparse.BooleanOptionalAction,
-                        help="Wrap unparseable tokens with [[[[[...]]]]] (default: false).")
+    parser.add_argument(
+        "--wrapper",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Wrap unparseable tokens with [[[[[...]]]]] (default: false).",
+    )
 
     # Multithreading options
-    parser.add_argument("--multithread", default=False, action=argparse.BooleanOptionalAction,
-                        help="Enable multithreading while preserving output order.")
-    parser.add_argument("--workers", type=int, default=os.cpu_count() or 4,
-                        help="Number of worker threads when --multithread is enabled (default: CPU count).")
+    parser.add_argument(
+        "--multithread",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Enable multithreading while preserving output order.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=os.cpu_count() or 4,
+        help="Number of worker threads when --multithread is enabled (default: CPU count).",
+    )
 
     # Stats output
-    parser.add_argument("--stats_json", type=str, default=None,
-                        help="Optional: write byte coverage stats as JSON to this path (in addition to printing).")
+    parser.add_argument(
+        "--stats_json",
+        type=str,
+        default=None,
+        help="Optional: write byte coverage stats as JSON to this path (in addition to printing).",
+    )
+
+    # NEW: JP-style text emission controls
+    parser.add_argument(
+        "--text_output",
+        action="store_true",
+        help=(
+            "Emit text output lines instead of JSON update in --mode json. "
+            'In --mode text, when set, emit "sentence<TAB>ipa" lines (unless --text_no_sentence).'
+        ),
+    )
+    parser.add_argument(
+        "--text_no_sentence",
+        action="store_true",
+        help="In text output mode, emit only the IPA (omit the original sentence).",
+    )
+    parser.add_argument(
+        "--text_sep",
+        default="\t",
+        help='Separator used between sentence and IPA in text output mode (default: tab).',
+    )
 
     args = parser.parse_args()
 
@@ -357,40 +364,79 @@ def main():
                 raise ValueError("--input_json_key is required when --mode json")
 
             with open(args.input_file, "r", encoding="utf-8") as f:
-                input_content = f.read()
+                data = json.load(f)
 
-            updated_json = transcribe_json_list(
-                input_content,
-                input_json_key=args.input_json_key,
-                output_json_key=args.output_json_key,
+            if not isinstance(data, list):
+                raise ValueError("JSON data should be a list of objects.")
+
+            # collect sentences (only items that contain input_json_key)
+            indices: List[int] = []
+            sentences: List[str] = []
+            for i, item in enumerate(data):
+                if isinstance(item, dict) and args.input_json_key in item:
+                    indices.append(i)
+                    sentences.append(str(item[args.input_json_key]))
+
+            ipa_lines = transcribe_sentences(
+                sentences,
                 lang=args.lang,
                 wrapper=args.wrapper,
                 multithread=args.multithread,
                 workers=args.workers,
                 stats=stats,
+                progress_label="Processing JSON items",
             )
-            if updated_json is not None:
-                # matches your existing style: overwrite JSON input file
+
+            if args.text_output:
+                include_sentence = not args.text_no_sentence
+                out_lines = format_text_lines(sentences, ipa_lines, include_sentence, args.text_sep)
+
+                target_path = args.output_file
+                if not target_path:
+                    target_path = args.input_file + ".ipa.txt"
+
+                with open(target_path, "w", encoding="utf-8") as f:
+                    f.write("\n".join(out_lines) + ("\n" if out_lines else ""))
+
+                print(f"✅ Successfully wrote text output to '{target_path}'")
+            else:
+                # default behavior: update JSON in-place (overwrite input_file)
+                for idx, ipa in zip(indices, ipa_lines):
+                    data[idx][args.output_json_key] = ipa
+
                 with open(args.input_file, "w", encoding="utf-8") as f:
-                    f.write(updated_json)
+                    json.dump(data, f, ensure_ascii=False, indent=4)
+
                 print(f"✅ Successfully updated JSON data in '{args.input_file}'")
 
         else:
+            # ---- TEXT MODE ----
             with open(args.input_file, "r", encoding="utf-8") as f:
-                lines = f.readlines()
+                raw_lines = f.readlines()
 
-            out_lines = transcribe_text_lines(
-                lines,
+            sentences = [ln.rstrip("\n") for ln in raw_lines]
+
+            ipa_lines = transcribe_sentences(
+                sentences,
                 lang=args.lang,
                 wrapper=args.wrapper,
                 multithread=args.multithread,
                 workers=args.workers,
                 stats=stats,
+                progress_label="Processing text lines",
             )
+
+            if args.text_output:
+                include_sentence = not args.text_no_sentence
+                out_lines = format_text_lines(sentences, ipa_lines, include_sentence, args.text_sep)
+            else:
+                # backward-compatible default: IPA-only
+                out_lines = ipa_lines
 
             target_path = args.output_file if args.output_file else args.input_file
             with open(target_path, "w", encoding="utf-8") as f:
                 f.write("\n".join(out_lines) + ("\n" if out_lines else ""))
+
             print(f"✅ Successfully wrote transcribed text to '{target_path}'")
 
         finalize_and_print_stats(stats, stats_json_path=args.stats_json)
@@ -399,6 +445,8 @@ def main():
         print(f"Error: Input file '{args.input_file}' not found.")
     except ValueError as ve:
         print(f"Error: {ve}")
+    except json.JSONDecodeError:
+        print(f"Error: Invalid JSON format in '{args.input_file}'.")
 
 
 if __name__ == "__main__":

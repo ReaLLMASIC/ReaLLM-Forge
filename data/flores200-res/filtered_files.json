@@ -1,0 +1,1512 @@
+[
+  {
+    "language": "yue",
+    "script": "Hant",
+    "lang_script": "yue_Hant",
+    "size_kb": 221.0,
+    "filename": "text_yue_Hant.txt",
+    "tokenized_sizes": {
+      "tiktoken": 318.50390625
+    }
+  },
+  {
+    "language": "zho",
+    "script": "Hans",
+    "lang_script": "zho_Hans",
+    "size_kb": 235.0,
+    "filename": "text_zho_Hans.txt",
+    "tokenized_sizes": {
+      "tiktoken": 331.03125
+    }
+  },
+  {
+    "language": "ace",
+    "script": "Arab",
+    "lang_script": "ace_Arab",
+    "size_kb": 383.0,
+    "filename": "text_ace_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 492.009765625
+    }
+  },
+  {
+    "language": "ace",
+    "script": "Latn",
+    "lang_script": "ace_Latn",
+    "size_kb": 277.0,
+    "filename": "text_ace_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 226.68359375
+    }
+  },
+  {
+    "language": "acm",
+    "script": "Arab",
+    "lang_script": "acm_Arab",
+    "size_kb": 396.0,
+    "filename": "text_acm_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 439.6796875
+    }
+  },
+  {
+    "language": "acq",
+    "script": "Arab",
+    "lang_script": "acq_Arab",
+    "size_kb": 400.0,
+    "filename": "text_acq_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 447.302734375
+    }
+  },
+  {
+    "language": "aeb",
+    "script": "Arab",
+    "lang_script": "aeb_Arab",
+    "size_kb": 390.0,
+    "filename": "text_aeb_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 433.5234375
+    }
+  },
+  {
+    "language": "afr",
+    "script": "Latn",
+    "lang_script": "afr_Latn",
+    "size_kb": 272.0,
+    "filename": "text_afr_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 203.251953125
+    }
+  },
+  {
+    "language": "ajp",
+    "script": "Arab",
+    "lang_script": "ajp_Arab",
+    "size_kb": 377.0,
+    "filename": "text_ajp_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 415.3125
+    }
+  },
+  {
+    "language": "aka",
+    "script": "Latn",
+    "lang_script": "aka_Latn",
+    "size_kb": 279.0,
+    "filename": "text_aka_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 291.162109375
+    }
+  },
+  {
+    "language": "als",
+    "script": "Latn",
+    "lang_script": "als_Latn",
+    "size_kb": 306.0,
+    "filename": "text_als_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 276.4609375
+    }
+  },
+  {
+    "language": "amh",
+    "script": "Ethi",
+    "lang_script": "amh_Ethi",
+    "size_kb": 436.0,
+    "filename": "text_amh_Ethi.txt",
+    "tokenized_sizes": {
+      "tiktoken": 803.419921875
+    }
+  },
+  {
+    "language": "apc",
+    "script": "Arab",
+    "lang_script": "apc_Arab",
+    "size_kb": 376.0,
+    "filename": "text_apc_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 416.90625
+    }
+  },
+  {
+    "language": "arb",
+    "script": "Arab",
+    "lang_script": "arb_Arab",
+    "size_kb": 405.0,
+    "filename": "text_arb_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 453.7265625
+    }
+  },
+  {
+    "language": "arb",
+    "script": "Latn",
+    "lang_script": "arb_Latn",
+    "size_kb": 296.0,
+    "filename": "text_arb_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 262.181640625
+    }
+  },
+  {
+    "language": "ars",
+    "script": "Arab",
+    "lang_script": "ars_Arab",
+    "size_kb": 405.0,
+    "filename": "text_ars_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 454.37890625
+    }
+  },
+  {
+    "language": "ary",
+    "script": "Arab",
+    "lang_script": "ary_Arab",
+    "size_kb": 395.0,
+    "filename": "text_ary_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 434.587890625
+    }
+  },
+  {
+    "language": "arz",
+    "script": "Arab",
+    "lang_script": "arz_Arab",
+    "size_kb": 396.0,
+    "filename": "text_arz_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 437.30078125
+    }
+  },
+  {
+    "language": "asm",
+    "script": "Beng",
+    "lang_script": "asm_Beng",
+    "size_kb": 644.0,
+    "filename": "text_asm_Beng.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1005.07421875
+    }
+  },
+  {
+    "language": "ast",
+    "script": "Latn",
+    "lang_script": "ast_Latn",
+    "size_kb": 270.0,
+    "filename": "text_ast_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 197.443359375
+    }
+  },
+  {
+    "language": "awa",
+    "script": "Deva",
+    "lang_script": "awa_Deva",
+    "size_kb": 634.0,
+    "filename": "text_awa_Deva.txt",
+    "tokenized_sizes": {
+      "tiktoken": 742.212890625
+    }
+  },
+  {
+    "language": "ayr",
+    "script": "Latn",
+    "lang_script": "ayr_Latn",
+    "size_kb": 272.0,
+    "filename": "text_ayr_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 243.201171875
+    }
+  },
+  {
+    "language": "azb",
+    "script": "Arab",
+    "lang_script": "azb_Arab",
+    "size_kb": 412.0,
+    "filename": "text_azb_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 531.052734375
+    }
+  },
+  {
+    "language": "azj",
+    "script": "Latn",
+    "lang_script": "azj_Latn",
+    "size_kb": 320.0,
+    "filename": "text_azj_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 360.34765625
+    }
+  },
+  {
+    "language": "bak",
+    "script": "Cyrl",
+    "lang_script": "bak_Cyrl",
+    "size_kb": 470.0,
+    "filename": "text_bak_Cyrl.txt",
+    "tokenized_sizes": {
+      "tiktoken": 620.775390625
+    }
+  },
+  {
+    "language": "bam",
+    "script": "Latn",
+    "lang_script": "bam_Latn",
+    "size_kb": 265.0,
+    "filename": "text_bam_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 277.44921875
+    }
+  },
+  {
+    "language": "ban",
+    "script": "Latn",
+    "lang_script": "ban_Latn",
+    "size_kb": 282.0,
+    "filename": "text_ban_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 207.21875
+    }
+  },
+  {
+    "language": "bel",
+    "script": "Cyrl",
+    "lang_script": "bel_Cyrl",
+    "size_kb": 523.0,
+    "filename": "text_bel_Cyrl.txt",
+    "tokenized_sizes": {
+      "tiktoken": 677.169921875
+    }
+  },
+  {
+    "language": "bem",
+    "script": "Latn",
+    "lang_script": "bem_Latn",
+    "size_kb": 312.0,
+    "filename": "text_bem_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 257.189453125
+    }
+  },
+  {
+    "language": "ben",
+    "script": "Beng",
+    "lang_script": "ben_Beng",
+    "size_kb": 661.0,
+    "filename": "text_ben_Beng.txt",
+    "tokenized_sizes": {
+      "tiktoken": 991.65625
+    }
+  },
+  {
+    "language": "bho",
+    "script": "Deva",
+    "lang_script": "bho_Deva",
+    "size_kb": 626.0,
+    "filename": "text_bho_Deva.txt",
+    "tokenized_sizes": {
+      "tiktoken": 740.771484375
+    }
+  },
+  {
+    "language": "bjn",
+    "script": "Arab",
+    "lang_script": "bjn_Arab",
+    "size_kb": 428.0,
+    "filename": "text_bjn_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 517.115234375
+    }
+  },
+  {
+    "language": "bjn",
+    "script": "Latn",
+    "lang_script": "bjn_Latn",
+    "size_kb": 267.0,
+    "filename": "text_bjn_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 208.12109375
+    }
+  },
+  {
+    "language": "bod",
+    "script": "Tibt",
+    "lang_script": "bod_Tibt",
+    "size_kb": 840.0,
+    "filename": "text_bod_Tibt.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1532.25
+    }
+  },
+  {
+    "language": "bos",
+    "script": "Latn",
+    "lang_script": "bos_Latn",
+    "size_kb": 262.0,
+    "filename": "text_bos_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 229.4296875
+    }
+  },
+  {
+    "language": "bug",
+    "script": "Latn",
+    "lang_script": "bug_Latn",
+    "size_kb": 278.0,
+    "filename": "text_bug_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 230.97265625
+    }
+  },
+  {
+    "language": "bul",
+    "script": "Cyrl",
+    "lang_script": "bul_Cyrl",
+    "size_kb": 479.0,
+    "filename": "text_bul_Cyrl.txt",
+    "tokenized_sizes": {
+      "tiktoken": 569.134765625
+    }
+  },
+  {
+    "language": "cat",
+    "script": "Latn",
+    "lang_script": "cat_Latn",
+    "size_kb": 285.0,
+    "filename": "text_cat_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 201.0390625
+    }
+  },
+  {
+    "language": "ceb",
+    "script": "Latn",
+    "lang_script": "ceb_Latn",
+    "size_kb": 304.0,
+    "filename": "text_ceb_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 234.4296875
+    }
+  },
+  {
+    "language": "ces",
+    "script": "Latn",
+    "lang_script": "ces_Latn",
+    "size_kb": 274.0,
+    "filename": "text_ces_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 273.87109375
+    }
+  },
+  {
+    "language": "cjk",
+    "script": "Latn",
+    "lang_script": "cjk_Latn",
+    "size_kb": 272.0,
+    "filename": "text_cjk_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 226.83984375
+    }
+  },
+  {
+    "language": "ckb",
+    "script": "Arab",
+    "lang_script": "ckb_Arab",
+    "size_kb": 287.0,
+    "filename": "text_ckb_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 423.845703125
+    }
+  },
+  {
+    "language": "crh",
+    "script": "Latn",
+    "lang_script": "crh_Latn",
+    "size_kb": 285.0,
+    "filename": "text_crh_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 258.728515625
+    }
+  },
+  {
+    "language": "cym",
+    "script": "Latn",
+    "lang_script": "cym_Latn",
+    "size_kb": 272.0,
+    "filename": "text_cym_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 246.384765625
+    }
+  },
+  {
+    "language": "dan",
+    "script": "Latn",
+    "lang_script": "dan_Latn",
+    "size_kb": 266.0,
+    "filename": "text_dan_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 198.712890625
+    }
+  },
+  {
+    "language": "deu",
+    "script": "Latn",
+    "lang_script": "deu_Latn",
+    "size_kb": 301.0,
+    "filename": "text_deu_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 224.591796875
+    }
+  },
+  {
+    "language": "dik",
+    "script": "Latn",
+    "lang_script": "dik_Latn",
+    "size_kb": 245.0,
+    "filename": "text_dik_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 258.310546875
+    }
+  },
+  {
+    "language": "dyu",
+    "script": "Latn",
+    "lang_script": "dyu_Latn",
+    "size_kb": 272.0,
+    "filename": "text_dyu_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 230.681640625
+    }
+  },
+  {
+    "language": "dzo",
+    "script": "Tibt",
+    "lang_script": "dzo_Tibt",
+    "size_kb": 921.0,
+    "filename": "text_dzo_Tibt.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1679.669921875
+    }
+  },
+  {
+    "language": "ell",
+    "script": "Grek",
+    "lang_script": "ell_Grek",
+    "size_kb": 550.0,
+    "filename": "text_ell_Grek.txt",
+    "tokenized_sizes": {
+      "tiktoken": 674.869140625
+    }
+  },
+  {
+    "language": "eng",
+    "script": "Latn",
+    "lang_script": "eng_Latn",
+    "size_kb": 254.0,
+    "filename": "text_eng_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 107.015625
+    }
+  },
+  {
+    "language": "epo",
+    "script": "Latn",
+    "lang_script": "epo_Latn",
+    "size_kb": 258.0,
+    "filename": "text_epo_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 212.609375
+    }
+  },
+  {
+    "language": "est",
+    "script": "Latn",
+    "lang_script": "est_Latn",
+    "size_kb": 257.0,
+    "filename": "text_est_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 221.576171875
+    }
+  },
+  {
+    "language": "eus",
+    "script": "Latn",
+    "lang_script": "eus_Latn",
+    "size_kb": 270.0,
+    "filename": "text_eus_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 220.109375
+    }
+  },
+  {
+    "language": "ewe",
+    "script": "Latn",
+    "lang_script": "ewe_Latn",
+    "size_kb": 271.0,
+    "filename": "text_ewe_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 301.962890625
+    }
+  },
+  {
+    "language": "fao",
+    "script": "Latn",
+    "lang_script": "fao_Latn",
+    "size_kb": 278.0,
+    "filename": "text_fao_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 249.02734375
+    }
+  },
+  {
+    "language": "fij",
+    "script": "Latn",
+    "lang_script": "fij_Latn",
+    "size_kb": 297.0,
+    "filename": "text_fij_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 240.689453125
+    }
+  },
+  {
+    "language": "fin",
+    "script": "Latn",
+    "lang_script": "fin_Latn",
+    "size_kb": 281.0,
+    "filename": "text_fin_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 238.443359375
+    }
+  },
+  {
+    "language": "fon",
+    "script": "Latn",
+    "lang_script": "fon_Latn",
+    "size_kb": 320.0,
+    "filename": "text_fon_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 422.541015625
+    }
+  },
+  {
+    "language": "fra",
+    "script": "Latn",
+    "lang_script": "fra_Latn",
+    "size_kb": 313.0,
+    "filename": "text_fra_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 209.17578125
+    }
+  },
+  {
+    "language": "fur",
+    "script": "Latn",
+    "lang_script": "fur_Latn",
+    "size_kb": 287.0,
+    "filename": "text_fur_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 216.59375
+    }
+  },
+  {
+    "language": "fuv",
+    "script": "Latn",
+    "lang_script": "fuv_Latn",
+    "size_kb": 243.0,
+    "filename": "text_fuv_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 208.873046875
+    }
+  },
+  {
+    "language": "gaz",
+    "script": "Latn",
+    "lang_script": "gaz_Latn",
+    "size_kb": 305.0,
+    "filename": "text_gaz_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 264.150390625
+    }
+  },
+  {
+    "language": "gla",
+    "script": "Latn",
+    "lang_script": "gla_Latn",
+    "size_kb": 325.0,
+    "filename": "text_gla_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 281.35546875
+    }
+  },
+  {
+    "language": "gle",
+    "script": "Latn",
+    "lang_script": "gle_Latn",
+    "size_kb": 312.0,
+    "filename": "text_gle_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 266.9453125
+    }
+  },
+  {
+    "language": "glg",
+    "script": "Latn",
+    "lang_script": "glg_Latn",
+    "size_kb": 287.0,
+    "filename": "text_glg_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 200.67578125
+    }
+  },
+  {
+    "language": "grn",
+    "script": "Latn",
+    "lang_script": "grn_Latn",
+    "size_kb": 275.0,
+    "filename": "text_grn_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 256.6171875
+    }
+  },
+  {
+    "language": "guj",
+    "script": "Gujr",
+    "lang_script": "guj_Gujr",
+    "size_kb": 633.0,
+    "filename": "text_guj_Gujr.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1259.890625
+    }
+  },
+  {
+    "language": "hat",
+    "script": "Latn",
+    "lang_script": "hat_Latn",
+    "size_kb": 240.0,
+    "filename": "text_hat_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 200.294921875
+    }
+  },
+  {
+    "language": "hau",
+    "script": "Latn",
+    "lang_script": "hau_Latn",
+    "size_kb": 274.0,
+    "filename": "text_hau_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 225.41015625
+    }
+  },
+  {
+    "language": "heb",
+    "script": "Hebr",
+    "lang_script": "heb_Hebr",
+    "size_kb": 352.0,
+    "filename": "text_heb_Hebr.txt",
+    "tokenized_sizes": {
+      "tiktoken": 452.626953125
+    }
+  },
+  {
+    "language": "hin",
+    "script": "Deva",
+    "lang_script": "hin_Deva",
+    "size_kb": 646.0,
+    "filename": "text_hin_Deva.txt",
+    "tokenized_sizes": {
+      "tiktoken": 769.654296875
+    }
+  },
+  {
+    "language": "hne",
+    "script": "Deva",
+    "lang_script": "hne_Deva",
+    "size_kb": 624.0,
+    "filename": "text_hne_Deva.txt",
+    "tokenized_sizes": {
+      "tiktoken": 743.744140625
+    }
+  },
+  {
+    "language": "hrv",
+    "script": "Latn",
+    "lang_script": "hrv_Latn",
+    "size_kb": 256.0,
+    "filename": "text_hrv_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 224.17578125
+    }
+  },
+  {
+    "language": "hun",
+    "script": "Latn",
+    "lang_script": "hun_Latn",
+    "size_kb": 293.0,
+    "filename": "text_hun_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 277.033203125
+    }
+  },
+  {
+    "language": "hye",
+    "script": "Armn",
+    "lang_script": "hye_Armn",
+    "size_kb": 518.0,
+    "filename": "text_hye_Armn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1028.42578125
+    }
+  },
+  {
+    "language": "ibo",
+    "script": "Latn",
+    "lang_script": "ibo_Latn",
+    "size_kb": 306.0,
+    "filename": "text_ibo_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 355.85546875
+    }
+  },
+  {
+    "language": "ilo",
+    "script": "Latn",
+    "lang_script": "ilo_Latn",
+    "size_kb": 307.0,
+    "filename": "text_ilo_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 236.40234375
+    }
+  },
+  {
+    "language": "ind",
+    "script": "Latn",
+    "lang_script": "ind_Latn",
+    "size_kb": 275.0,
+    "filename": "text_ind_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 207.615234375
+    }
+  },
+  {
+    "language": "isl",
+    "script": "Latn",
+    "lang_script": "isl_Latn",
+    "size_kb": 277.0,
+    "filename": "text_isl_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 253.580078125
+    }
+  },
+  {
+    "language": "ita",
+    "script": "Latn",
+    "lang_script": "ita_Latn",
+    "size_kb": 301.0,
+    "filename": "text_ita_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 210.482421875
+    }
+  },
+  {
+    "language": "jav",
+    "script": "Latn",
+    "lang_script": "jav_Latn",
+    "size_kb": 264.0,
+    "filename": "text_jav_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 203.388671875
+    }
+  },
+  {
+    "language": "jpn",
+    "script": "Jpan",
+    "lang_script": "jpn_Jpan",
+    "size_kb": 322.0,
+    "filename": "text_jpn_Jpan.txt",
+    "tokenized_sizes": {
+      "tiktoken": 309.5625
+    }
+  },
+  {
+    "language": "kab",
+    "script": "Latn",
+    "lang_script": "kab_Latn",
+    "size_kb": 268.0,
+    "filename": "text_kab_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 260.916015625
+    }
+  },
+  {
+    "language": "kac",
+    "script": "Latn",
+    "lang_script": "kac_Latn",
+    "size_kb": 322.0,
+    "filename": "text_kac_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 275.46875
+    }
+  },
+  {
+    "language": "kam",
+    "script": "Latn",
+    "lang_script": "kam_Latn",
+    "size_kb": 258.0,
+    "filename": "text_kam_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 242.33984375
+    }
+  },
+  {
+    "language": "kan",
+    "script": "Knda",
+    "lang_script": "kan_Knda",
+    "size_kb": 718.0,
+    "filename": "text_kan_Knda.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1404.755859375
+    }
+  },
+  {
+    "language": "kas",
+    "script": "Arab",
+    "lang_script": "kas_Arab",
+    "size_kb": 437.0,
+    "filename": "text_kas_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 636.080078125
+    }
+  },
+  {
+    "language": "kas",
+    "script": "Deva",
+    "lang_script": "kas_Deva",
+    "size_kb": 608.0,
+    "filename": "text_kas_Deva.txt",
+    "tokenized_sizes": {
+      "tiktoken": 725.751953125
+    }
+  },
+  {
+    "language": "kat",
+    "script": "Geor",
+    "lang_script": "kat_Geor",
+    "size_kb": 747.0,
+    "filename": "text_kat_Geor.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1425.55078125
+    }
+  },
+  {
+    "language": "kaz",
+    "script": "Cyrl",
+    "lang_script": "kaz_Cyrl",
+    "size_kb": 478.0,
+    "filename": "text_kaz_Cyrl.txt",
+    "tokenized_sizes": {
+      "tiktoken": 611.3046875
+    }
+  },
+  {
+    "language": "kbp",
+    "script": "Latn",
+    "lang_script": "kbp_Latn",
+    "size_kb": 348.0,
+    "filename": "text_kbp_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 503.822265625
+    }
+  },
+  {
+    "language": "kea",
+    "script": "Latn",
+    "lang_script": "kea_Latn",
+    "size_kb": 258.0,
+    "filename": "text_kea_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 203.4453125
+    }
+  },
+  {
+    "language": "khk",
+    "script": "Cyrl",
+    "lang_script": "khk_Cyrl",
+    "size_kb": 485.0,
+    "filename": "text_khk_Cyrl.txt",
+    "tokenized_sizes": {
+      "tiktoken": 662.623046875
+    }
+  },
+  {
+    "language": "khm",
+    "script": "Khmr",
+    "lang_script": "khm_Khmr",
+    "size_kb": 845.0,
+    "filename": "text_khm_Khmr.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1578.11328125
+    }
+  },
+  {
+    "language": "kik",
+    "script": "Latn",
+    "lang_script": "kik_Latn",
+    "size_kb": 329.0,
+    "filename": "text_kik_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 357.6328125
+    }
+  },
+  {
+    "language": "kin",
+    "script": "Latn",
+    "lang_script": "kin_Latn",
+    "size_kb": 288.0,
+    "filename": "text_kin_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 247.646484375
+    }
+  },
+  {
+    "language": "kir",
+    "script": "Cyrl",
+    "lang_script": "kir_Cyrl",
+    "size_kb": 477.0,
+    "filename": "text_kir_Cyrl.txt",
+    "tokenized_sizes": {
+      "tiktoken": 592.859375
+    }
+  },
+  {
+    "language": "kmb",
+    "script": "Latn",
+    "lang_script": "kmb_Latn",
+    "size_kb": 282.0,
+    "filename": "text_kmb_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 244.283203125
+    }
+  },
+  {
+    "language": "kmr",
+    "script": "Latn",
+    "lang_script": "kmr_Latn",
+    "size_kb": 279.0,
+    "filename": "text_kmr_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 256.443359375
+    }
+  },
+  {
+    "language": "knc",
+    "script": "Arab",
+    "lang_script": "knc_Arab",
+    "size_kb": 405.0,
+    "filename": "text_knc_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 488.65234375
+    }
+  },
+  {
+    "language": "knc",
+    "script": "Latn",
+    "lang_script": "knc_Latn",
+    "size_kb": 282.0,
+    "filename": "text_knc_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 269.248046875
+    }
+  },
+  {
+    "language": "kon",
+    "script": "Latn",
+    "lang_script": "kon_Latn",
+    "size_kb": 289.0,
+    "filename": "text_kon_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 227.642578125
+    }
+  },
+  {
+    "language": "kor",
+    "script": "Hang",
+    "lang_script": "kor_Hang",
+    "size_kb": 304.0,
+    "filename": "text_kor_Hang.txt",
+    "tokenized_sizes": {
+      "tiktoken": 523.220703125
+    }
+  },
+  {
+    "language": "lao",
+    "script": "Laoo",
+    "lang_script": "lao_Laoo",
+    "size_kb": 692.0,
+    "filename": "text_lao_Laoo.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1354.791015625
+    }
+  },
+  {
+    "language": "lij",
+    "script": "Latn",
+    "lang_script": "lij_Latn",
+    "size_kb": 296.0,
+    "filename": "text_lij_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 239.205078125
+    }
+  },
+  {
+    "language": "lim",
+    "script": "Latn",
+    "lang_script": "lim_Latn",
+    "size_kb": 272.0,
+    "filename": "text_lim_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 214.634765625
+    }
+  },
+  {
+    "language": "lin",
+    "script": "Latn",
+    "lang_script": "lin_Latn",
+    "size_kb": 274.0,
+    "filename": "text_lin_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 212.880859375
+    }
+  },
+  {
+    "language": "lit",
+    "script": "Latn",
+    "lang_script": "lit_Latn",
+    "size_kb": 270.0,
+    "filename": "text_lit_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 256.07421875
+    }
+  },
+  {
+    "language": "lmo",
+    "script": "Latn",
+    "lang_script": "lmo_Latn",
+    "size_kb": 294.0,
+    "filename": "text_lmo_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 247.615234375
+    }
+  },
+  {
+    "language": "ltg",
+    "script": "Latn",
+    "lang_script": "ltg_Latn",
+    "size_kb": 266.0,
+    "filename": "text_ltg_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 250.259765625
+    }
+  },
+  {
+    "language": "ltz",
+    "script": "Latn",
+    "lang_script": "ltz_Latn",
+    "size_kb": 292.0,
+    "filename": "text_ltz_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 235.171875
+    }
+  },
+  {
+    "language": "lua",
+    "script": "Latn",
+    "lang_script": "lua_Latn",
+    "size_kb": 274.0,
+    "filename": "text_lua_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 223.138671875
+    }
+  },
+  {
+    "language": "lug",
+    "script": "Latn",
+    "lang_script": "lug_Latn",
+    "size_kb": 262.0,
+    "filename": "text_lug_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 227.66015625
+    }
+  },
+  {
+    "language": "luo",
+    "script": "Latn",
+    "lang_script": "luo_Latn",
+    "size_kb": 266.0,
+    "filename": "text_luo_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 214.599609375
+    }
+  },
+  {
+    "language": "lus",
+    "script": "Latn",
+    "lang_script": "lus_Latn",
+    "size_kb": 279.0,
+    "filename": "text_lus_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 219.353515625
+    }
+  },
+  {
+    "language": "lvs",
+    "script": "Latn",
+    "lang_script": "lvs_Latn",
+    "size_kb": 283.0,
+    "filename": "text_lvs_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 265.765625
+    }
+  },
+  {
+    "language": "mag",
+    "script": "Deva",
+    "lang_script": "mag_Deva",
+    "size_kb": 625.0,
+    "filename": "text_mag_Deva.txt",
+    "tokenized_sizes": {
+      "tiktoken": 745.328125
+    }
+  },
+  {
+    "language": "mai",
+    "script": "Deva",
+    "lang_script": "mai_Deva",
+    "size_kb": 641.0,
+    "filename": "text_mai_Deva.txt",
+    "tokenized_sizes": {
+      "tiktoken": 767.1484375
+    }
+  },
+  {
+    "language": "mal",
+    "script": "Mlym",
+    "lang_script": "mal_Mlym",
+    "size_kb": 787.0,
+    "filename": "text_mal_Mlym.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1565.658203125
+    }
+  },
+  {
+    "language": "mar",
+    "script": "Deva",
+    "lang_script": "mar_Deva",
+    "size_kb": 677.0,
+    "filename": "text_mar_Deva.txt",
+    "tokenized_sizes": {
+      "tiktoken": 810.67578125
+    }
+  },
+  {
+    "language": "min",
+    "script": "Arab",
+    "lang_script": "min_Arab",
+    "size_kb": 441.0,
+    "filename": "text_min_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 539.71875
+    }
+  },
+  {
+    "language": "min",
+    "script": "Latn",
+    "lang_script": "min_Latn",
+    "size_kb": 271.0,
+    "filename": "text_min_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 206.884765625
+    }
+  },
+  {
+    "language": "mkd",
+    "script": "Cyrl",
+    "lang_script": "mkd_Cyrl",
+    "size_kb": 480.0,
+    "filename": "text_mkd_Cyrl.txt",
+    "tokenized_sizes": {
+      "tiktoken": 564.958984375
+    }
+  },
+  {
+    "language": "mlt",
+    "script": "Latn",
+    "lang_script": "mlt_Latn",
+    "size_kb": 295.0,
+    "filename": "text_mlt_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 281.068359375
+    }
+  },
+  {
+    "language": "mni",
+    "script": "Beng",
+    "lang_script": "mni_Beng",
+    "size_kb": 701.0,
+    "filename": "text_mni_Beng.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1048.951171875
+    }
+  },
+  {
+    "language": "mos",
+    "script": "Latn",
+    "lang_script": "mos_Latn",
+    "size_kb": 262.0,
+    "filename": "text_mos_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 264.98828125
+    }
+  },
+  {
+    "language": "mri",
+    "script": "Latn",
+    "lang_script": "mri_Latn",
+    "size_kb": 294.0,
+    "filename": "text_mri_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 255.35546875
+    }
+  },
+  {
+    "language": "mya",
+    "script": "Mymr",
+    "lang_script": "mya_Mymr",
+    "size_kb": 890.0,
+    "filename": "text_mya_Mymr.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1738.203125
+    }
+  },
+  {
+    "language": "nld",
+    "script": "Latn",
+    "lang_script": "nld_Latn",
+    "size_kb": 283.0,
+    "filename": "text_nld_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 206.50390625
+    }
+  },
+  {
+    "language": "nno",
+    "script": "Latn",
+    "lang_script": "nno_Latn",
+    "size_kb": 263.0,
+    "filename": "text_nno_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 202.712890625
+    }
+  },
+  {
+    "language": "nob",
+    "script": "Latn",
+    "lang_script": "nob_Latn",
+    "size_kb": 261.0,
+    "filename": "text_nob_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 195.431640625
+    }
+  },
+  {
+    "language": "npi",
+    "script": "Deva",
+    "lang_script": "npi_Deva",
+    "size_kb": 650.0,
+    "filename": "text_npi_Deva.txt",
+    "tokenized_sizes": {
+      "tiktoken": 782.9453125
+    }
+  },
+  {
+    "language": "nso",
+    "script": "Latn",
+    "lang_script": "nso_Latn",
+    "size_kb": 298.0,
+    "filename": "text_nso_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 242.853515625
+    }
+  },
+  {
+    "language": "nus",
+    "script": "Latn",
+    "lang_script": "nus_Latn",
+    "size_kb": 335.0,
+    "filename": "text_nus_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 436.869140625
+    }
+  },
+  {
+    "language": "nya",
+    "script": "Latn",
+    "lang_script": "nya_Latn",
+    "size_kb": 285.0,
+    "filename": "text_nya_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 237.115234375
+    }
+  },
+  {
+    "language": "oci",
+    "script": "Latn",
+    "lang_script": "oci_Latn",
+    "size_kb": 298.0,
+    "filename": "text_oci_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 216.3203125
+    }
+  },
+  {
+    "language": "ory",
+    "script": "Orya",
+    "lang_script": "ory_Orya",
+    "size_kb": 693.0,
+    "filename": "text_ory_Orya.txt",
+    "tokenized_sizes": {
+      "tiktoken": 1374.439453125
+    }
+  },
+  {
+    "language": "pag",
+    "script": "Latn",
+    "lang_script": "pag_Latn",
+    "size_kb": 253.0,
+    "filename": "text_pag_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 174.919921875
+    }
+  },
+  {
+    "language": "pan",
+    "script": "Guru",
+    "lang_script": "pan_Guru",
+    "size_kb": 657.0,
+    "filename": "text_pan_Guru.txt",
+    "tokenized_sizes": {
+      "tiktoken": 815.029296875
+    }
+  },
+  {
+    "language": "pap",
+    "script": "Latn",
+    "lang_script": "pap_Latn",
+    "size_kb": 274.0,
+    "filename": "text_pap_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 208.033203125
+    }
+  },
+  {
+    "language": "pbt",
+    "script": "Arab",
+    "lang_script": "pbt_Arab",
+    "size_kb": 421.0,
+    "filename": "text_pbt_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 554.59375
+    }
+  },
+  {
+    "language": "pes",
+    "script": "Arab",
+    "lang_script": "pes_Arab",
+    "size_kb": 430.0,
+    "filename": "text_pes_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 547.0625
+    }
+  },
+  {
+    "language": "plt",
+    "script": "Latn",
+    "lang_script": "plt_Latn",
+    "size_kb": 319.0,
+    "filename": "text_plt_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 270.25390625
+    }
+  },
+  {
+    "language": "pol",
+    "script": "Latn",
+    "lang_script": "pol_Latn",
+    "size_kb": 286.0,
+    "filename": "text_pol_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 280.4609375
+    }
+  },
+  {
+    "language": "por",
+    "script": "Latn",
+    "lang_script": "por_Latn",
+    "size_kb": 283.0,
+    "filename": "text_por_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 202.765625
+    }
+  },
+  {
+    "language": "prs",
+    "script": "Arab",
+    "lang_script": "prs_Arab",
+    "size_kb": 413.0,
+    "filename": "text_prs_Arab.txt",
+    "tokenized_sizes": {
+      "tiktoken": 526.087890625
+    }
+  },
+  {
+    "language": "quy",
+    "script": "Latn",
+    "lang_script": "quy_Latn",
+    "size_kb": 273.0,
+    "filename": "text_quy_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 230.93359375
+    }
+  },
+  {
+    "language": "ron",
+    "script": "Latn",
+    "lang_script": "ron_Latn",
+    "size_kb": 301.0,
+    "filename": "text_ron_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 259.185546875
+    }
+  },
+  {
+    "language": "vie",
+    "script": "Latn",
+    "lang_script": "vie_Latn",
+    "size_kb": 360.0,
+    "filename": "text_vie_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 470.21875
+    }
+  },
+  {
+    "language": "swh",
+    "script": "Latn",
+    "lang_script": "swh_Latn",
+    "size_kb": 272.0,
+    "filename": "text_swh_Latn.txt",
+    "tokenized_sizes": {
+      "tiktoken": 223.5703125
+    }
+  }
+]
