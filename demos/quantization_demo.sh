@@ -22,10 +22,9 @@ python3 train.py \
 --store_activations
 
 # Save a model's quantized values to a .pkl file
-python3 quantization/save_weights.py \
+python3 export_weights/export_quantization_data_to_pkl.py \
 --out_dir "quantized_model" \
 --file_name "quantized_data" \
---file_type "pkl"
 
 # Create a histogram for every quantized weight and activation of a model
 python3 quantization/visualize.py \
