@@ -1,0 +1,15 @@
+/char/
+/non_hanzi/
+/whole/
+/left/
+/right/
+/top/
+/bottom/
+/enclosure/
+/inside/
+/corner/
+/overlay/
+/other/
+/manifest.json
+__pycache__/
+*.pyc
