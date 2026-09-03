@@ -19,6 +19,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from typing import List, Optional, Sequence, Tuple
 
 # Config
 from gpt_conf import GPTConfig
@@ -695,6 +696,156 @@ class GPT(nn.Module):
                 loss = None
 
             return logits, loss
+
+    @torch.no_grad()
+    def forward_with_layer_logits(
+        self,
+        idx: torch.Tensor,
+        iter_num: Optional[int] = None,
+        dataset_idx: Optional[int] = None,
+        layer_indices: Optional[Sequence[int]] = None,
+    ) -> Tuple[torch.Tensor, List[Tuple[int, torch.Tensor]]]:
+        """Return final and intermediate logits for the last token.
+
+        Parameters
+        ----------
+        idx:
+            Token ids with shape ``(B, T)``.
+        iter_num:
+            Optional iteration number used by certain variations.
+        dataset_idx:
+            Index selecting the embedding / lm head when multi-dataset WTE is
+            enabled.
+        layer_indices:
+            Optional iterable of 1-indexed layer numbers whose logits should be
+            returned.  When ``None`` logits from all early layers are returned.
+
+        Returns
+        -------
+        Tuple[torch.Tensor, List[Tuple[int, torch.Tensor]]]
+            The final layer logits for the last token and a list containing
+            tuples ``(layer_index, logits)`` for the requested early layers.
+        """
+
+        if idx is None:
+            raise ValueError("forward_with_layer_logits expects an input tensor `idx`.")
+
+        device = idx.device
+        b, t = idx.size()
+
+        if self.config.multidataset_wte and dataset_idx is not None:
+            tok_emb = self.transformer[f'wte_{dataset_idx}'](idx)
+        else:
+            tok_emb = self.transformer.wte(idx)
+
+        if self.n_embd_wte:
+            tok_emb = self.transformer.scale_up(tok_emb)
+
+        if self.config.use_embedding_scale:
+            tok_emb = tok_emb * self.embedding_scale
+
+        if self.config.use_abs_pos_embeddings:
+            pos = torch.arange(0, t, dtype=torch.long, device=device)
+            tok_emb = tok_emb + self.transformer.wpe(pos)
+
+        x = self.transformer.drop(tok_emb)
+
+        learned_sum = None
+        if self.config.n_lpe != 0 and self.config.target_layer_in_lpe == 0:
+            for lpe in self.learned_position_embeddings:
+                out = lpe(b, t, x, iter_num)
+                learned_sum = out if learned_sum is None else learned_sum + out
+
+        if self.config.n_lpe != 0 and self.config.target_layer_out_lpe == 0:
+            x = x + learned_sum
+
+        if self.use_lsv and self.config.apply_lsv_at_layer_idx == 0:
+            x = self.lsv_matrix(x)
+
+        layer_outputs: List[torch.Tensor] = []
+        if self.use_ln_f_input_mixer:
+            layer_outputs.append(x)
+
+        num_layers = len(self.transformer.h)
+        if layer_indices is not None:
+            selected_layers = sorted({int(i) for i in layer_indices if 1 <= int(i) < num_layers})
+            selected_set = set(selected_layers)
+            if not selected_layers:
+                selected_set = None
+        else:
+            selected_set = None
+
+        collected_states: List[Tuple[int, torch.Tensor]] = []
+
+        layer_idx = 1
+        for block in self.transformer.h:
+            x = block(x, iter_num)
+
+            if self.config.n_lpe != 0 and self.config.target_layer_in_lpe == layer_idx:
+                for lpe in self.learned_position_embeddings:
+                    out = lpe(b, t, x, iter_num)
+                    learned_sum = out if learned_sum is None else learned_sum + out
+
+            if self.config.n_lpe != 0 and self.config.target_layer_out_lpe == layer_idx:
+                x = x + learned_sum
+
+            if self.use_lsv and layer_idx == self.config.apply_lsv_at_layer_idx:
+                x = self.lsv_matrix(x)
+
+            if (
+                self.config.apply_vector_at_layer_idx is not None
+                and layer_idx == self.config.apply_vector_at_layer_idx
+            ):
+                x = self.apply_vector_to_layer_output(x)
+
+            if (
+                self.config.obtain_vector_at_layer_idx is not None
+                and layer_idx == self.config.obtain_vector_at_layer_idx
+            ):
+                x = self.obtain_vector_from_layer_output(x)
+
+            if layer_idx < num_layers and (selected_set is None or layer_idx in selected_set):
+                collected_states.append((layer_idx, x[:, [-1], :].clone()))
+
+            if self.use_ln_f_input_mixer:
+                layer_outputs.append(x)
+
+            layer_idx += 1
+
+        pre_ln_final = x
+        if self.use_ln_f_input_mixer:
+            pre_ln_final = self.ln_f_mixer(layer_outputs)
+
+        def project_last_token(hidden: torch.Tensor) -> torch.Tensor:
+            if hidden.dim() == 2:
+                last_hidden = hidden.unsqueeze(1)
+            elif hidden.size(1) == 1:
+                last_hidden = hidden
+            else:
+                last_hidden = hidden[:, [-1], :]
+
+            last_hidden = self.transformer.ln_f(last_hidden)
+            if self.n_embd_wte:
+                last_hidden = F.linear(last_hidden, self.transformer.scale_down.weight.t())
+
+            if self.config.multidataset_wte and dataset_idx is not None:
+                logits = self.transformer[f'lm_head_{dataset_idx}'](last_hidden)
+            else:
+                logits = self.lm_head(last_hidden)
+
+            if self.final_logit_softcapping is not None:
+                logits = torch.tanh(logits / self.final_logit_softcapping) \
+                         * self.final_logit_softcapping
+
+            return logits.squeeze(1)
+
+        early_logits = [
+            (layer_id, project_last_token(hidden))
+            for layer_id, hidden in collected_states
+        ]
+
+        final_logits = project_last_token(pre_ln_final)
+        return final_logits, early_logits
     # ------------------------------------------------------------------
     #  LATENT-CHAINING
     # ------------------------------------------------------------------

@@ -32,6 +32,7 @@ from model import GPT, GPTConfig
 from sample_variations.numerical_multicontext import decode_numerical_series, write_plotly_report
 from utils.model_info import print_summary, print_module_structure, print_model_blocks
 from variations.model_variations import model_variation_dictionary
+from utils.sled import apply_sled
 
 from benchmarks import run_all
 
@@ -69,6 +70,45 @@ def parse_args():
         help="Apply a penalty to logits based on cosine similarity to recent tokens. "
             "Use alone for defaults (N=5, alpha=1.0). "
              "Optionally provide lookback window N and penalty strength alpha. Ex: --cosine_penalty 5 1.5"
+    )
+
+    # SLED decoding options
+    parser.add_argument(
+        '--use_sled',
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Enable Self Logits Evolution Decoding (SLED) during generation.",
+    )
+    parser.add_argument(
+        '--sled_alpha',
+        type=float,
+        default=0.5,
+        help="Evolution rate alpha used by SLED to update logits.",
+    )
+    parser.add_argument(
+        '--sled_top_k',
+        type=int,
+        default=5,
+        help="Number of top tokens considered during the SLED update.",
+    )
+    parser.add_argument(
+        '--sled_eta',
+        type=float,
+        default=-1e9,
+        help="Logit value assigned to tokens outside the SLED top-k set.",
+    )
+    parser.add_argument(
+        '--sled_layers',
+        type=int,
+        nargs='+',
+        default=None,
+        help="1-indexed layer numbers to use for SLED (defaults to all early layers).",
+    )
+    parser.add_argument(
+        '--sled_temperature',
+        type=float,
+        default=None,
+        help="Temperature used within SLED; defaults to the sampling temperature if omitted.",
     )
 
 
@@ -630,8 +670,27 @@ def sample_with_existing_model(
                         else x[:, -model.config.block_size :]
                     )
 
-                    model_logits, _ = model(idx_cond, dataset_idx=dataset_idx)
-                    raw_logits_row = model_logits[:, -1, :]      # Raw logits from model
+                    use_sled = args is not None and getattr(args, "use_sled", False)
+                    if use_sled:
+                        sled_layers = getattr(args, "sled_layers", None)
+                        final_logits, early_logits = model.forward_with_layer_logits(
+                            idx_cond,
+                            dataset_idx=dataset_idx,
+                            layer_indices=sled_layers,
+                        )
+                        sled_temp = args.sled_temperature if args.sled_temperature is not None else args.temperature
+                        early_values = [layer_logits for (_, layer_logits) in early_logits]
+                        raw_logits_row = apply_sled(
+                            final_logits,
+                            early_values,
+                            alpha=args.sled_alpha,
+                            top_k=args.sled_top_k,
+                            temperature=sled_temp,
+                            eta=args.sled_eta,
+                        )
+                    else:
+                        logits_tensor, _ = model(idx_cond, dataset_idx=dataset_idx)
+                        raw_logits_row = logits_tensor[:, -1, :]
 
                     # --- Apply Cosine Similarity Penalty (if enabled) ---
                     if args.cosine_penalty is not None:
@@ -839,17 +898,65 @@ def sample_with_existing_model(
                 )
 
 
-def interactive_generation(model, start_ids, device, max_new_tokens, temperature, top_k, stop_string, decode, encode):
+def interactive_generation(model, start_ids, args, decode, encode, dataset_idx=None):
+    device = args.device
+    stop_strings = args.stop_strings
+    if isinstance(stop_strings, str):
+        stop_strings = [stop_strings]
+
     x = torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...]
+
     while True:
-        x, generated_text = model.generate_with_stop(x, max_new_tokens, stop_string, decode, temperature, top_k)
+        generated_text = ""
+        buffer = ""
+
+        for _ in range(args.max_new_tokens):
+            idx_cond = x if x.size(1) <= model.config.block_size else x[:, -model.config.block_size:]
+
+            use_sled = getattr(args, "use_sled", False)
+            if use_sled:
+                final_logits, early_logits = model.forward_with_layer_logits(
+                    idx_cond,
+                    dataset_idx=dataset_idx,
+                    layer_indices=args.sled_layers,
+                )
+                sled_temp = args.sled_temperature if args.sled_temperature is not None else args.temperature
+                early_values = [layer_logits for (_, layer_logits) in early_logits]
+                raw_logits_row = apply_sled(
+                    final_logits,
+                    early_values,
+                    alpha=args.sled_alpha,
+                    top_k=args.sled_top_k,
+                    temperature=sled_temp,
+                    eta=args.sled_eta,
+                )
+            else:
+                logits_tensor, _ = model(idx_cond, dataset_idx=dataset_idx)
+                raw_logits_row = logits_tensor[:, -1, :]
+
+            logits = raw_logits_row / args.temperature
+            if args.top_k is not None:
+                top_k_val = args.top_k[0] if isinstance(args.top_k, (list, tuple)) else args.top_k
+                v, _ = torch.topk(logits, min(top_k_val, logits.size(-1)))
+                logits[logits < v[:, [-1]]] = -float("inf")
+
+            probs = F.softmax(logits, dim=-1)
+            idx_next = torch.multinomial(probs, num_samples=1)
+            x = torch.cat((x, idx_next), dim=1)
+
+            next_token_text = decode(idx_next[0].tolist())
+            generated_text += next_token_text
+            buffer += next_token_text
+
+            if any(buffer.endswith(s) for s in stop_strings):
+                break
+
         print("[bold green]" + generated_text)
 
         user_input = input("User input (or 'exit' to quit): ")
         if user_input.lower() == 'exit':
             break
 
-        # Append the user input directly after the stop string
         x = torch.cat((x, torch.tensor(encode(user_input), dtype=torch.long, device=device)[None, ...]), dim=1)
 
 
@@ -1698,7 +1805,7 @@ def main():
         print(f"Obtained vector saved to {args.save_avg_vector}")
 
     if args.interactive:
-        interactive_generation(model, start_ids, args.device, args.max_new_tokens, args.temperature, args.top_k, args.stop_strings, decode, encode)
+        interactive_generation(model, start_ids, args, decode, encode, dataset_idx=0)
     elif args.multicontext:
         if not args.multicontext_datasets:
             raise ValueError("Must specify --multicontext_datasets when using --multicontext")
