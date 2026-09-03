@@ -1,5 +1,7 @@
 # !/bin/bash
+# data/snac_cvzh/get_text.sh
 
+# Set strict error handling
 set -xe
 
 # Install python dependencies for Hugging face
@@ -25,37 +27,33 @@ hf auth login --token "${HF_TOKEN}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 
 url="https://huggingface.co/datasets/xinyixuu/zh_snac"
-out_dir="out_ipa"
+out_dir="json_outs"
 
 if [[ ! -d "${out_dir}" ]]; then
   mkdir -p "${out_dir}"
 fi
 
-pushd "${out_dir}"
-wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "zh_ws_ipa.json" "${url}/resolve/main/zh_ws_ipa.json?download=true" || true
-wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "zh_ipa.json" "${url}/resolve/main/zh_ipa.json?download=true" || true
+# Download transcription files under "transcription" directory.
+pushd "$script_dir/${out_dir}"
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "dev.json" "${url}/resolve/main/json_outs_zh/dev.json?download=true" || true
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "other.json" "${url}/resolve/main/json_outs_zh/other.json?download=true" || true
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "test.json" "${url}/resolve/main/json_outs_zh/test.json?download=true" || true
+wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "train.json" "${url}/resolve/main/json_outs_zh/train.json?download=true" || true
 
-echo "json files downloaded and saved to out_ipa."
+echo "snac conversion files downloaded and saved to ${out_dir}."
 popd
 
-output_ipa_txt="zh_ipa.txt"
+output_txt="zh_snac_text.txt"
 for jsonfile in "$out_dir"/*.json; do
     # Check if the .json file exists (handles the case where no .json files are present)
     if [ -f "$jsonfile" ]; then
         echo "Processing $jsonfile..."
         # Get the filename without the extension for output filename
         filename=$(basename "${jsonfile%.json}")
-        python3 "$script_dir"/utils/extract_json_values.py "$jsonfile" "sentence_ipa" "$output_ipa_txt"
+        python3 "$script_dir"/utils/extract_json_values.py "$jsonfile" "text" "$output_txt"
     fi
 done
-echo "IPA extraction finished."
-
-#TODO(gkielian): see if we can fix the parsing of rows instead of deleting
-# Remove lines which were not correclty processed (and start with numberic hash)
-wc -l "$output_ipa_txt"
-sed -i "/^[0-9].*/g" "$output_ipa_txt"
-wc -l "$output_ipa_txt"
 
 # Tokenization step to create train.bin and val.bin files.
-#python3 "$script_dir"/prepare.py -t "$output_ipa_txt" --method char
-python3 "$script_dir"/prepare.py -t "$output_ipa_txt" --method custom_char_byte_fallback --custom_chars_file ../template/phoneme_list.txt
+# python3 "$script_dir"/prepare.py -t "$output_snac_ipa" --method custom_char_byte_fallback --custom_chars_file "$script_dir"/utils/phoneme_snac.txt
+python3 "$script_dir"/prepare.py -t "$output_txt" --method byte

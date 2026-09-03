@@ -1,0 +1,158 @@
+# explorations/multidataset.yaml
+---
+# Base hyperparameters
+named_static_groups:
+  - named_group: "1-10-10_200-1-1"
+    dataset_sampling_probs: 
+      - [1, 10, 10]
+    dataset_sampling_probs_final: 
+      - [200, 1, 1]
+
+  - named_group: "1-10-10_20-1-1"
+    dataset_sampling_probs: 
+      - [1, 10, 10]
+    dataset_sampling_probs_final: 
+      - [20, 1, 1]
+
+  - named_group: "1-10-10_10-1-1"
+    dataset_sampling_probs: 
+      - [1, 10, 10]
+    dataset_sampling_probs_final: 
+      - [10, 1, 1]
+
+  - named_group: "linear"
+    dataset_sampling_probs_transition_method: [linear]
+
+  - named_group: "byte_cckj"
+    dataset: [byte_zh]
+    dataset_list: [byte_zh byte_ko byte_ja]
+
+  - named_group: "ipa_cckj"
+    dataset: [commonvoice_zh]
+    dataset_list: [commonvoice_zh commonvoice_ko commonvoice_ja]
+
+  - named_group: "tiktoken_cckj"
+    dataset: [snac_cvzh]
+    dataset_list: [snac_cvzh snac_cvko snac_cvja]
+
+  - named_group: "one_hot_layer0"
+    use_lsv: [true]
+    lsv_variant: [one_hot]
+    apply_lsv_at_layer_idx: [0]
+
+  - named_group: "one_hot_layer6"
+    use_lsv: [true]
+    lsv_variant: [one_hot]
+    apply_lsv_at_layer_idx: [6]
+
+  - named_group: "ohmg_layer0"
+    use_lsv: [true]
+    lsv_variant: [ohmg]
+    apply_lsv_at_layer_idx: [0]
+
+  - named_group: "ohmg_layer6"
+    use_lsv: [true]
+    lsv_variant: [ohmg]
+    apply_lsv_at_layer_idx: [6]
+
+  - named_group: "without_lsv"
+    use_lsv: [false]
+
+  - named_group: "base_batch_iters"
+    batch_size: [16]
+    max_iters: [10000]
+
+  - named_group: "byte_zh"
+    dataset: [byte_zh]
+
+  - named_group: "commonvoice_zh"
+    dataset: [commonvoice_en]
+  
+  - named_group: "snac_cvzh"
+    dataset: [snac_cvzh]
+
+named_variation_groups:
+  - named_group: "batch_sweep"
+    parameter_groups:
+      - batch_size: [16]
+        max_iters: [10000]
+      - batch_size: [8]
+        max_iters: [20000]
+      - batch_size: [4]
+        max_iters: [40000]
+      - batch_size: [2]
+        max_iters: [80000]
+      - batch_size: [1]
+        max_iters: [160000]
+      - batch_size: [32]
+        max_iters: [5000]
+      - batch_size: [64]
+        max_iters: [2500]
+
+common_group:
+  training_mode: [multidataset]
+  dataset_interleaving: [false]
+  learning_rate: [6e-4]
+  n_layer: [12]
+  n_head: [12]
+  n_embd: [768]
+  block_size: [1024]
+  use_rotary_embeddings: [true]
+  use_abs_pos_embeddings: [false]
+  use_qk_norm: [true]
+  use_qk_norm_scale: [true]
+  use_peri_ln: [true]
+  use_gradient_checkpoint: [true]
+  max_sample_tokens: [100]
+  eval_interval: [1000]
+  sample_each_eval: [true]
+  compile: [true]
+
+parameter_groups:
+  - named_group_static: ["ipa_cckj", "1-10-10_200-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+  
+  - named_group_static: ["ipa_cckj", "1-10-10_20-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+
+  - named_group_static: ["ipa_cckj", "1-10-10_10-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+
+  - named_group_static: ["tiktoken_cckj", "1-10-10_200-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+  
+  - named_group_static: ["tiktoken_cckj", "1-10-10_20-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+
+  - named_group_static: ["tiktoken_cckj", "1-10-10_10-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+
+  - named_group_static: ["byte_cckj", "1-10-10_200-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+  
+  - named_group_static: ["byte_cckj", "1-10-10_20-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+
+  - named_group_static: ["byte_cckj", "1-10-10_10-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+
+  - named_group_static: ["byte_cckj", "1-10-10_20-1-1", "linear"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+    named_group_variations:
+      - "batch_sweep"
+    tensorboard_run_name: "multi_batch_sweep"
+
+  - named_group_static: ["byte_zh"]
+    named_group_variations:
+      - "batch_sweep"
+    tensorboard_run_name: "byte_single_batch_sweep"
+
+  - named_group_static: ["commonvoice_zh"]
+    named_group_variations:
+      - "batch_sweep"
+    tensorboard_run_name: "ipa_single_batch_sweep"
+
+  - named_group_static: ["snac_cvzh"]
+    named_group_variations:
+      - "batch_sweep"
+    tensorboard_run_name: "tiktoken_single_batch_sweep"

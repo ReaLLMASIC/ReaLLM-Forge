@@ -208,6 +208,22 @@ class Trainer:
             for entry in self.args.dataset_list:
                 flattened_list.extend(entry.split())
             self.args.dataset_list = flattened_list
+            # Apply the same flattening logic to sampling_probs and sampling_probs_final
+            # This ensures consistency if args are passed as single strings like "10 1 1"
+        if self.args.dataset_sampling_probs:
+            flattened_probs = []
+            for entry in self.args.dataset_sampling_probs:
+                flattened_probs.extend(str(entry).split())
+            # Convert to numbers (float for probabilities is safer)
+            self.args.dataset_sampling_probs = [float(p) for p in flattened_probs]
+
+        if self.args.dataset_sampling_probs_final:
+            flattened_probs_final = []
+            for entry in self.args.dataset_sampling_probs_final:
+                flattened_probs_final.extend(str(entry).split())
+            # Convert to numbers
+            self.args.dataset_sampling_probs_final = [float(p) for p in flattened_probs_final]
+
             # Track tokens and epochs trained per dataset
             self.tokens_trained_dict = {dataset: 0 for dataset in self.args.dataset_list}
             self.epochs_trained_dict = {dataset: 0 for dataset in self.args.dataset_list}

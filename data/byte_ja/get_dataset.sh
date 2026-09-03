@@ -46,14 +46,16 @@ wget --header="Authorization: Bearer ${HF_TOKEN}" -nc -O "final.json" "${url}/re
 echo "snac conversion files downloaded and saved to ${out_dir}."
 popd
 
-output_snac_txt="snac_text.txt"
-python3 "$script_dir"/utils/extract_json_snactext.py "$out_dir" "sentence" "$output_snac_txt" --directory
-echo "snac-text extraction finished."
-
-output_snac_ipa="snac_ipa.txt"
-python3 "$script_dir"/utils/extract_json_snactext.py "$out_dir" "spaced_ipa" "$output_snac_ipa" --directory
-echo "snac-ipa extraction finished."
+output_txt="ja_text.txt"
+for jsonfile in "$out_dir"/*.json; do
+    # Check if the .json file exists (handles the case where no .json files are present)
+    if [ -f "$jsonfile" ]; then
+        echo "Processing $jsonfile..."
+        # Get the filename without the extension for output filename
+        filename=$(basename "${jsonfile%.json}")
+        python3 "$script_dir"/utils/extract_json_values.py "$jsonfile" "sentence" "$output_txt"
+    fi
+done
 
 # Tokenization step to create train.bin and val.bin files.
-python3 "$script_dir"/prepare.py -t "$output_snac_ipa" --method custom_char_byte_fallback --custom_chars_file "$script_dir"/utils/phoneme_snac.txt
-# python3 "$script_dir"/prepare.py -t "$output_snac_txt" --method tiktoken
+python3 "$script_dir"/prepare.py -t "$output_txt" --method byte
