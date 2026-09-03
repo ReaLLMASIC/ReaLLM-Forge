@@ -1,0 +1,30 @@
+# identity_first_layer_mlp_sweep.yaml
+# Explore per-layer MLP sizes when the first block uses identity attention.
+# The first transformer block skips attention by using the "identity" variant,
+# while later blocks retain standard causal self-attention. We sweep a handful
+# of first-layer MLP expansion sizes while keeping the remaining blocks at the
+# default 4x hidden size.
+
+# Base hyper-parameters shared by every run
+block_size: [256]
+n_layer:   [4]
+n_head:    [8]
+n_embd:    [512]
+mlp_size:  [2048]          # default 4x expansion for reference layers
+dataset:   ["shakespeare_char"]
+device:    ["cuda"]
+dtype:     ["bfloat16"]
+compile:   [true]
+
+# Per-layer attention configuration – identity only on the first block
+attention_variant_layerlist:
+  - ["identity", "causal", "causal", "causal"]
+
+# Sweep different first-layer MLP widths while later layers stay at 2048
+parameter_groups:
+  - mlp_size_layerlist:
+      - [512, 2048, 2048, 2048]
+      - [1024, 2048, 2048, 2048]
+      - [1536, 2048, 2048, 2048]
+      - [2048, 2048, 2048, 2048]
+      - [2560, 2048, 2048, 2048]
