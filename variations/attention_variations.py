@@ -118,6 +118,18 @@ class CausalSelfAttention(nn.Module):
         self.dropout = config.dropout
         self.n_embd = config.n_embd
         self.gate = config.gate
+        self.sdpa_output_gate = getattr(config, "sdpa_output_gate", False)
+        self.sdpa_output_gate_headwise = getattr(config, "sdpa_output_gate_headwise", False)
+        self.gating_q = None
+        self.gating_kv = None
+        self.sdpa_gating = None
+        if self.gate:
+            self.gating_q = nn.Linear(self.n_embd, self.n_embd, bias=True)
+            if self.n_kv_group != self.n_head:
+                self.gating_kv = nn.Linear(self.n_embd, self.kv_dim, bias=True)
+        if self.sdpa_output_gate:
+            sdpa_gate_out_dim = self.n_head if self.sdpa_output_gate_headwise else self.n_embd
+            self.sdpa_gating = nn.Linear(self.n_embd, sdpa_gate_out_dim, bias=True)
         self.use_fire_embeddings = None
         self.disable_flash_attention = config.disable_flash_attention
         if config.use_fire_embeddings:
@@ -300,19 +312,16 @@ class CausalSelfAttention(nn.Module):
 
         if self.gate:
             if self.n_kv_group == self.n_head:
-                Gating = nn.Linear(self.n_embd, self.n_embd, bias=True, device=x.device)
-                gate_ = torch.sigmoid(Gating(x))
+                gate_ = torch.sigmoid(self.gating_q(x))
                 q = q * gate_
                 k = k * gate_
                 v = v * gate_
             else:
                 # TODO: Test more methods to merge Attention Gates with GQA
                 # TODO: Evaluate each method's ability to even out parameter sizes
-                Gating_q = nn.Linear(self.n_embd, self.n_embd, bias=True, device=x.device)
-                Gating_kv = nn.Linear(self.n_embd, self.kv_dim, bias=True, device=x.device)
-                gate_qx = Gating_q(x)
+                gate_qx = self.gating_q(x)
                 gate_q = torch.sigmoid(gate_qx)
-                gate_kv = torch.sigmoid(Gating_kv(gate_qx))
+                gate_kv = torch.sigmoid(self.gating_kv(gate_qx))
                 q = q * gate_q
                 k = k * gate_kv
                 v = v * gate_kv
@@ -447,6 +456,15 @@ class CausalSelfAttention(nn.Module):
             num_bits = self.quantization_attn_dict["quantize_attn_act_pv_mult_output_bits"]
             quant_method = self.quantization_attn_dict["activations_quant_method"]
             y = fake_quantize_act(self, "attn_act_pv_mult_output", y, num_bits, quant_method, iter_num)
+
+        if self.sdpa_output_gate:
+            gate_scores = torch.sigmoid(self.sdpa_gating(x))
+            if self.sdpa_output_gate_headwise:
+                gate_scores = gate_scores.unsqueeze(-1)
+            else:
+                gate_scores = gate_scores.view(B, T, self.n_head, self.head_dim)
+            gate_scores = gate_scores.transpose(1, 2)
+            y = y * gate_scores
 
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
 

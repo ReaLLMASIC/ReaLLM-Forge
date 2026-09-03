@@ -160,6 +160,8 @@ class GPTConfig:
     use_flex_attn: bool = None
 
     gate: bool = False
+    sdpa_output_gate: bool = False
+    sdpa_output_gate_headwise: bool = False
     use_moe: bool = False
     moe_layer_freq: int = 2
     n_experts: int = 8

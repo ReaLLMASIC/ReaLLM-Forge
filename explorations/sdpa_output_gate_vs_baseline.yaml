@@ -1,0 +1,59 @@
+# Compare SDPA output gating against baseline using the default exploration setup.
+---
+
+named_static_groups:
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+
+  - named_group: "rotary"
+    named_group_settings:
+      use_rotary_embeddings: [true]
+      use_abs_pos_embeddings: [false]
+
+  - named_group: "rmsnorm_wte"
+    named_group_settings:
+      norm_variant_wte: ["rmsnorm"]
+
+  - named_group: "squared_relu"
+    named_group_settings:
+      activation_variant: ["squared_relu"]
+
+common_group:
+  dataset: ["minipile"]
+  eval_interval: [1000]
+  max_iters: [10000]
+  never_save_checkpoint: [true]
+  compile: [true]
+
+parameter_groups:
+  - sdpa_output_gate: [false]
+    named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "rmsnorm_wte"
+      - "squared_relu"
+
+  - sdpa_output_gate: [true]
+    sdpa_output_gate_headwise: [false]
+    named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "rmsnorm_wte"
+      - "squared_relu"
+
+  - sdpa_output_gate: [true]
+    sdpa_output_gate_headwise: [true]
+    named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "rmsnorm_wte"
+      - "squared_relu"

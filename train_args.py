@@ -681,6 +681,10 @@ def parse_args():
     model_group.add_argument('--use_post_ln_mlp', default=None, action=argparse.BooleanOptionalAction, help="override post-LN for MLP block")
     model_group.add_argument('--window_size', default=None, type=int, help="Sliding window size, note this cannot be greater than block size")
     model_group.add_argument('--gate', default=False, action=argparse.BooleanOptionalAction, help="option for gated attention see https://arxiv.org/abs/2306.12929")
+    model_group.add_argument('--sdpa_output_gate', default=False, action=argparse.BooleanOptionalAction,
+                             help='Apply a sigmoid gate to SDPA output per head before output projection.')
+    model_group.add_argument('--sdpa_output_gate_headwise', default=False, action=argparse.BooleanOptionalAction,
+                             help='Use one gate value per head/token instead of per head dimension for SDPA output gating.')
     model_group.add_argument('--use_moe', default=False,  action=argparse.BooleanOptionalAction, help="option for Mixture of Experts (MoE) architecture")
     model_group.add_argument('--moe_layer_freq', default=2, type=int, help="set frequency for replacing FFNs with MoE layers")
     model_group.add_argument('--n_experts', default=8, type=int, help="set number of experts per MoE layer")
