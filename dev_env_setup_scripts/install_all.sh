@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Exit immediately if a command exits with a non-zero status.
-set -e
+set -euo pipefail
 
 echo "Note, these scripts can override local dotfiles, and are intended for use
 with newly instantiated VMs, and not tested for existing setups."
@@ -21,6 +21,17 @@ log "Starting the full machine setup..."
 
 log "Step 0: Setting up system packages..."
 bash ./00-setup-conda.sh
+
+log "Activating conda environment..."
+CONDA_SH="$HOME/miniconda3/etc/profile.d/conda.sh"
+if [ -f "$CONDA_SH" ]; then
+  # shellcheck disable=SC1090
+  source "$CONDA_SH"
+  conda activate reallmforge
+else
+  echo "Unable to locate conda initialization script at $CONDA_SH"
+  exit 1
+fi
 
 log "Step 1: Setting up Zsh..."
 bash ./01-setup-zsh.sh
