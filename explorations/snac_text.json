@@ -1,0 +1,19 @@
+[
+  {
+    "max_iters": ["10000"],
+    "n_layer": ["8"],
+    "n_head": ["8"],
+    "n_embd": ["512"],
+    "block_size":["512"],
+    "max_sample_tokens": ["200"],
+    "sample_each_eval": [true],
+    "sample_start_tokens": ["sherlock\n"],
+    "use_gradient_checkpointing": [true],
+    "device": ["cuda"],
+    "dtype": ["float16"],
+    "shared_attn_size": ["2"],
+    "dataset": ["snac"],
+    "use_rotary_embeddings": [true],
+    "use_abs_pos_embeddings": [false]
+  }
+]
