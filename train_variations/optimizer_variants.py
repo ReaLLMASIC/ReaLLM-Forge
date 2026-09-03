@@ -1581,6 +1581,287 @@ def _muon(param_groups, args):
     return opt_class(param_groups)
 
 
+###############################################################################
+# SkipUpdate & Magma  — Masking Updates in Adaptive Optimizers
+# Paper: "On Surprising Effectiveness of Masking Updates in Adaptive Optimizers"
+#         Joo et al., 2026  (arXiv:2602.15322)
+#
+# Both are *wrapper* optimizers: they wrap any base optimizer and apply
+# block-wise Bernoulli masking to the parameter updates.
+#
+# SkipUpdate:  uniform scale  s = 1/p  (unbiased masking)
+# Magma:       s = EMA( sigmoid( cossim(momentum, grad) / tau ) )
+#              — momentum-aligned gradient masking
+#
+# Key insight:  masking induces curvature-dependent geometric regularisation
+# that biases optimisation toward flatter regions of the loss landscape.
+# Applied only to attention & MLP layers (not embeddings / norms).
+###############################################################################
+
+class SkipUpdate(Optimizer):
+    r"""
+    Block-wise random masking wrapper for any base optimizer.
+
+    At each step the base optimizer produces updates Δ for every parameter.
+    For each *block* (= parameter tensor) we independently sample
+    m ~ Bernoulli(p) and apply:
+
+        θ ← θ  −  (m / p) · Δ          (unbiased: E[m/p] = 1)
+
+    Moment estimates inside the base optimizer are updated **densely**
+    (the masking only affects the parameter update, not the state).
+
+    Args
+    ----
+    base_optimizer : already-constructed inner optimizer
+    p              : survival probability  (default 0.5)
+    """
+
+    def __init__(self, base_optimizer: Optimizer, p: float = 0.5):
+        if not 0.0 < p <= 1.0:
+            raise ValueError(f"survival probability p must be in (0, 1], got {p}")
+        self._base = base_optimizer
+        self.p = p
+        self._scale = 1.0 / p   # constant rescale factor
+
+        # We need Optimizer.__init__ for state_dict / param_groups compat,
+        # but all real state lives in the base optimizer.
+        # Use a dummy defaults dict — param_groups are proxied.
+        super(Optimizer, self).__init__()
+
+    # ---- proxy param_groups / state from the inner optimizer ----
+    @property
+    def param_groups(self):
+        return self._base.param_groups
+
+    @param_groups.setter
+    def param_groups(self, val):
+        self._base.param_groups = val
+
+    @property
+    def state(self):
+        return self._base.state
+
+    def zero_grad(self, set_to_none: bool = False):
+        return self._base.zero_grad(set_to_none=set_to_none)
+
+    def state_dict(self):
+        d = self._base.state_dict()
+        d["skipupdate_p"] = self.p
+        return d
+
+    def load_state_dict(self, state_dict):
+        self.p = float(state_dict.pop("skipupdate_p", self.p))
+        self._scale = 1.0 / self.p
+        self._base.load_state_dict(state_dict)
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        # 1) snapshot parameters before the base step
+        snapshots = {}
+        for group in self._base.param_groups:
+            for p in group["params"]:
+                if p.grad is not None:
+                    snapshots[p] = p.data.clone()
+
+        # 2) let the base optimizer do a full dense step
+        loss = self._base.step(closure)
+
+        # 3) apply block-wise masking to the *update* (Δ = old − new)
+        for group in self._base.param_groups:
+            for p in group["params"]:
+                if p not in snapshots:
+                    continue
+                old = snapshots[p]
+                delta = old - p.data                     # Δ = θ_old − θ_new
+                m = torch.bernoulli(torch.full((), self.p, device=p.device))
+                # masked update: θ = θ_old − (m/p) · Δ
+                p.data.copy_(old - self._scale * m * delta)
+
+        return loss
+
+
+class Magma(Optimizer):
+    r"""
+    **M**omentum-**a**ligned **g**radient **ma**sking wrapper.
+
+    Like SkipUpdate, but the scale factor is *adaptive*:
+
+        s̃_t  = sigmoid( cossim(μ_t, g_t) / τ )
+        s_t  = β_s · s_{t-1}  +  (1 − β_s) · s̃_t
+        θ    ← θ  −  s_t · m_t · Δ_t
+
+    where μ_t is the first-moment estimate (momentum) of the base optimizer
+    and g_t is the current gradient.
+
+    The alignment score s_t is per-block (per parameter tensor).
+    When momentum and gradient agree (high cosine similarity → s≈1),
+    the update is applied; when they disagree (s≈0), it is suppressed.
+
+    Args
+    ----
+    base_optimizer : already-constructed inner optimizer
+    tau            : temperature for sigmoid  (default 2.0)
+    beta_s         : EMA factor for the alignment score  (default 0.9)
+    p              : Bernoulli survival probability  (default 0.5)
+    """
+
+    def __init__(
+        self,
+        base_optimizer: Optimizer,
+        tau: float = 2.0,
+        beta_s: float = 0.9,
+        p: float = 0.5,
+    ):
+        if not 0.0 < p <= 1.0:
+            raise ValueError(f"p must be in (0, 1], got {p}")
+        if tau <= 0:
+            raise ValueError(f"tau must be positive, got {tau}")
+
+        self._base = base_optimizer
+        self.tau = tau
+        self.beta_s = beta_s
+        self.p = p
+        # Per-parameter alignment score (initialised lazily)
+        self._scores: dict = {}
+
+        super(Optimizer, self).__init__()
+
+    # ---- proxy param_groups / state from the inner optimizer ----
+    @property
+    def param_groups(self):
+        return self._base.param_groups
+
+    @param_groups.setter
+    def param_groups(self, val):
+        self._base.param_groups = val
+
+    @property
+    def state(self):
+        return self._base.state
+
+    def zero_grad(self, set_to_none: bool = False):
+        return self._base.zero_grad(set_to_none=set_to_none)
+
+    def state_dict(self):
+        d = self._base.state_dict()
+        d["magma_tau"] = self.tau
+        d["magma_beta_s"] = self.beta_s
+        d["magma_p"] = self.p
+        d["magma_scores"] = {
+            id(k): v.cpu() for k, v in self._scores.items()
+        }
+        return d
+
+    def load_state_dict(self, state_dict):
+        self.tau = float(state_dict.pop("magma_tau", self.tau))
+        self.beta_s = float(state_dict.pop("magma_beta_s", self.beta_s))
+        self.p = float(state_dict.pop("magma_p", self.p))
+        state_dict.pop("magma_scores", None)  # restored lazily
+        self._base.load_state_dict(state_dict)
+
+    @staticmethod
+    def _cossim_flat(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+        """Cosine similarity between two tensors (flattened)."""
+        a_flat = a.reshape(-1).float()
+        b_flat = b.reshape(-1).float()
+        dot = torch.dot(a_flat, b_flat)
+        denom = a_flat.norm() * b_flat.norm()
+        if denom == 0:
+            return torch.tensor(0.0, device=a.device)
+        return dot / denom
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        # 1) Record current gradients & snapshot parameters
+        grads = {}
+        snapshots = {}
+        for group in self._base.param_groups:
+            for p in group["params"]:
+                if p.grad is not None:
+                    grads[p] = p.grad.detach().clone()
+                    snapshots[p] = p.data.clone()
+
+        # 2) Let the base optimizer take a full dense step
+        #    (this updates moments **densely**, which is critical)
+        loss = self._base.step(closure)
+
+        # 3) Compute per-block alignment score & apply masked update
+        for group in self._base.param_groups:
+            for p in group["params"]:
+                if p not in snapshots:
+                    continue
+
+                old = snapshots[p]
+                delta = old - p.data    # Δ = θ_old − θ_new
+                g = grads[p]
+
+                # --- momentum estimate μ: try to read from base optimizer ---
+                mu = None
+                base_state = self._base.state.get(p, {})
+                # Adam/AdamW/RMSprop variants store 'exp_avg' or 'momentum_buffer'
+                for key in ("exp_avg", "m", "m1", "momentum_buffer"):
+                    if key in base_state:
+                        mu = base_state[key]
+                        break
+                if mu is None:
+                    # Fallback: use the update direction itself as proxy
+                    mu = delta
+
+                # --- alignment score ---
+                cs = self._cossim_flat(mu, g)
+                s_tilde = torch.sigmoid(cs / self.tau)
+
+                # EMA of alignment score
+                if p not in self._scores:
+                    self._scores[p] = s_tilde.clone()
+                else:
+                    self._scores[p] = (
+                        self.beta_s * self._scores[p]
+                        + (1 - self.beta_s) * s_tilde
+                    )
+                s = self._scores[p]
+
+                # Bernoulli mask
+                m = torch.bernoulli(torch.full((), self.p, device=p.device))
+
+                # Masked update:  θ = θ_old − s · m · Δ
+                p.data.copy_(old - s * m * delta)
+
+        return loss
+
+
+# --- factory helpers for SkipUpdate / Magma --------------------------------
+
+def _skipupdate(param_groups, args):
+    """
+    SkipUpdate wrapper.  Uses --magma_base_opt to select the inner optimizer
+    and --magma_p for the survival probability.
+    """
+    base_name = getattr(args, "magma_base_opt", "adamw")
+    if base_name in ("skipupdate", "magma"):
+        raise ValueError("SkipUpdate/Magma cannot wrap itself!")
+    base_opt = optimizer_dictionary[base_name](param_groups, args)
+    p = getattr(args, "magma_p", 0.5)
+    return SkipUpdate(base_opt, p=p)
+
+
+def _magma(param_groups, args):
+    """
+    Magma wrapper.  Uses --magma_base_opt to select the inner optimizer.
+    """
+    base_name = getattr(args, "magma_base_opt", "adamw")
+    if base_name in ("skipupdate", "magma"):
+        raise ValueError("Magma cannot wrap itself!")
+    base_opt = optimizer_dictionary[base_name](param_groups, args)
+    return Magma(
+        base_opt,
+        tau=getattr(args, "magma_tau", 2.0),
+        beta_s=getattr(args, "magma_beta_s", 0.9),
+        p=getattr(args, "magma_p", 0.5),
+    )
+
+
 optimizer_dictionary: dict[str, callable] = {
     # From pytorch
     "sgd": _sgd,
@@ -1633,4 +1914,7 @@ optimizer_dictionary: dict[str, callable] = {
     "var_adaptive_lr": _var_adaptive_lr,
     "lookahead": _lookahead,
     "entropy_aware_adamw": _entropy_aware_adamw,
+    # masking-based wrappers (Joo et al., 2026)
+    "skipupdate": _skipupdate,
+    "magma": _magma,
 }

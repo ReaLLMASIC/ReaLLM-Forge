@@ -444,6 +444,8 @@ def parse_args():
             "lookahead",
             "entropy_aware_adamw",
             "muon",
+            "skipupdate",
+            "magma",
             ]
 
     training_group.add_argument("--optimizer", type=str, default="adamw",
@@ -568,6 +570,16 @@ def parse_args():
                                 default=0.5,
                                 help="Interpolation factor for the slow update (0 < α ≤ 1).")
 
+
+    # --------  SkipUpdate / Magma  (Joo et al., 2026) -------------------------
+    training_group.add_argument("--magma_base_opt", type=str, default="adamw",
+                                help="Base optimizer that SkipUpdate/Magma wraps (e.g. adamw, rmsprop, adam).")
+    training_group.add_argument("--magma_tau", type=float, default=2.0,
+                                help="Temperature τ for the sigmoid in Magma's alignment score.")
+    training_group.add_argument("--magma_beta_s", type=float, default=0.9,
+                                help="EMA decay for Magma's alignment score s_t.")
+    training_group.add_argument("--magma_p", type=float, default=0.5,
+                                help="Bernoulli survival probability for SkipUpdate/Magma masking.")
 
     # from torch-optimizer (common)
     training_group.add_argument("--opt_betas", type=float, nargs=2, default=[0.9, 0.999],

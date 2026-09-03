@@ -1,0 +1,66 @@
+# magma_vs_adamw.yaml
+# Comparison: AdamW (baseline) vs SkipUpdate vs Magma (Joo et al., 2026)
+# Uses default_inf-style architecture on minipile
+---
+parameter_groups:
+  # Baseline: plain AdamW
+  - optimizer: ["adamw"]
+    learning_rate: ["0.001"]
+    beta1: [0.9]
+    beta2: [0.99]
+    adamw_weight_decay: [0.1]
+    adamw_eps: ["1e-8"]
+
+  # SkipUpdate wrapping AdamW (uniform masking, p=0.5)
+  - optimizer: ["skipupdate"]
+    magma_base_opt: ["adamw"]
+    magma_p: [0.5]
+    learning_rate: ["0.001"]
+    beta1: [0.9]
+    beta2: [0.99]
+    adamw_weight_decay: [0.1]
+    adamw_eps: ["1e-8"]
+
+  # Magma wrapping AdamW (momentum-aligned masking)
+  - optimizer: ["magma"]
+    magma_base_opt: ["adamw"]
+    magma_tau: [2.0]
+    magma_beta_s: [0.9]
+    magma_p: [0.5]
+    learning_rate: ["0.001"]
+    beta1: [0.9]
+    beta2: [0.99]
+    adamw_weight_decay: [0.1]
+    adamw_eps: ["1e-8"]
+
+  # Magma wrapping RMSprop (best combo from paper)
+  - optimizer: ["magma"]
+    magma_base_opt: ["rmsprop"]
+    magma_tau: [2.0]
+    magma_beta_s: [0.9]
+    magma_p: [0.5]
+    learning_rate: ["0.001"]
+
+# Architecture: default_inf baseline settings
+n_layer: [6]
+n_head: [6]
+n_embd: [384]
+block_size: [256]
+batch_size: [64]
+max_iters: [10000]
+eval_interval: [2500]
+eta_variant: ["iteration"]
+dataset: ["minipile"]
+device: ["cuda"]
+dtype: ["float16"]
+use_abs_pos_embeddings: [false]
+use_rotary_embeddings: [true]
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+use_peri_ln: [true]
+softmax_variant_attn: ["softmax"]
+compile: [true]
+never_save_checkpoint: [true]
+log_rankme: [true]
+log_areq: [true]
+tensorboard_run_name: ["magma_vs_adamw"]
