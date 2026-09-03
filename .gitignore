@@ -39,3 +39,4 @@ optimization_and_search/nsga_search/plots_paper/
 
 venv/*
 dist/digits-3d-site/
+*.swp
