@@ -17,6 +17,21 @@ exploration_logs/
 out*/
 .aider*
 
+# CJK translation / ICL generated artifacts
+cjk_translation/runs/
+cjk_ICL/runs/
+data/cjk_translation_*/
+data/charbpe_analysis_cjk/
+data/ipa_ted_*/char_bpe_label/
+data/opus_*_seq2seq_*/
+data/opus_seq2seq_*/
+best_checkpoints_by_combination.json
+*_checkpoints_by_combination.json
+data.tar.gz
+*.tar.gz
+*.pt
+hs_err_pid*.log
+
 # experiment directories
 experiments/
 nsga_exps/

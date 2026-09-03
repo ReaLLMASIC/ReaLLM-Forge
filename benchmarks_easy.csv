@@ -1,0 +1,31 @@
+#,Focus / Type,English,Chinese (Simplified),Japanese (Natural Polite),Korean (Natural Polite)
+1,Location Query,Where is the nearest convenience store?,最近的便利店在哪里？,一番近いコンビニはどこですか？,제일 가까운 편의점이 어디예요?
+2,Invitation,Do you want to grab coffee later?,待会儿一起喝杯咖啡吗？,あとでコーヒーでも飲みに行きませんか？,나중에 커피 한잔할래요?
+3,Statement of State,I think I'm lost.,我好像迷路了。,道に迷っちゃったみたいです。,길을 잃은 것 같아요.
+4,Gratitude,"Thanks for the help, I really appreciate it.",谢谢你的帮忙，太感谢了。,手伝っていただいて、本当に助かりました。,"도와주셔서 감사해요, 정말 큰 도움이 됐어요."
+5,Service Request,"Can I get the check, please?",服务员，买单。,お会計をお願いします。,여기 계산 좀 해주세요.
+6,Scheduling,What time are we meeting tomorrow?,我们明天几点见？,明日は何時に待ち合わせしましょうか？,내일 몇 시에 만날까요?
+7,Exclamation / Praise,This food is really delicious!,这个真的很好吃！,これ、すごく美味しいですね！,이거 진짜 맛있어요!
+8,Instruction,Let me know when you arrive.,到了跟我说一声。,着いたら教えてくださいね。,도착하면 알려주세요.
+9,Apology / Delay,"Sorry, I’m running a bit late.",不好意思，我稍微晚点到。,すみません、少し遅れそうです。,"죄송해요, 조금 늦을 것 같아요."
+10,Farewell,It was nice meeting you! Let's stay in touch.,很高兴认识你！以后常联系。,お会いできてよかったです！また連絡しましょう。,만나서 반가웠어요! 계속 연락하고 지내요.
+11,Wh- Question,How long does it take to get to the airport from here?,从这里去机场要多久？,ここから空港までどれくらいかかりますか？,여기서 공항까지 얼마나 걸려요?
+12,Yes/No Question,Can I pay with a credit card?,可以刷信用卡吗？,クレジットカードは使えますか？,신용카드 결제 되나요?
+13,Soft Imperative (Negative),Please don't worry about it.,没关系，请别放在心上。,どうか気にしないでください。,너무 신경 쓰지 마세요.
+14,Exclamation / Reaction,"Oh, I didn't know that at all!",哇，我完全不知道！,ええっ、全然知りませんでした！,"아, 전혀 몰랐어요!"
+15,Opinion / Speculation,I think it might rain this afternoon.,我觉得今天下午可能会下雨。,今日の午後は雨が降るかもしれません。,오늘 오후에 비가 올 것 같아요.
+16,Conditional (If/Then),"If you're busy, we can do this another time.",如果你忙的话，我们可以改天再约。,もし忙しかったら、また別の機会にしましょう。,바쁘시면 다음번에 해도 괜찮아요.
+17,Past Factual / Regret,I completely forgot to bring my umbrella.,我完全忘记带伞了。,傘を持ってくるのをすっかり忘れました。,우산 챙기는 걸 깜빡했어요.
+18,Offer / Assistance,Do you need help carrying those bags?,需要我帮你拿这些袋子吗？,その荷物、お持ちしましょうか？,짐 드는 것 좀 도와드릴까요?
+19,Greeting / Check-in,It’s been a while! How have you been lately?,好久不见！你最近怎么样？,お久しぶりです！最近どうですか？,오랜만이에요! 요즘 어떻게 지내세요?
+20,Preference / Soft Demand,"I'd prefer a window seat, if possible.",如果可以的话，我想选靠窗的座位。,できれば、窓側の席がいいのですが。,가능하면 창가 쪽 자리로 부탁드릴게요.
+21,Causality (So/Therefore),"The traffic was heavy, so I ended up taking a taxi.",因为堵车，所以我最后打车了。,渋滞がひどかったので、結局タクシーに乗りました。,차가 너무 막혀서 결국 택시를 탔어요.
+22,Experience,Have you ever been to this restaurant before?,你以前来过这家餐厅吗？,このレストランには来たことがありますか？,이 식당에 와본 적 있어요?
+23,Permission Request,Do you mind if I open the window a little?,我可以稍微开一下窗户吗？,少し窓を開けてもいいですか？,창문 좀 열어도 될까요?
+24,Adversity Passive,My umbrella was stolen at the convenience store.,我的伞在便利店被偷了。,コンビニで傘を盗まれました。,편의점에서 우산을 도둑맞았어요.
+25,Comparison,It's much colder today than it was yesterday.,今天比昨天冷多了。,今日は昨日よりもずっと寒いですね。,오늘은 어제보다 훨씬 춥네요.
+26,Indirect Question,Do you happen to know where the restroom is?,请问你知道洗手间在哪里吗？,トイレがどこにあるか分かりますか？,혹시 화장실이 어디 있는지 아세요?
+27,Tentative Intention,I'm planning to take a few days off next week.,我打算下周休几天假。,来週、数日お休みを取ろうと思っています。,다음 주에 며칠 쉴까 해요.
+28,Proactive Advice,You'd better take an umbrella just in case.,以防万一，你最好带把伞。,念のため、傘を持っていったほうがいいですよ。,혹시 모르니까 우산 챙겨가세요.
+29,Change of State,I've gotten used to living in this city.,我已经习惯在这个城市生活了。,この街での生活にもだいぶ慣れました。,이 도시 생활에 꽤 익숙해졌어요.
+30,Negative Recommendation,You shouldn't drink too much coffee late at night.,晚上最好不要喝太多咖啡。,夜遅くにコーヒーを飲みすぎないほうがいいですよ。,밤늦게 커피를 너무 많이 마시지 않는 게 좋아요.

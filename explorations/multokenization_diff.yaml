@@ -1,0 +1,67 @@
+# explorations/multokenization_diff.yaml
+---
+# Base hyperparameters
+
+training_mode: [multidataset]
+multidataset_wte: [true]
+dataset: [commonvoice_zh]
+dataset_list: [commonvoice_zh byte_en snac_cvko]
+dataset_sampling_probs: [10, 1, 1]
+dataset_sampling_probs_final: [1, 1, 1]
+dataset_sampling_probs_transition_method: [cosine]
+dataset_interleaving: [false]
+batch_size: [8]
+learning_rate: [6e-4]
+decay_lr: [true]
+min_lr: [6e-5]
+n_layer: [12]
+n_head: [12]
+n_embd: [768]
+block_size: [256]
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+max_sample_tokens: [100]
+max_iters: [10000]
+warmup_iters: [1000]
+eval_interval: [1000]
+sample_each_eval: [true]
+compile: [true]
+
+parameter_groups:
+  - use_lsv: [true]
+    lsv_variant: [one_hot]
+    apply_lsv_at_layer_idx: [0]
+    tensorboard_run_name: ["one_hot"]
+
+  - use_lsv: [true]
+    lsv_variant: [one_hot_mlp]
+    apply_lsv_at_layer_idx: [0]
+    tensorboard_run_name: ["one_hot_mlp"]
+
+  - use_lsv: [true]
+    lsv_variant: [ohmg]
+    apply_lsv_at_layer_idx: [0]
+    tensorboard_run_name: ["ohmg"]
+
+  - use_lsv: [true]
+    lsv_variant: [ohmt]
+    apply_lsv_at_layer_idx: [0]
+    tensorboard_run_name: ["ohmt"]
+
+  - use_lsv: [true]
+    lsv_variant: [ohmm]
+    apply_lsv_at_layer_idx: [0]
+    tensorboard_run_name: ["ohmm"]
+
+  - use_lsv: [true]
+    lsv_variant: [ohma]
+    apply_lsv_at_layer_idx: [0]
+    tensorboard_run_name: ["ohma"]
+
+  - use_lsv: [true]
+    lsv_variant: [mol]
+    apply_lsv_at_layer_idx: [0]
+    tensorboard_run_name: ["mol"]
+
+  - use_lsv: [false]
+    tensorboard_run_name: ["without_lsv"]

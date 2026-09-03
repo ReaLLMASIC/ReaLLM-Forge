@@ -1,0 +1,2090 @@
+[
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 65000,
+        "best_val_loss": 0.6452261209487915,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 82000,
+        "best_val_loss": 0.6484922766685486,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 70000,
+        "best_val_loss": 0.6499614119529724,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 70000,
+        "best_val_loss": 0.6505364775657654,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 76000,
+        "best_val_loss": 0.6517816185951233,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/meta.pkl",
+    "best_iter": 65000,
+    "best_tokens": 354992128.0,
+    "best_val_loss": 0.6452261209487915,
+    "best_val_loss_file": "out_multidata_base/multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 144,
+    "raw_best_val_loss_line": "0.6452261209487915, 65000, 354992128, 85555599, 1.852e+02, 2.164e-06, 2505.5, 58.9, 0.800781, 0.791765, 1.77, 0.137512, 0.736104, 6.00, 1.000000, 0.319196, 0.097917, 31.994156, 1.386319, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "run_name": "multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "scoped_variation_key": "out_multidata_base::multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 4,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidata_base-ohmg_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 55000,
+        "best_val_loss": 0.646273672580719,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 75000,
+        "best_val_loss": 0.6469655632972717,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 67000,
+        "best_val_loss": 0.6488332152366638,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 65000,
+        "best_val_loss": 0.6498811841011047,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 82000,
+        "best_val_loss": 0.6553561687469482,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/meta.pkl",
+    "best_iter": 55000,
+    "best_tokens": 0.0,
+    "best_val_loss": 0.646273672580719,
+    "best_val_loss_file": "out_multidata_base/multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 144,
+    "raw_best_val_loss_line": "0.646273672580719, 55000, 0, 85555599, 1.850e+02, 2.162e-06, 1515.9, 0.0, 0.798828, 0.791360, 1.77, 0.137266, 0.734698, 6.00, 1.000000, 0.306524, 0.110178, 26.298395, 1.441938, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+    "run_name": "multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+    "scoped_variation_key": "out_multidata_base::multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 2,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidata_base-ohmg_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 57000,
+        "best_val_loss": 0.6517406702041626,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 53000,
+        "best_val_loss": 0.6521761417388916,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 94000,
+        "best_val_loss": 0.6543278694152832,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 82000,
+        "best_val_loss": 0.6585944294929504,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 95000,
+        "best_val_loss": 0.6622817516326904,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/meta.pkl",
+    "best_iter": 57000,
+    "best_tokens": 98304000.0,
+    "best_val_loss": 0.6517406702041626,
+    "best_val_loss_file": "out_multidata_base/multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 144,
+    "raw_best_val_loss_line": "0.6517406702041626, 57000, 98304000, 85555599, 1.840e+02, 2.150e-06, 2500.8, 62.5, 0.799805, 0.789610, 1.78, 0.139280, 0.734554, 6.00, 1.000000, 0.314359, 0.105429, 20.123438, 1.439779, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+    "run_name": "multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+    "scoped_variation_key": "out_multidata_base::multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 5,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidata_base-ohmg_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 21000,
+        "best_val_loss": 1.6468610763549805,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 19000,
+        "best_val_loss": 1.64873468875885,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 19000,
+        "best_val_loss": 1.6529934406280518,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.659987211227417,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.674473524093628,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/meta.pkl",
+    "best_iter": 21000,
+    "best_tokens": 0.0,
+    "best_val_loss": 1.6468610763549805,
+    "best_val_loss_file": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 166,
+    "raw_best_val_loss_line": "1.6468610763549805, 21000, 0, 123881871, 9.682e+03, 7.816e-05, 11839.9, 0.0, 0.621094, 0.583842, 14.93, 0.277124, 0.500074, 28.00, 1.000000, 0.255414, 0.085987, 124.764320, 1.250782, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "run_name": "multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "scoped_variation_key": "out_multidata_base::multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 1,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidata_base-ohmg_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.6472914218902588,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 22000,
+        "best_val_loss": 1.6544499397277832,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 19000,
+        "best_val_loss": 1.6599817276000977,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.6621928215026855,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.6637719869613647,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/meta.pkl",
+    "best_iter": 23000,
+    "best_tokens": 125616128.0,
+    "best_val_loss": 1.6472914218902588,
+    "best_val_loss_file": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 166,
+    "raw_best_val_loss_line": "1.6472914218902588, 23000, 125616128, 123881871, 9.678e+03, 7.812e-05, 13446.1, 70.2, 0.623535, 0.584500, 15.62, 0.277483, 0.501971, 28.00, 1.000000, 0.282309, 0.091941, 177.002975, 1.228892, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "run_name": "multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "scoped_variation_key": "out_multidata_base::multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 4,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidata_base-ohmg_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.6498583555221558,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 19000,
+        "best_val_loss": 1.6501338481903076,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 16000,
+        "best_val_loss": 1.6623432636260986,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 21000,
+        "best_val_loss": 1.665632963180542,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 24000,
+        "best_val_loss": 1.6701405048370361,
+        "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/meta.pkl",
+    "best_iter": 23000,
+    "best_tokens": 125616128.0,
+    "best_val_loss": 1.6498583555221558,
+    "best_val_loss_file": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 166,
+    "raw_best_val_loss_line": "1.6498583555221558, 23000, 125616128, 123881871, 9.653e+03, 7.792e-05, 13446.1, 70.8, 0.614746, 0.583369, 15.06, 0.274754, 0.496578, 28.00, 1.000000, 0.274465, 0.092600, 168.729340, 1.244955, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+    "run_name": "multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+    "scoped_variation_key": "out_multidata_base::multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 2,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidata_base-ohmg_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 97000,
+        "best_val_loss": 0.6478294134140015,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 73000,
+        "best_val_loss": 0.6495240926742554,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 84000,
+        "best_val_loss": 0.6514502167701721,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 72000,
+        "best_val_loss": 0.6536135673522949,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 97000,
+        "best_val_loss": 0.6611752510070801,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/meta.pkl",
+    "best_iter": 97000,
+    "best_tokens": 131072000.0,
+    "best_val_loss": 0.6478294134140015,
+    "best_val_loss_file": "out_multidata_base/multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 147,
+    "raw_best_val_loss_line": "0.6478294134140015, 97000, 131072000, 85245708, 1.847e+02, 2.166e-06, 2388.6, 60.0, 0.806152, 0.791719, 1.77, 0.139233, 0.739691, 6.00, 1.000000, 0.300038, 0.105110, 24.750044, 1.368969, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "run_name": "multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "scoped_variation_key": "out_multidata_base::multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 4,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 86000,
+        "best_val_loss": 0.6507619619369507,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 84000,
+        "best_val_loss": 0.6519106030464172,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 72000,
+        "best_val_loss": 0.6537663340568542,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 80000,
+        "best_val_loss": 0.6551902890205383,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 74000,
+        "best_val_loss": 0.6581462025642395,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/meta.pkl",
+    "best_iter": 86000,
+    "best_tokens": 71008256.0,
+    "best_val_loss": 0.6507619619369507,
+    "best_val_loss_file": "out_multidata_base/multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 147,
+    "raw_best_val_loss_line": "0.6507619619369507, 86000, 71008256, 85245708, 1.841e+02, 2.160e-06, 2388.6, 60.7, 0.804199, 0.790684, 1.78, 0.139585, 0.737843, 6.00, 1.000000, 0.308645, 0.104824, 26.768421, 1.421314, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "run_name": "multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "scoped_variation_key": "out_multidata_base::multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 4,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidata_base-one_hot_layer0-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 89000,
+        "best_val_loss": 0.650078296661377,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 91000,
+        "best_val_loss": 0.6515788435935974,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 89000,
+        "best_val_loss": 0.6527783870697021,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 94000,
+        "best_val_loss": 0.6528359055519104,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 80000,
+        "best_val_loss": 0.6579154133796692,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/meta.pkl",
+    "best_iter": 89000,
+    "best_tokens": 273072128.0,
+    "best_val_loss": 0.650078296661377,
+    "best_val_loss_file": "out_multidata_base/multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 147,
+    "raw_best_val_loss_line": "0.650078296661377, 89000, 273072128, 85245708, 1.843e+02, 2.162e-06, 2388.6, 60.2, 0.804199, 0.790581, 1.77, 0.139705, 0.737429, 6.00, 1.000000, 0.291760, 0.099564, 18.974051, 1.404123, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "run_name": "multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "scoped_variation_key": "out_multidata_base::multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 4,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidata_base-one_hot_layer0-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 25000,
+        "best_val_loss": 1.6491992473602295,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.6569880247116089,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 21000,
+        "best_val_loss": 1.6584820747375488,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.6612944602966309,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 27000,
+        "best_val_loss": 1.673812747001648,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/meta.pkl",
+    "best_iter": 25000,
+    "best_tokens": 136544256.0,
+    "best_val_loss": 1.6491992473602295,
+    "best_val_loss_file": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 169,
+    "raw_best_val_loss_line": "1.6491992473602295, 25000, 136544256, 123571980, 9.660e+03, 7.817e-05, 13441.9, 69.4, 0.618652, 0.583610, 15.06, 0.275666, 0.498725, 29.00, 1.000000, 0.292406, 0.098239, 203.399536, 1.214785, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "run_name": "multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "scoped_variation_key": "out_multidata_base::multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 1,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 21000,
+        "best_val_loss": 1.6559871435165405,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 29000,
+        "best_val_loss": 1.656776785850525,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 24000,
+        "best_val_loss": 1.6680879592895508,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 25000,
+        "best_val_loss": 1.6700035333633423,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 27000,
+        "best_val_loss": 1.679200291633606,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/meta.pkl",
+    "best_iter": 21000,
+    "best_tokens": 0.0,
+    "best_val_loss": 1.6559871435165405,
+    "best_val_loss_file": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 169,
+    "raw_best_val_loss_line": "1.6559871435165405, 21000, 0, 123571980, 9.594e+03, 7.764e-05, 11884.5, 0.0, 0.605469, 0.579931, 15.07, 0.273860, 0.489322, 29.00, 1.000000, 0.285023, 0.100445, 157.142075, 1.280666, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+    "run_name": "multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+    "scoped_variation_key": "out_multidata_base::multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 2,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidata_base-one_hot_layer0-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 25000,
+        "best_val_loss": 1.6630831956863403,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 24000,
+        "best_val_loss": 1.665187120437622,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 27000,
+        "best_val_loss": 1.6652406454086304,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 27000,
+        "best_val_loss": 1.6753818988800049,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 27000,
+        "best_val_loss": 1.7046858072280884,
+        "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/meta.pkl",
+    "best_iter": 25000,
+    "best_tokens": 136544256.0,
+    "best_val_loss": 1.6630831956863403,
+    "best_val_loss_file": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 169,
+    "raw_best_val_loss_line": "1.6630831956863403, 25000, 136544256, 123571980, 9.526e+03, 7.709e-05, 13440.6, 69.3, 0.612793, 0.580526, 16.27, 0.275851, 0.493693, 29.00, 1.000000, 0.260031, 0.078348, 160.819122, 1.244796, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "run_name": "multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "scoped_variation_key": "out_multidata_base::multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 1,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidata_base-one_hot_layer0-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 66000,
+        "best_val_loss": 0.6460826396942139,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 70000,
+        "best_val_loss": 0.6466610431671143,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 77000,
+        "best_val_loss": 0.6490478515625,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 65000,
+        "best_val_loss": 0.6543194651603699,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 71000,
+        "best_val_loss": 0.6555435657501221,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/meta.pkl",
+    "best_iter": 66000,
+    "best_tokens": 0.0,
+    "best_val_loss": 0.6460826396942139,
+    "best_val_loss_file": "out_multidata_base/multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 144,
+    "raw_best_val_loss_line": "0.6460826396942139, 66000, 0, 85243404, 1.850e+02, 2.170e-06, 1702.7, 0.0, 0.803223, 0.791750, 1.77, 0.138521, 0.737413, 6.00, 1.000000, 0.314324, 0.122746, 27.007715, 1.420861, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+    "run_name": "multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+    "scoped_variation_key": "out_multidata_base::multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 3,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidata_base-without_lsv-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 66000,
+        "best_val_loss": 0.6459588408470154,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 71000,
+        "best_val_loss": 0.6481830477714539,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 70000,
+        "best_val_loss": 0.6541229486465454,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 75000,
+        "best_val_loss": 0.655335009098053,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 71000,
+        "best_val_loss": 0.6600357294082642,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/meta.pkl",
+    "best_iter": 66000,
+    "best_tokens": 0.0,
+    "best_val_loss": 0.6459588408470154,
+    "best_val_loss_file": "out_multidata_base/multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 144,
+    "raw_best_val_loss_line": "0.6459588408470154, 66000, 0, 85243404, 1.850e+02, 2.171e-06, 1702.7, 0.0, 0.803223, 0.791835, 1.77, 0.138689, 0.737540, 6.00, 1.000000, 0.329399, 0.120178, 26.093092, 1.430988, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+    "run_name": "multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+    "scoped_variation_key": "out_multidata_base::multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 3,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidata_base-without_lsv-ipa_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 58000,
+        "best_val_loss": 0.6485921740531921,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 63000,
+        "best_val_loss": 0.6489291191101074,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 83000,
+        "best_val_loss": 0.6511116027832031,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 96000,
+        "best_val_loss": 0.6584237813949585,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 79000,
+        "best_val_loss": 0.6594325304031372,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/meta.pkl",
+    "best_iter": 58000,
+    "best_tokens": 103776256.0,
+    "best_val_loss": 0.6485921740531921,
+    "best_val_loss_file": "out_multidata_base/multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 144,
+    "raw_best_val_loss_line": "0.6485921740531921, 58000, 103776256, 85243404, 1.845e+02, 2.165e-06, 2388.8, 60.2, 0.803223, 0.791098, 1.77, 0.139426, 0.737036, 6.00, 1.000000, 0.319857, 0.101665, 31.005091, 1.445334, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "run_name": "multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "scoped_variation_key": "out_multidata_base::multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 1,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidata_base-without_lsv-ipa_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.6521371603012085,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.6542640924453735,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 18000,
+        "best_val_loss": 1.6550822257995605,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 20000,
+        "best_val_loss": 1.6575732231140137,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 22000,
+        "best_val_loss": 1.6579208374023438,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/meta.pkl",
+    "best_iter": 23000,
+    "best_tokens": 125616128.0,
+    "best_val_loss": 1.6521371603012085,
+    "best_val_loss_file": "out_multidata_base/multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 166,
+    "raw_best_val_loss_line": "1.6521371603012085, 23000, 125616128, 123569676, 9.631e+03, 7.794e-05, 13441.9, 69.3, 0.616699, 0.583275, 15.35, 0.275475, 0.497684, 29.00, 1.000000, 0.253998, 0.085765, 136.087112, 1.226356, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+    "run_name": "multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+    "scoped_variation_key": "out_multidata_base::multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 3,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidata_base-without_lsv-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.64851713180542,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 19000,
+        "best_val_loss": 1.6497712135314941,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 19000,
+        "best_val_loss": 1.6577839851379395,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 19000,
+        "best_val_loss": 1.6603546142578125,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 20000,
+        "best_val_loss": 1.6636444330215454,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/meta.pkl",
+    "best_iter": 23000,
+    "best_tokens": 125616128.0,
+    "best_val_loss": 1.64851713180542,
+    "best_val_loss_file": "out_multidata_base/multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 166,
+    "raw_best_val_loss_line": "1.64851713180542, 23000, 125616128, 123569676, 9.666e+03, 7.822e-05, 13441.9, 69.2, 0.621582, 0.584656, 16.03, 0.275951, 0.501027, 29.00, 1.000000, 0.270030, 0.083865, 185.272202, 1.221392, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+    "run_name": "multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+    "scoped_variation_key": "out_multidata_base::multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 5,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidata_base-without_lsv-tiktoken_jckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 23000,
+        "best_val_loss": 1.6506670713424683,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 21000,
+        "best_val_loss": 1.6557300090789795,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 16000,
+        "best_val_loss": 1.6567119359970093,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 19000,
+        "best_val_loss": 1.6603375673294067,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 18000,
+        "best_val_loss": 1.6660574674606323,
+        "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      }
+    ],
+    "base_meta": "out_multidata_base/multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/meta.pkl",
+    "best_iter": 23000,
+    "best_tokens": 125616128.0,
+    "best_val_loss": 1.6506670713424683,
+    "best_val_loss_file": "out_multidata_base/multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base/multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 166,
+    "raw_best_val_loss_line": "1.6506670713424683, 23000, 125616128, 123569676, 9.645e+03, 7.806e-05, 13441.9, 69.5, 0.621094, 0.584686, 15.85, 0.276002, 0.501037, 29.00, 1.000000, 0.252065, 0.081569, 130.031891, 1.211978, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base",
+    "run_dir": "out_multidata_base/multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+    "run_name": "multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+    "scoped_variation_key": "out_multidata_base::multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 5,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidata_base-without_lsv-tiktoken_kckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 55000,
+        "best_val_loss": 0.7996312975883484,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 41000,
+        "best_val_loss": 0.8059967160224915,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 52000,
+        "best_val_loss": 0.8074319362640381,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 45000,
+        "best_val_loss": 0.8099378347396851,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 41000,
+        "best_val_loss": 0.8143583536148071,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      }
+    ],
+    "base_meta": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/meta.pkl",
+    "best_iter": 55000,
+    "best_tokens": 71008256.0,
+    "best_val_loss": 0.7996312975883484,
+    "best_val_loss_file": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 150,
+    "raw_best_val_loss_line": "0.7996312975883484, 55000, 71008256, 85481103, 1.151e+02, 1.346e-06, 2490.4, 64.3, 0.765625, 0.745959, 1.98, 0.174464, 0.675595, 6.00, 1.000000, 0.251257, 0.099570, 24.771662, 1.312018, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base_byte",
+    "run_dir": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "run_name": "multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "scoped_variation_key": "out_multidata_base_byte::multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 4,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidata_base_byte-ohmg_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 56000,
+        "best_val_loss": 0.8064594864845276,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 56000,
+        "best_val_loss": 0.8089525103569031,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 53000,
+        "best_val_loss": 0.8091392517089844,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 48000,
+        "best_val_loss": 0.8114504814147949,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 43000,
+        "best_val_loss": 0.811887800693512,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      }
+    ],
+    "base_meta": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/meta.pkl",
+    "best_iter": 56000,
+    "best_tokens": 0.0,
+    "best_val_loss": 0.8064594864845276,
+    "best_val_loss_file": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 150,
+    "raw_best_val_loss_line": "0.8064594864845276, 56000, 0, 85481103, 1.143e+02, 1.337e-06, 1505.8, 0.0, 0.764160, 0.744042, 1.99, 0.176015, 0.673363, 6.00, 1.000000, 0.260951, 0.108292, 37.384880, 1.319917, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base_byte",
+    "run_dir": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "run_name": "multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "scoped_variation_key": "out_multidata_base_byte::multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 1,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidata_base_byte-ohmg_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 43000,
+        "best_val_loss": 0.7981884479522705,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 44000,
+        "best_val_loss": 0.804898738861084,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 41000,
+        "best_val_loss": 0.806094229221344,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 45000,
+        "best_val_loss": 0.8113232254981995,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 47000,
+        "best_val_loss": 0.8152673840522766,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      }
+    ],
+    "base_meta": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/meta.pkl",
+    "best_iter": 43000,
+    "best_tokens": 49152000.0,
+    "best_val_loss": 0.7981884479522705,
+    "best_val_loss_file": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 150,
+    "raw_best_val_loss_line": "0.7981884479522705, 43000, 49152000, 85481103, 1.152e+02, 1.348e-06, 2490.4, 63.0, 0.757812, 0.745794, 1.98, 0.172129, 0.670612, 6.00, 1.000000, 0.295509, 0.122484, 35.416252, 1.380381, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base_byte",
+    "run_dir": "out_multidata_base_byte/multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "run_name": "multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "scoped_variation_key": "out_multidata_base_byte::multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 4,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidata_base_byte-ohmg_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 50000,
+        "best_val_loss": 0.8083332180976868,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 54000,
+        "best_val_loss": 0.8104130029678345,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 59000,
+        "best_val_loss": 0.811332643032074,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 42000,
+        "best_val_loss": 0.8130046725273132,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 57000,
+        "best_val_loss": 0.8146196603775024,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/meta.pkl",
+    "best_iter": 50000,
+    "best_tokens": 43696128.0,
+    "best_val_loss": 0.8083332180976868,
+    "best_val_loss_file": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 153,
+    "raw_best_val_loss_line": "0.8083332180976868, 50000, 43696128, 85171212, 1.141e+02, 1.339e-06, 2378.2, 60.8, 0.756348, 0.742870, 2.00, 0.174237, 0.668335, 6.00, 1.000000, 0.308512, 0.147796, 38.192356, 1.404302, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base_byte",
+    "run_dir": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+    "run_name": "multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+    "scoped_variation_key": "out_multidata_base_byte::multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 3,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidata_base_byte-one_hot_layer0-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 59000,
+        "best_val_loss": 0.8087828159332275,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 53000,
+        "best_val_loss": 0.8095504641532898,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 59000,
+        "best_val_loss": 0.8109367489814758,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 56000,
+        "best_val_loss": 0.8136593699455261,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 75000,
+        "best_val_loss": 0.8201930522918701,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      }
+    ],
+    "base_meta": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/meta.pkl",
+    "best_iter": 59000,
+    "best_tokens": 43696128.0,
+    "best_val_loss": 0.8087828159332275,
+    "best_val_loss_file": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 153,
+    "raw_best_val_loss_line": "0.8087828159332275, 59000, 43696128, 85171212, 1.140e+02, 1.339e-06, 2378.2, 61.4, 0.758789, 0.743585, 2.00, 0.174197, 0.670034, 6.00, 1.000000, 0.273402, 0.124188, 15.812128, 1.376679, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base_byte",
+    "run_dir": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "run_name": "multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "scoped_variation_key": "out_multidata_base_byte::multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 1,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidata_base_byte-one_hot_layer0-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 48000,
+        "best_val_loss": 0.812908947467804,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 52000,
+        "best_val_loss": 0.8135998249053955,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 52000,
+        "best_val_loss": 0.8140403032302856,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 54000,
+        "best_val_loss": 0.8182549476623535,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 53000,
+        "best_val_loss": 0.8193234205245972,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      }
+    ],
+    "base_meta": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/meta.pkl",
+    "best_iter": 48000,
+    "best_tokens": 81920000.0,
+    "best_val_loss": 0.812908947467804,
+    "best_val_loss_file": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 153,
+    "raw_best_val_loss_line": "0.812908947467804, 48000, 81920000, 85171212, 1.136e+02, 1.333e-06, 2378.2, 61.2, 0.756348, 0.741968, 2.01, 0.174739, 0.667226, 6.00, 1.000000, 0.299920, 0.122687, 38.333061, 1.393463, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base_byte",
+    "run_dir": "out_multidata_base_byte/multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "run_name": "multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "scoped_variation_key": "out_multidata_base_byte::multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 4,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidata_base_byte-one_hot_layer0-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 45000,
+        "best_val_loss": 0.8034297823905945,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 45000,
+        "best_val_loss": 0.8070743083953857,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 47000,
+        "best_val_loss": 0.8103100657463074,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 42000,
+        "best_val_loss": 0.8105789422988892,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 40000,
+        "best_val_loss": 0.8134381175041199,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      }
+    ],
+    "base_meta": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/meta.pkl",
+    "best_iter": 45000,
+    "best_tokens": 16384000.0,
+    "best_val_loss": 0.8034297823905945,
+    "best_val_loss_file": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 150,
+    "raw_best_val_loss_line": "0.8034297823905945, 45000, 16384000, 85168908, 1.146e+02, 1.346e-06, 2378.1, 60.5, 0.761719, 0.744128, 1.99, 0.174255, 0.672171, 6.00, 1.000000, 0.249374, 0.109833, 24.064987, 1.412170, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base_byte",
+    "run_dir": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "run_name": "multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "scoped_variation_key": "out_multidata_base_byte::multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 4,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidata_base_byte-without_lsv-byte_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 51000,
+        "best_val_loss": 0.808931291103363,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 49000,
+        "best_val_loss": 0.8093596696853638,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 49000,
+        "best_val_loss": 0.8099966645240784,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 48000,
+        "best_val_loss": 0.8106887936592102,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 55000,
+        "best_val_loss": 0.8152364492416382,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/meta.pkl",
+    "best_iter": 51000,
+    "best_tokens": 278528000.0,
+    "best_val_loss": 0.808931291103363,
+    "best_val_loss_file": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 150,
+    "raw_best_val_loss_line": "0.808931291103363, 51000, 278528000, 85168908, 1.140e+02, 1.339e-06, 2386.8, 57.6, 0.761719, 0.743514, 1.99, 0.175778, 0.671922, 6.00, 1.000000, 0.309426, 0.131086, 33.529476, 1.385538, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base_byte",
+    "run_dir": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "run_name": "multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+    "scoped_variation_key": "out_multidata_base_byte::multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 1,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidata_base_byte-without_lsv-byte_jckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 49000,
+        "best_val_loss": 0.8040546178817749,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 42000,
+        "best_val_loss": 0.8063156008720398,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 41000,
+        "best_val_loss": 0.8088794946670532,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 55000,
+        "best_val_loss": 0.809974730014801,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-5",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 38000,
+        "best_val_loss": 0.8126816749572754,
+        "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1/ckpt.pt",
+        "run_name": "multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+        "seed_or_run_index": 1
+      }
+    ],
+    "base_meta": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/meta.pkl",
+    "best_iter": 49000,
+    "best_tokens": 81920000.0,
+    "best_val_loss": 0.8040546178817749,
+    "best_val_loss_file": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4/ckpt.pt",
+    "grouping_method": "trailing_seed_suffix",
+    "method": "trailing_seed_suffix",
+    "num_runs_in_variation": 5,
+    "position": 150,
+    "raw_best_val_loss_line": "0.8040546178817749, 49000, 81920000, 85168908, 1.146e+02, 1.345e-06, 2378.1, 60.9, 0.761719, 0.744575, 1.99, 0.174140, 0.672709, 6.00, 1.000000, 0.254258, 0.110339, 30.058882, 1.389787, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_base_byte",
+    "run_dir": "out_multidata_base_byte/multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "run_name": "multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+    "scoped_variation_key": "out_multidata_base_byte::multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+    "seed_or_run_index": 4,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidata_base_byte-without_lsv-byte_kckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 16000,
+        "best_val_loss": 0.8136669993400574,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_ja-5-byte_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-byte_ja-5-byte_single_run_ja",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 12000,
+        "best_val_loss": 0.8138967752456665,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_ja-4-byte_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-byte_ja-4-byte_single_run_ja",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 16000,
+        "best_val_loss": 0.8206958770751953,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_ja-2-byte_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-byte_ja-2-byte_single_run_ja",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 14000,
+        "best_val_loss": 0.8232710361480713,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_ja-3-byte_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-byte_ja-3-byte_single_run_ja",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 15000,
+        "best_val_loss": 0.8269761800765991,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_ja-1-byte_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-byte_ja-1-byte_single_run_ja",
+        "seed_or_run_index": 1
+      }
+    ],
+    "base_meta": "out_multidata_single/multidataset_single-byte_ja-5-byte_single_run_ja/meta.pkl",
+    "best_iter": 16000,
+    "best_tokens": 262144000.0,
+    "best_val_loss": 0.8136669993400574,
+    "best_val_loss_file": "out_multidata_single/multidataset_single-byte_ja-5-byte_single_run_ja/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_single/multidataset_single-byte_ja-5-byte_single_run_ja/ckpt.pt",
+    "grouping_method": "internal_seed_segment",
+    "method": "internal_seed_segment",
+    "num_runs_in_variation": 5,
+    "position": 27,
+    "raw_best_val_loss_line": "0.8136669993400574, 16000, 262144000, 85168908, 1.135e+02, 1.332e-06, 2386.8, 57.4, 0.761719, 0.742637, 2.00, 0.176766, 0.671102, 6.00, 1.000000, 0.279299, 0.114890, 20.797132, 1.513029, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_single",
+    "run_dir": "out_multidata_single/multidataset_single-byte_ja-5-byte_single_run_ja",
+    "run_name": "multidataset_single-byte_ja-5-byte_single_run_ja",
+    "scoped_variation_key": "out_multidata_single::multidataset_single-byte_ja-byte_single_run_ja",
+    "seed_or_run_index": 5,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidataset_single-byte_ja-byte_single_run_ja"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 15000,
+        "best_val_loss": 0.8089725971221924,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_ko-5-byte_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-byte_ko-5-byte_single_run_ko",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 11000,
+        "best_val_loss": 0.8091917634010315,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_ko-1-byte_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-byte_ko-1-byte_single_run_ko",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 17000,
+        "best_val_loss": 0.8170324563980103,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_ko-2-byte_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-byte_ko-2-byte_single_run_ko",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 23000,
+        "best_val_loss": 0.8206601142883301,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_ko-3-byte_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-byte_ko-3-byte_single_run_ko",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 15000,
+        "best_val_loss": 0.8221890926361084,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_ko-4-byte_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-byte_ko-4-byte_single_run_ko",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_single/multidataset_single-byte_ko-5-byte_single_run_ko/meta.pkl",
+    "best_iter": 15000,
+    "best_tokens": 65536000.0,
+    "best_val_loss": 0.8089725971221924,
+    "best_val_loss_file": "out_multidata_single/multidataset_single-byte_ko-5-byte_single_run_ko/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_single/multidataset_single-byte_ko-5-byte_single_run_ko/ckpt.pt",
+    "grouping_method": "internal_seed_segment",
+    "method": "internal_seed_segment",
+    "num_runs_in_variation": 5,
+    "position": 27,
+    "raw_best_val_loss_line": "0.8089725971221924, 15000, 65536000, 85168908, 1.140e+02, 1.339e-06, 2378.4, 60.4, 0.752441, 0.731500, 1.87, 0.184484, 0.656334, 5.00, 1.000000, 0.324321, 0.119081, 31.193317, 1.519184, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_single",
+    "run_dir": "out_multidata_single/multidataset_single-byte_ko-5-byte_single_run_ko",
+    "run_name": "multidataset_single-byte_ko-5-byte_single_run_ko",
+    "scoped_variation_key": "out_multidata_single::multidataset_single-byte_ko-byte_single_run_ko",
+    "seed_or_run_index": 5,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidataset_single-byte_ko-byte_single_run_ko"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 12000,
+        "best_val_loss": 1.1041680574417114,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_zh-5-byte_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-byte_zh-5-byte_single_run_zh",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 13000,
+        "best_val_loss": 1.1049624681472778,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_zh-1-byte_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-byte_zh-1-byte_single_run_zh",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 12000,
+        "best_val_loss": 1.1198265552520752,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_zh-2-byte_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-byte_zh-2-byte_single_run_zh",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 15000,
+        "best_val_loss": 1.1216319799423218,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_zh-3-byte_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-byte_zh-3-byte_single_run_zh",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 13000,
+        "best_val_loss": 1.1238837242126465,
+        "checkpoint": "out_multidata_single/multidataset_single-byte_zh-4-byte_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-byte_zh-4-byte_single_run_zh",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_single/multidataset_single-byte_zh-5-byte_single_run_zh/meta.pkl",
+    "best_iter": 12000,
+    "best_tokens": 196608000.0,
+    "best_val_loss": 1.1041680574417114,
+    "best_val_loss_file": "out_multidata_single/multidataset_single-byte_zh-5-byte_single_run_zh/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_single/multidataset_single-byte_zh-5-byte_single_run_zh/ckpt.pt",
+    "grouping_method": "internal_seed_segment",
+    "method": "internal_seed_segment",
+    "num_runs_in_variation": 5,
+    "position": 27,
+    "raw_best_val_loss_line": "1.1041680574417114, 12000, 196608000, 85168908, 8.486e+01, 9.964e-07, 2386.8, 57.1, 0.680664, 0.656890, 2.51, 0.227917, 0.575044, 8.00, 1.000000, 0.290657, 0.117230, 29.801491, 1.457609, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_single",
+    "run_dir": "out_multidata_single/multidataset_single-byte_zh-5-byte_single_run_zh",
+    "run_name": "multidataset_single-byte_zh-5-byte_single_run_zh",
+    "scoped_variation_key": "out_multidata_single::multidataset_single-byte_zh-byte_single_run_zh",
+    "seed_or_run_index": 5,
+    "text_representation": "orthographic",
+    "tokenizer_family": "byte",
+    "variation_key": "multidataset_single-byte_zh-byte_single_run_zh"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 18000,
+        "best_val_loss": 0.6492494940757751,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_ja-3-ipa_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-ipa_ja-3-ipa_single_run_ja",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 19000,
+        "best_val_loss": 0.6515507698059082,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_ja-1-ipa_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-ipa_ja-1-ipa_single_run_ja",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 20000,
+        "best_val_loss": 0.6528950333595276,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_ja-2-ipa_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-ipa_ja-2-ipa_single_run_ja",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 22000,
+        "best_val_loss": 0.655943751335144,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_ja-5-ipa_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-ipa_ja-5-ipa_single_run_ja",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 23000,
+        "best_val_loss": 0.6577025651931763,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_ja-4-ipa_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-ipa_ja-4-ipa_single_run_ja",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_single/multidataset_single-ipa_ja-3-ipa_single_run_ja/meta.pkl",
+    "best_iter": 18000,
+    "best_tokens": 0.0,
+    "best_val_loss": 0.6492494940757751,
+    "best_val_loss_file": "out_multidata_single/multidataset_single-ipa_ja-3-ipa_single_run_ja/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_single/multidataset_single-ipa_ja-3-ipa_single_run_ja/ckpt.pt",
+    "grouping_method": "internal_seed_segment",
+    "method": "internal_seed_segment",
+    "num_runs_in_variation": 5,
+    "position": 26,
+    "raw_best_val_loss_line": "0.6492494940757751, 18000, 0, 85243404, 1.844e+02, 2.163e-06, 1702.7, 0.0, 0.806641, 0.790835, 1.78, 0.140320, 0.739129, 6.00, 1.000000, 0.307624, 0.094328, 35.681076, 1.568711, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_single",
+    "run_dir": "out_multidata_single/multidataset_single-ipa_ja-3-ipa_single_run_ja",
+    "run_name": "multidataset_single-ipa_ja-3-ipa_single_run_ja",
+    "scoped_variation_key": "out_multidata_single::multidataset_single-ipa_ja-ipa_single_run_ja",
+    "seed_or_run_index": 3,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidataset_single-ipa_ja-ipa_single_run_ja"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 18000,
+        "best_val_loss": 0.7225768566131592,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_ko-5-ipa_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-ipa_ko-5-ipa_single_run_ko",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 15000,
+        "best_val_loss": 0.7243129014968872,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_ko-3-ipa_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-ipa_ko-3-ipa_single_run_ko",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 15000,
+        "best_val_loss": 0.7250625491142273,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_ko-1-ipa_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-ipa_ko-1-ipa_single_run_ko",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 19000,
+        "best_val_loss": 0.7260061502456665,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_ko-2-ipa_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-ipa_ko-2-ipa_single_run_ko",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 15000,
+        "best_val_loss": 0.728060781955719,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_ko-4-ipa_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-ipa_ko-4-ipa_single_run_ko",
+        "seed_or_run_index": 4
+      }
+    ],
+    "base_meta": "out_multidata_single/multidataset_single-ipa_ko-5-ipa_single_run_ko/meta.pkl",
+    "best_iter": 18000,
+    "best_tokens": 81920000.0,
+    "best_val_loss": 0.7225768566131592,
+    "best_val_loss_file": "out_multidata_single/multidataset_single-ipa_ko-5-ipa_single_run_ko/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_single/multidataset_single-ipa_ko-5-ipa_single_run_ko/ckpt.pt",
+    "grouping_method": "internal_seed_segment",
+    "method": "internal_seed_segment",
+    "num_runs_in_variation": 5,
+    "position": 26,
+    "raw_best_val_loss_line": "0.7225768566131592, 18000, 81920000, 85243404, 1.714e+02, 2.010e-06, 2388.5, 59.9, 0.783203, 0.766407, 1.70, 0.160715, 0.698270, 5.00, 1.000000, 0.312501, 0.109325, 66.024147, 1.509306, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_single",
+    "run_dir": "out_multidata_single/multidataset_single-ipa_ko-5-ipa_single_run_ko",
+    "run_name": "multidataset_single-ipa_ko-5-ipa_single_run_ko",
+    "scoped_variation_key": "out_multidata_single::multidataset_single-ipa_ko-ipa_single_run_ko",
+    "seed_or_run_index": 5,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidataset_single-ipa_ko-ipa_single_run_ko"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 23000,
+        "best_val_loss": 0.6205238103866577,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_zh-4-ipa_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-ipa_zh-4-ipa_single_run_zh",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 25000,
+        "best_val_loss": 0.6211603283882141,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_zh-5-ipa_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-ipa_zh-5-ipa_single_run_zh",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 25000,
+        "best_val_loss": 0.6221981644630432,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_zh-1-ipa_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-ipa_zh-1-ipa_single_run_zh",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 27000,
+        "best_val_loss": 0.6267748475074768,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_zh-3-ipa_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-ipa_zh-3-ipa_single_run_zh",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 26000,
+        "best_val_loss": 0.632168173789978,
+        "checkpoint": "out_multidata_single/multidataset_single-ipa_zh-2-ipa_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-ipa_zh-2-ipa_single_run_zh",
+        "seed_or_run_index": 2
+      }
+    ],
+    "base_meta": "out_multidata_single/multidataset_single-ipa_zh-4-ipa_single_run_zh/meta.pkl",
+    "best_iter": 23000,
+    "best_tokens": 376832000.0,
+    "best_val_loss": 0.6205238103866577,
+    "best_val_loss_file": "out_multidata_single/multidataset_single-ipa_zh-4-ipa_single_run_zh/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_single/multidataset_single-ipa_zh-4-ipa_single_run_zh/ckpt.pt",
+    "grouping_method": "internal_seed_segment",
+    "method": "internal_seed_segment",
+    "num_runs_in_variation": 5,
+    "position": 26,
+    "raw_best_val_loss_line": "0.6205238103866577, 23000, 376832000, 85243404, 1.898e+02, 2.227e-06, 2398.0, 57.4, 0.821777, 0.803820, 1.71, 0.134716, 0.753333, 5.00, 1.000000, 0.332033, 0.116188, 17.680536, 1.599237, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_single",
+    "run_dir": "out_multidata_single/multidataset_single-ipa_zh-4-ipa_single_run_zh",
+    "run_name": "multidataset_single-ipa_zh-4-ipa_single_run_zh",
+    "scoped_variation_key": "out_multidata_single::multidataset_single-ipa_zh-ipa_single_run_zh",
+    "seed_or_run_index": 4,
+    "text_representation": "ipa",
+    "tokenizer_family": "ipa",
+    "variation_key": "multidataset_single-ipa_zh-ipa_single_run_zh"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 6000,
+        "best_val_loss": 1.6652116775512695,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ja-base_batch_iters-2-tiktoken_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_ja-base_batch_iters-2-tiktoken_single_run_ja",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 5000,
+        "best_val_loss": 1.6685153245925903,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ja-base_batch_iters-3-tiktoken_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_ja-base_batch_iters-3-tiktoken_single_run_ja",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 6000,
+        "best_val_loss": 1.6741656064987183,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ja-base_batch_iters-4-tiktoken_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_ja-base_batch_iters-4-tiktoken_single_run_ja",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 6000,
+        "best_val_loss": 1.6752686500549316,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ja-base_batch_iters-1-tiktoken_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_ja-base_batch_iters-1-tiktoken_single_run_ja",
+        "seed_or_run_index": 1
+      },
+      {
+        "best_iter": 6000,
+        "best_val_loss": 1.6780178546905518,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ja-base_batch_iters-5-tiktoken_single_run_ja/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_ja-base_batch_iters-5-tiktoken_single_run_ja",
+        "seed_or_run_index": 5
+      }
+    ],
+    "base_meta": "out_multidata_single/multidataset_single-tiktoken_ja-base_batch_iters-2-tiktoken_single_run_ja/meta.pkl",
+    "best_iter": 6000,
+    "best_tokens": 0.0,
+    "best_val_loss": 1.6652116775512695,
+    "best_val_loss_file": "out_multidata_single/multidataset_single-tiktoken_ja-base_batch_iters-2-tiktoken_single_run_ja/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ja-base_batch_iters-2-tiktoken_single_run_ja/ckpt.pt",
+    "grouping_method": "internal_seed_segment",
+    "method": "internal_seed_segment",
+    "num_runs_in_variation": 5,
+    "position": 48,
+    "raw_best_val_loss_line": "1.6652116775512695, 6000, 0, 123569676, 9.506e+03, 7.693e-05, 11835.6, 0.0, 0.612793, 0.579382, 15.85, 0.278311, 0.492135, 29.00, 1.000000, 0.312883, 0.096463, 186.767960, 1.325412, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_single",
+    "run_dir": "out_multidata_single/multidataset_single-tiktoken_ja-base_batch_iters-2-tiktoken_single_run_ja",
+    "run_name": "multidataset_single-tiktoken_ja-base_batch_iters-2-tiktoken_single_run_ja",
+    "scoped_variation_key": "out_multidata_single::multidataset_single-tiktoken_ja-base_batch_iters-tiktoken_single_run_ja",
+    "seed_or_run_index": 2,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidataset_single-tiktoken_ja-base_batch_iters-tiktoken_single_run_ja"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 12000,
+        "best_val_loss": 0.9321011900901794,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ko-base_batch_iters-4-tiktoken_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_ko-base_batch_iters-4-tiktoken_single_run_ko",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 12000,
+        "best_val_loss": 0.9365288019180298,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ko-base_batch_iters-5-tiktoken_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_ko-base_batch_iters-5-tiktoken_single_run_ko",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 12000,
+        "best_val_loss": 0.9405033588409424,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ko-base_batch_iters-2-tiktoken_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_ko-base_batch_iters-2-tiktoken_single_run_ko",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 13000,
+        "best_val_loss": 0.9439966678619385,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ko-base_batch_iters-3-tiktoken_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_ko-base_batch_iters-3-tiktoken_single_run_ko",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 11000,
+        "best_val_loss": 0.9468005299568176,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ko-base_batch_iters-1-tiktoken_single_run_ko/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_ko-base_batch_iters-1-tiktoken_single_run_ko",
+        "seed_or_run_index": 1
+      }
+    ],
+    "base_meta": "out_multidata_single/multidataset_single-tiktoken_ko-base_batch_iters-4-tiktoken_single_run_ko/meta.pkl",
+    "best_iter": 12000,
+    "best_tokens": 32768000.0,
+    "best_val_loss": 0.9321011900901794,
+    "best_val_loss_file": "out_multidata_single/multidataset_single-tiktoken_ko-base_batch_iters-4-tiktoken_single_run_ko/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_single/multidataset_single-tiktoken_ko-base_batch_iters-4-tiktoken_single_run_ko/ckpt.pt",
+    "grouping_method": "internal_seed_segment",
+    "method": "internal_seed_segment",
+    "num_runs_in_variation": 5,
+    "position": 48,
+    "raw_best_val_loss_line": "0.9321011900901794, 12000, 32768000, 123569676, 1.979e+04, 1.601e-04, 13438.3, 72.1, 0.719727, 0.697337, 11.30, 0.204929, 0.617077, 6.00, 1.000000, 0.322505, 0.161629, 78.192017, 1.546456, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_single",
+    "run_dir": "out_multidata_single/multidataset_single-tiktoken_ko-base_batch_iters-4-tiktoken_single_run_ko",
+    "run_name": "multidataset_single-tiktoken_ko-base_batch_iters-4-tiktoken_single_run_ko",
+    "scoped_variation_key": "out_multidata_single::multidataset_single-tiktoken_ko-base_batch_iters-tiktoken_single_run_ko",
+    "seed_or_run_index": 4,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidataset_single-tiktoken_ko-base_batch_iters-tiktoken_single_run_ko"
+  },
+  {
+    "all_run_losses": [
+      {
+        "best_iter": 7000,
+        "best_val_loss": 1.566697359085083,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_zh-base_batch_iters-2-tiktoken_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_zh-base_batch_iters-2-tiktoken_single_run_zh",
+        "seed_or_run_index": 2
+      },
+      {
+        "best_iter": 7000,
+        "best_val_loss": 1.5766044855117798,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_zh-base_batch_iters-5-tiktoken_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_zh-base_batch_iters-5-tiktoken_single_run_zh",
+        "seed_or_run_index": 5
+      },
+      {
+        "best_iter": 7000,
+        "best_val_loss": 1.5796027183532715,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_zh-base_batch_iters-4-tiktoken_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_zh-base_batch_iters-4-tiktoken_single_run_zh",
+        "seed_or_run_index": 4
+      },
+      {
+        "best_iter": 6000,
+        "best_val_loss": 1.5847291946411133,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_zh-base_batch_iters-3-tiktoken_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_zh-base_batch_iters-3-tiktoken_single_run_zh",
+        "seed_or_run_index": 3
+      },
+      {
+        "best_iter": 7000,
+        "best_val_loss": 1.5887205600738525,
+        "checkpoint": "out_multidata_single/multidataset_single-tiktoken_zh-base_batch_iters-1-tiktoken_single_run_zh/ckpt.pt",
+        "run_name": "multidataset_single-tiktoken_zh-base_batch_iters-1-tiktoken_single_run_zh",
+        "seed_or_run_index": 1
+      }
+    ],
+    "base_meta": "out_multidata_single/multidataset_single-tiktoken_zh-base_batch_iters-2-tiktoken_single_run_zh/meta.pkl",
+    "best_iter": 7000,
+    "best_tokens": 114688000.0,
+    "best_val_loss": 1.566697359085083,
+    "best_val_loss_file": "out_multidata_single/multidataset_single-tiktoken_zh-base_batch_iters-2-tiktoken_single_run_zh/best_val_loss_and_iter.txt",
+    "checkpoint": "out_multidata_single/multidataset_single-tiktoken_zh-base_batch_iters-2-tiktoken_single_run_zh/ckpt.pt",
+    "grouping_method": "internal_seed_segment",
+    "method": "internal_seed_segment",
+    "num_runs_in_variation": 5,
+    "position": 48,
+    "raw_best_val_loss_line": "1.566697359085083, 7000, 114688000, 123569676, 1.049e+04, 8.489e-05, 13441.9, 69.1, 0.649414, 0.613586, 17.38, 0.258588, 0.536176, 28.00, 1.000000, 0.321681, 0.095208, 145.309311, 1.418637, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000",
+    "root": "out_multidata_single",
+    "run_dir": "out_multidata_single/multidataset_single-tiktoken_zh-base_batch_iters-2-tiktoken_single_run_zh",
+    "run_name": "multidataset_single-tiktoken_zh-base_batch_iters-2-tiktoken_single_run_zh",
+    "scoped_variation_key": "out_multidata_single::multidataset_single-tiktoken_zh-base_batch_iters-tiktoken_single_run_zh",
+    "seed_or_run_index": 2,
+    "text_representation": "orthographic",
+    "tokenizer_family": "tiktoken",
+    "variation_key": "multidataset_single-tiktoken_zh-base_batch_iters-tiktoken_single_run_zh"
+  }
+]
