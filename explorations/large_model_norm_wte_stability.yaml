@@ -1,0 +1,120 @@
+# explorations/large_model_norm_wte_stability.yaml
+---
+
+# Atomic Static Groupings
+named_static_groups:
+  # QK Norm
+  - named_group: "no_qk_norm"
+    use_qk_norm: [false]
+    use_qk_norm_scale: [false]
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type
+  - named_group: "pre_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [false]
+    use_post_ln: [false]
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+  - named_group: "post_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [false]
+    use_post_ln: [true]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    named_group_settings:
+      use_rotary_embeddings: [true]
+      use_abs_pos_embeddings: [false]
+  - named_group: "abs"
+    named_group_settings:
+      use_rotary_embeddings: [false]
+      use_abs_pos_embeddings: [true]
+
+  # RMSNorm Variations
+  - named_group: "rmsnorm_no_wte"
+    named_group_settings:
+      norm_variant_attn: ["rmsnorm"]
+      norm_variant_output: ["rmsnorm"]
+  - named_group: "rmsnorm_with_wte"
+    named_group_settings:
+      norm_variant_wte: ["rmsnorm"]
+      norm_variant_attn: ["rmsnorm"]
+      norm_variant_output: ["rmsnorm"]
+  - named_group: "hsnorm_no_wte"
+    named_group_settings:
+      norm_variant_attn: ["hyperspherenorm"]
+      norm_variant_output: ["hyperspherenorm"]
+  - named_group: "hsnorm_all"
+    named_group_settings:
+      norm_variant_wte: ["hyperspherenorm"]
+      norm_variant_attn: ["hyperspherenorm"]
+      norm_variant_output: ["hyperspherenorm"]
+  - named_group: "hsnorm_scale_5.0"
+    named_group_settings:
+      norm_wte_scale: ["5.0"]
+      hsnorm_scale: ["5.0"]
+  - named_group: "hsnorm_scale_1.0"
+    named_group_settings:
+      norm_wte_scale: ["1.0"]
+      hsnorm_scale: ["1.0"]
+  - named_group: "hsnorm_scale_5.0_1.0"
+    named_group_settings:
+      norm_wte_scale: ["5.0"]
+      hsnorm_scale: ["1.0"]
+  - named_group: "hsnorm_scale_1.0_5.0"
+    named_group_settings:
+      norm_wte_scale: ["1.0"]
+      hsnorm_scale: ["5.0"]
+  - named_group: "slerp"
+    named_group_settings:
+      mlp_residual_combination: ["slerp"]
+      attn_residual_combination: ["slerp"]
+  - named_group: "add"
+    named_group_settings:
+      mlp_residual_combination: ["add"]
+      attn_residual_combination: ["add"]
+
+# Higher Level Groupings
+named_variation_groups:
+  - named_group: "hsnorm_scale"
+    named_group_alternates: ["hsnorm_scale_1.0", "hsnorm_scale_5.0", "hsnorm_scale_5.0_1.0", "hsnorm_scale_1.0_5.0"]
+
+# Common_group: parameters applied to every run, but omitted from run names
+common_group:
+  max_iters: [20000]
+  eval_interval: [1000]
+  dataset: ["minipile"]
+  n_layer: ["12"]
+  n_embd: ["768"]
+  n_head: ["12"]
+  device: ["cuda"]
+  dtype: ["bfloat16"]
+  compile: [true]
+  never_save_checkpoint: [true]
+  compute_model_stats: [false]
+
+# Parameter_groups: define sets of overrides to apply on top of base params
+parameter_groups:
+  - named_group_static: ["qk_norm", "peri_ln", "rotary", "hsnorm_all", "slerp"]
+    named_group_variations:
+      - "hsnorm_scale"
+  - named_group_static: ["qk_norm", "peri_ln", "rotary", "hsnorm_all", "add"]
+    named_group_variations:
+      - "hsnorm_scale"
+  - named_group_static: ["qk_norm", "peri_ln", "rotary", "hsnorm_all", "add"]
+    named_group_variations:
+      - "hsnorm_scale"
+  - named_group_static: ["qk_norm", "peri_ln", "rotary", "rmsnorm_no_wte", "add"]
+  - named_group_static: ["qk_norm", "peri_ln", "rotary", "rmsnorm_with_wte", "add"]
+  - named_group_static: ["qk_norm", "peri_ln", "rotary", "hsnorm_no_wte", "add"]
+    hsnorm_scale: ["1.0", "5.0", "10.0", "20.0"]
+  - named_group_static: ["qk_norm", "peri_ln", "rotary", "rmsnorm_no_wte", "slerp"]
+  - named_group_static: ["qk_norm", "peri_ln", "rotary", "rmsnorm_with_wte", "slerp"]
+  - named_group_static: ["qk_norm", "peri_ln", "rotary", "hsnorm_no_wte", "slerp"]
+    hsnorm_scale: ["1.0", "5.0", "10.0", "20.0"]
+
