@@ -97,6 +97,8 @@ class GPTConfig:
     n_v_head_dim: int = None
     n_cproj: int = None
     use_concat_heads: bool = False
+    n_induction_head: int = 0
+    n_ind_head_dim: int = None
 
     # Softcapping params
     attn_logit_softcapping: float | None = None

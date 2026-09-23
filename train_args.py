@@ -1026,6 +1026,10 @@ def parse_args():
     model_group.add_argument('--n_qk_head_dim', default=None, type=int)
     model_group.add_argument('--n_v_head_dim', default=None, type=int)
     model_group.add_argument('--n_cproj', default=None, type=int)
+    model_group.add_argument('--n_induction_head', default=0, type=int,
+                             help="Additional tied-Wk manual induction heads for Infinite Attention")
+    model_group.add_argument('--n_ind_head_dim', default=None, type=int,
+                             help="Head dim for additional manual induction heads in Infinite Attention")
     model_group.add_argument('--attn_cproj_scale', default=1.0, type=float,
                              help="Scale attention outputs before c_proj (Infinite Attention)")
     model_group.add_argument('--attn_post_act_l2_norm', default=False, action=argparse.BooleanOptionalAction,
