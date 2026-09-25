@@ -320,3 +320,54 @@ def test_linear_transform_ui_exists() -> None:
     assert "setupPicker('transformTarget', 'transformTarget')" in js
     assert "setupPicker('transformInput', 'transformInput')" in js
     assert "linear-transform-scroll" in css
+
+
+def test_layernorm_lab_has_four_graphs_metrics_and_scale_modes() -> None:
+    html = (PROJECT_ROOT / "app" / "templates" / "index.html").read_text()
+    js = (PROJECT_ROOT / "app" / "static" / "app.js").read_text()
+
+    for graph_id in [
+        "embeddingBeforeAHistogram",
+        "embeddingBeforeBHistogram",
+        "embeddingAfterAHistogram",
+        "embeddingAfterBHistogram",
+    ]:
+        assert f'id="{graph_id}"' in html
+    assert '<option value="all">' in html
+    assert '<option value="pairs">' in html
+    assert 'id="layernormMetrics"' in html
+    assert "before_participation_ratio" in js
+    assert "relative_angle_delta_deg" in js
+    assert "fillText((fraction * bound).toPrecision(3)" in js
+    for sort_mode in ["gain", "before_a", "before_b", "after_a", "after_b"]:
+        assert f'<option value="{sort_mode}">' in html
+    assert 'id="applyAttentionOperator"' in html
+    assert 'id="attentionLayerSelect"' in html
+    assert 'id="embeddingAttentionAHistogram"' in html
+    assert 'id="embeddingAttentionBHistogram"' in html
+    assert "matrix_stats" in js
+    assert "rotation_residual" in js
+    assert "dot_product_with_norm" in js
+    assert "complete norm" in js
+    assert 'id="runAttentionSweep"' in html
+    assert 'id="attentionSweepOrder"' in html
+    assert 'id="attentionSweepHistogram"' in html
+    assert "/api/layernorm/attention-sweep" in js
+    assert "drawAttentionSweep" in js
+    assert "token_a" in js and "token_b" in js
+    assert "row.dot_a" in js and "row.dot_b" in js
+    assert 'id="attentionOperatorType"' in html
+    assert 'id="attentionSweepOperator"' in html
+    assert 'id="embeddingAttentionOutputAHistogram"' in html
+    assert 'id="embeddingAttentionOutputBHistogram"' in html
+    assert 'id="attentionOutputSweepHistogram"' in html
+    assert "output_norm_dot_a" in js
+    assert "attention_output_values" in js
+    assert 'id="runAllNormSweep"' in html
+    assert 'id="allNormIncludeFinal"' in html
+    assert 'id="allNormOrder"' in html
+    assert 'id="inputNormSweepHistogram"' in html
+    assert 'id="outputNormSweepHistogram"' in html
+    assert "/api/layernorm/all-norm-attention-sweep" in js
+    assert "numeric: true" in js
+    assert "dot_a" in js and "dot_b" in js
