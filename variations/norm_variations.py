@@ -208,7 +208,13 @@ class CappedHyperSphereNorm(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        self.radius = math.sqrt(config.n_embd)
+        # Determine radius initialization value
+        radius_init = None
+        if config.hsnorm_radius is not None:
+            self.radius = config.hsnorm_radius
+        else:
+            self.radius = math.sqrt(config.n_embd)
+        print(self.radius)
 
     def forward(self, x):
         norms = x.norm(2, dim=-1, keepdim=True)

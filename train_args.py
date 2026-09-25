@@ -1549,6 +1549,8 @@ def parse_args():
     logging_group.add_argument('--log_all_metrics', default=False, action=argparse.BooleanOptionalAction, help='Enable logging of all metrics including gns')
     logging_group.add_argument('--log_rankme', default=True, action=argparse.BooleanOptionalAction, help='Log RankMe representation metric during validation')
     logging_group.add_argument('--log_areq', default=True, action=argparse.BooleanOptionalAction, help='Log aReQ representation metric during validation')
+    logging_group.add_argument('--log_lm_head_vector_stats', default=False, action=argparse.BooleanOptionalAction, help='Log raw lm_head row-vector magnitude summary statistics to TensorBoard/CSV')
+    logging_group.add_argument('--log_post_norm_lm_head_vector_stats', default=False, action=argparse.BooleanOptionalAction, help='Log lm_head row-vector magnitude summary statistics after norm_variant_lm_head is applied')
 
     # Turn activation/weight statistics off to save CPU RAM and wall time.
     training_group.add_argument(
