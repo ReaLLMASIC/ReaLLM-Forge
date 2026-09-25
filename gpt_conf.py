@@ -398,7 +398,21 @@ class GPTConfig:
 
     # Layernorm Alternatives and Options
     norm_variant_attn: str = "rmsnorm"
+    # Defaults to norm_variant_attn when None, preserving older configs/checkpoints.
+    norm_variant_mlp: str | None = None
+    # More granular block norm variants. Input variants apply to pre-norms;
+    # output variants apply to peri/post norms. None falls back to the
+    # corresponding component norm above.
+    norm_variant_attn_input: str | None = None
+    norm_variant_attn_output: str | None = None
+    norm_variant_mlp_input: str | None = None
+    norm_variant_mlp_output: str | None = None
     norm_variant_output: str = "rmsnorm"
+
+    # STE norm uses the selected norm in the forward pass and substitutes the
+    # selected activation's gradient in the backward pass.
+    ste_norm_forward_variant: str = "rmsnorm"
+    ste_norm_backward_activation: str = "identity"
 
     norm_variant_wte: str | None = None
     norm_wte_radius: float | None = None
