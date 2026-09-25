@@ -61,6 +61,10 @@ def parse_arguments():
                              "Alternatively run `huggingface-cli login` once, or set the "
                              "HF_TOKEN environment variable. You must also accept the model's "
                              "license at https://huggingface.co/<repo> while logged in.")
+    parser.add_argument("--hf_exclude_token_ids", type=int, nargs="*", default=None,
+                        help="Token IDs that user text must never produce. For fast BPE "
+                             "tokenizers (including Gemma 3), the input-only BPE graph is "
+                             "pruned while the original tokenizer remains available for decoding.")
 
     # Sine wave tokenizer arguments
     parser.add_argument("--sine_period", type=float, default=1.0,

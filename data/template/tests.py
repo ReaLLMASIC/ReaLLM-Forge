@@ -5,6 +5,7 @@ import os
 import sys
 import pickle
 import json
+from unittest.mock import patch
 import prepare
 from nanogpt_tokenizers import (
     SentencePieceTokenizer,
@@ -226,6 +227,43 @@ class TestTokenizers(unittest.TestCase):
         import shutil
         if os.path.isdir("hf_tokenizer"):
             shutil.rmtree("hf_tokenizer", ignore_errors=True)
+
+    def test_huggingface_tokenizer_excludes_bpe_id_without_breaking_decode(self):
+        try:
+            from tokenizers import Tokenizer as BackendTokenizer
+            from tokenizers.models import BPE
+            from transformers import PreTrainedTokenizerFast
+        except ImportError:
+            self.skipTest("transformers/tokenizers packages not installed")
+
+        backend = BackendTokenizer(BPE(
+            vocab={"a": 0, "b": 1, "ab": 2},
+            merges=[("a", "b")],
+        ))
+        original = PreTrainedTokenizerFast(tokenizer_object=backend)
+        args = Namespace(
+            hf_tokenizer_name="local-test-bpe",
+            hf_trust_remote_code=False,
+            hf_use_fast=True,
+            hf_exclude_token_ids=[2, 2],
+            meta_output_path="meta.pkl",
+        )
+
+        with patch("transformers.AutoTokenizer.from_pretrained", return_value=original):
+            tokenizer = HuggingFaceTokenizer(args)
+        ids = tokenizer.tokenize("ab")
+
+        self.assertEqual(ids, [0, 1])
+        self.assertNotIn(2, ids)
+        self.assertEqual(tokenizer.detokenize([2]), "ab")
+        with open("meta.pkl", "rb") as f:
+            meta = pickle.load(f)
+        self.assertEqual(meta["hf_excluded_token_ids"], [2])
+        self.assertTrue(os.path.isdir(meta["hf_input_tokenizer_path"]))
+
+        import shutil
+        for path in ("hf_tokenizer", "hf_input_tokenizer"):
+            shutil.rmtree(path, ignore_errors=True)
 
 
     def test_custom_tokenizer(self):
