@@ -186,6 +186,18 @@ def parse_args():
         help='Weight for ratio penalty in top1_ratio loss.',
     )
     training_group.add_argument(
+        '--top1_corrective_boost',
+        type=float,
+        default=1.0,
+        help='Incorrect-token boost for top1_corrective_ce and merged top-1 losses.',
+    )
+    training_group.add_argument(
+        '--top1_confidence_gap_beta',
+        type=float,
+        default=0.5,
+        help='Weight for the top-competitor gap penalty in confidence-gap and merged top-1 losses.',
+    )
+    training_group.add_argument(
         '--flatness_beta',
         type=float,
         default=1.0,
