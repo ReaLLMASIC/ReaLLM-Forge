@@ -1,0 +1,76 @@
+{
+  "model": "Qwen/Qwen2.5-1.5B",
+  "revision": "main",
+  "output": "runs/h100_math_study",
+  "device": "cuda",
+  "memory_limit_gib": 70,
+  "memory_fraction": 0.9,
+  "seq_len": 1024,
+  "micro_batch": 1,
+  "accumulation": 16,
+  "head_chunk": 128,
+  "a_steps": 0,
+  "b_steps": 1200,
+  "a_lr": 3e-05,
+  "lrs": [
+    1e-05,
+    3e-05
+  ],
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "modes": [
+    "full",
+    "freeze_head",
+    "freeze_embed",
+    "freeze_both"
+  ],
+  "eval_every": 200,
+  "save_every": 50,
+  "log_every": 10,
+  "probe_blocks": 4,
+  "data": {
+    "a": {
+      "id": "Salesforce/wikitext",
+      "config": "wikitext-103-raw-v1",
+      "text_field": "text",
+      "splits": {
+        "train": "train",
+        "validation": "validation",
+        "test": "test"
+      },
+      "min_chars": 64,
+      "train_tokens": 4194304,
+      "validation_tokens": 131072,
+      "test_tokens": 131072
+    }
+  },
+  "sft": {
+    "id": "openai/gsm8k",
+    "config": "main",
+    "validation_fraction": 0.1,
+    "train_limit": null,
+    "validation_limit": null,
+    "test_limit": null,
+    "max_new_tokens": 384,
+    "accuracy_gain_targets": [
+      0.05,
+      0.1,
+      0.15
+    ]
+  },
+  "benchmarks": {
+    "tasks": [
+      "hellaswag",
+      "arc_easy",
+      "arc_challenge",
+      "piqa",
+      "boolq"
+    ],
+    "limit": 0,
+    "max_length": 2048
+  },
+  "retention_label": "Retention of the original pretrained checkpoint after response-only GSM8K task fine-tuning"
+}
