@@ -1,0 +1,73 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Python bytecode and native extensions
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.dylib
+
+# Virtual environments and local configuration
+.venv/
+venv/
+env/
+ENV/
+.conda/
+.direnv/
+.python-version
+.env
+.env.*
+!.env.example
+
+# Python packaging and generated distributions
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+*.whl
+*.tar.gz
+*.zip
+
+# Tests, coverage, notebooks, and static-analysis caches
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+coverage-report.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.hypothesis/
+.ipynb_checkpoints/
+
+# Downloaded catalogues and generated demo output
+/data/ccd.json
+/data/downloads/
+/out/
+/tmp/
+/.cache/
+
+# Generated document transformations and reports at repository root
+/*.ids.txt
+/*_factored.txt
+/*_restored.txt
+/*.restored.txt
+/*.report.json
+/input*.txt
+/document*.txt
+
+# Logs and local scratch data
+*.log
+*.tmp
+*.bak
