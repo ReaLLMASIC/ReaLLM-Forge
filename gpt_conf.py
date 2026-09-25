@@ -398,6 +398,15 @@ class GPTConfig:
 
     # Layernorm Alternatives and Options
     norm_variant_attn: str = "rmsnorm"
+    # Defaults to norm_variant_attn when None, preserving older configs/checkpoints.
+    norm_variant_mlp: str | None = None
+    # More granular block norm variants. Input variants apply to pre-norms;
+    # output variants apply to peri/post norms. None falls back to the
+    # corresponding component norm above.
+    norm_variant_attn_input: str | None = None
+    norm_variant_attn_output: str | None = None
+    norm_variant_mlp_input: str | None = None
+    norm_variant_mlp_output: str | None = None
     norm_variant_output: str = "rmsnorm"
 
     norm_variant_wte: str | None = None
