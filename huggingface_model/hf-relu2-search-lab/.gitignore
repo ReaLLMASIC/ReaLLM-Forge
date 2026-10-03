@@ -1,0 +1,52 @@
+# Python environments and caches
+/venv/
+/.venv/
+/env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Training data, runs, checkpoints and generated reports
+/data/
+/runs/
+/outputs/
+/checkpoints/
+/logs/
+/my_model/
+checkpoint-*/
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# Hugging Face, Torch and Triton caches
+/.cache/
+/.huggingface/
+/hf_cache/
+/torch_cache/
+/.triton/
+/triton_cache/
+/torch_compile_debug/
+
+# Build artifacts
+/build/
+/dist/
+*.egg-info/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
