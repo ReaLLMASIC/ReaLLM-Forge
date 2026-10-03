@@ -1,0 +1,12 @@
+...........................sssssssssssssssssssssssssssssssssssssss...... [ 49%]
+...................................ssssssss.....ssssss.................. [ 99%]
+.                                                                        [100%]
+=============================== warnings summary ===============================
+tests/test_context_pipeline.py::test_bias_and_length_scaling_resume_exactly_with_muon[none]
+tests/test_output_norm.py::test_twenty_four_run_smoke_and_exact_resume_for_both_conditions
+  /workspace/scratch/0734da7bf141/bf16-fix/venv/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1601: FutureWarning: `clean_up_tokenization_spaces` was not set. It will be set to `True` by default. This behavior will be depracted in transformers v4.45, and will be then set to `False` by default. For more details check this issue: https://github.com/huggingface/transformers/issues/31884
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /workspace/scratch/0734da7bf141/bf16-fix/work/relu2-context-lab/validation/bf16_fix_pytest.xml -
+92 passed, 53 skipped, 2 warnings in 220.53s (0:03:40)
