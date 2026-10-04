@@ -5,7 +5,7 @@ An interactive, entirely client-side experiment for the native geometry of tied 
 ## Experiment
 
 - configurable residual/model dimension `2–128`; default `3`
-- active master row radius `sqrt(modelDim)` in the full model space
+- selectable fixed `sqrt(modelDim)` radius (default) or free-radius tied rows
 - `1–8` pre-RMSNorm decoder blocks; attention + MLP, attention only, or MLP only
 - `1–16` heads; independent Q/K and V/O widths per head (`1–128`)
 - attention hidden width is the concatenated value width `heads × valueHeadDim`; linked controls edit the same quantity
@@ -16,14 +16,60 @@ An interactive, entirely client-side experiment for the native geometry of tied 
 - optional seeded first-order Markov transition matrix over the original numeric target IDs
 - configurable batch size (`1–100`) of shifted cyclic sequences
 - configurable `0–100` randomly initialized untargeted rows; more can be placed on the sphere during training, up to 100 total
-- one shared tied WTE / LM-head table with every active row constrained to the sphere
-- optimizer: manual AdamW or RMSProp
-- every active tied row is reprojected after every optimizer update
+- one shared tied WTE / LM-head table in either radius mode
+- optimizer: manual AdamW or RMSProp, with editable decoupled weight decay
+- fixed mode reprojects each active tied row after each optimizer update; free mode skips projection
 - TensorFlow.js uses its CPU backend only
 
-The selected iteration is defined **after** its spherical projection and **before** the next optimizer update. Every displayed frame stores row positions, raw tied-row gradients, constrained forces, realized optimizer displacements, all batch hidden states, and the active softmax log partition.
+The selected iteration is defined **after** the completed optimizer step (and projection in fixed mode) and **before** the next update. Every displayed frame stores row positions, raw tied-row gradients, radial/tangential decomposition, realized optimizer displacements, all batch hidden states, and the active softmax log partition.
 
 The iteration limit is independent of model setup. Raising it with **Set + resume** continues the current weights, optimizer moments, manually placed rows, and complete timeline. The timeline can replay all collected frames at `0.25×–4×` speed without changing the model.
+
+## Fixed or free LM-head radius (version 9.1.0)
+
+In **Experiment**, set **LM-head radius** to **Fixed radius √d** or **Free radius · no projection**. Choose **AdamW** and enter **Weight decay λ** (zero disables decay), then select **Apply model + optimizer**. This resets weights, optimizer moments, and timeline using all current drafts. Changing a draft does not alter a running experiment. Applied optimizer, learning rate, weight decay, and radius mode are recorded in every frame and displayed in Diagnostics.
+
+The input embeddings and output head remain the same tied table. Both modes start with identical row directions and norms `R0=sqrt(d)` for a given seed; free mode then skips all per-step row renormalization. Existing non-token parameters keep the same training behavior. Newly inserted rows start on the reference sphere at R0 in both modes and subsequently follow the selected mode. Thus free mode permits both angular and radial motion and affects both the input and output use of the tied weights.
+
+| Feature | Fixed radius | Free radius |
+| --- | --- | --- |
+| Rows, trails, replay, loss, accuracy, untargeted mass/distances | Available | Available at actual coordinates |
+| CE-force arrows | Tangential negative gradient | Full ambient negative gradient |
+| Optimizer arrows | Actual final step after projection | Actual full step, including momentum and decay |
+| Radial/tangential decomposition | Available | Available using each row's current norm |
+| Hidden means in free space | Available | Available |
+| Projected hidden means | On the row sphere | On the R0 reference sphere, for comparison only |
+| Spherical probe heatmap and sparse probe arrows | Available for d ≥ 3 | Disabled with an explanation |
+| Norm diagnostics | Deviation from R0 | Min/mean/max row norm and selected row norm |
+| QAT, insertion, architecture options, Markov data, removal/restoration/duty cycles | Available | Available |
+
+In free mode the reference sphere is a guide, not a constraint or a depiction of a loss surface. The view fits current row coordinates and the visible 160-frame trail window, plus raw hidden means when enabled. It does not radially rescale rows. In d > 3 only coordinates 1–3 are displayed; numeric norms, forces, and diagnostics still use all d coordinates. The projected hidden means are computed in full dimension before cropping. At a zero row norm, the radial direction is undefined: the viewer shows only the ambient force, and the inspector leaves split components unavailable. The internal finite-vector convention assigns zero radial component at the origin.
+
+### AdamW and weight decay
+
+Let `w_t` be a trainable parameter vector before update t, `g_t` its current batch-CE gradient (identity-STE surrogate during QAT), `η` the learning rate, and `λ` the entered weight decay. The optimizer maintains first and second moments `m_t` and `v_t`; `m_hat_t` and `v_hat_t` are their bias-corrected values. The AdamW proposal is elementwise:
+
+```text
+m_t     = 0.9  m_(t−1) + 0.1  g_t
+v_t     = 0.99 v_(t−1) + 0.01 g_t²
+m_hat_t = m_t / (1 − 0.9^t)
+v_hat_t = v_t / (1 − 0.99^t)
+w_next  = (1 − ηλ) w_t − η m_hat_t / (sqrt(v_hat_t) + 1e−8)
+```
+
+The optimizer-update counter t advances only when the dataset is nonempty. In **free** mode `w_next` is retained directly. In **fixed** mode each active tied row is subsequently projected to R0; other parameters are not projected. Decoupled decay applies to every trainable parameter, including tied rows, other matrices, biases, and RMSNorm gains. Inactive reserved vocabulary rows are excluded. RMSProp also retains its existing decoupled-decay behavior. Empty-data phases perform no decay or optimizer update.
+
+For a nonzero row w, write `r=||w||` and let g be its CE gradient. The geometric force split uses the actual current r:
+
+```text
+F       = −g
+F_rad   = −w (wᵀg) / r²
+F_tan   = F − F_rad
+```
+
+Both components remain in free-radius optimization. CE-force arrows exclude the separately applied decay step `−ηλw`, momentum, and adaptive preconditioning. The observed optimizer arrow includes all of them. The move/force cosine compares the previous observed step with the current frame's CE force; it is not a same-step optimizer identity.
+
+With one output class, CE and its gradient are zero. For initially zero moments, free-radius AdamW therefore gives `w_t=(1−ηλ)^t w_0`, while λ=0 leaves the row fixed. The regression suite checks this analytic case, the full AdamW update with nonzero gradients, current-radius decomposition, and compatibility with the existing experiment features.
 
 ## Architecture and higher-dimensional views
 
@@ -31,9 +77,9 @@ Architecture controls are drafts until **Apply + reset timeline**. Reset uses th
 
 Each attention block projects D→H·dQK independently for queries and keys and D→H·dV for values. Causal attention is scaled by sqrt(dQK); concatenated head outputs pass through Wₒ of shape [H·dV,D]. Model dimension need not divide by head count. Each enabled sublayer uses pre-RMSNorm and a residual connection; final RMSNorm feeds the shared tied output table. MLP biases remain enabled. RoPE rotates projected Q/K, not values, and allocates no learned positional table. MLP-only blocks have no cross-position mixing and require learned absolute embeddings. Inactive sublayer parameters are not allocated. Initialization scales vary with input width to preserve the original default scales while increasing dimensions.
 
-Training, normalization, tangent projection, hidden-state means, pair distances, and numerical diagnostics use every model dimension. The 3D viewer crops to coordinates 1–3 (z=0 for D=2) without renormalizing. High-dimensional rows and projected hidden means may therefore lie inside the reference sphere. The probe is a coordinate-sphere slice with coordinates 4…D fixed at zero, and its tangential arrows omit forces outside this slice. Existing-row arrows show the first three components of the full-D tangent vector. The 2D model displays the XY circle and disables the spherical probe surface. Insertion uses the displayed coordinate slice, initializing other coordinates to zero; all coordinates can evolve on later updates.
+Training, normalization, tangent projection, hidden-state means, pair distances, and numerical diagnostics use every model dimension. The 3D viewer crops to coordinates 1–3 (z=0 for D=2) without renormalizing. High-dimensional rows and projected hidden means may therefore lie inside the reference sphere. The probe is a coordinate-sphere slice with coordinates 4…D fixed at zero, and its tangential arrows omit forces outside this slice. Existing-row CE arrows show the first three components of the full-D tangent vector in fixed mode or ambient negative gradient in free mode. The 2D model displays the XY circle and disables the spherical probe surface. Insertion uses the displayed coordinate slice, initializing other coordinates to zero; all coordinates can evolve on later updates.
 
-Parameter counts exclude inactive reserved vocabulary capacity. The CPU viewer checks combined compute limits (2 million allocated parameters, 4 million attention-score cells across layers, and an approximate 100 million forward multiply-accumulates) before allocation. History estimates include full hidden states, full row vectors, and display copies; reset/limit changes reject estimates above 1 GiB. These are interactive safeguards, not hardware-independent performance guarantees. AdamW retains beta1=.9 and beta2=.99; RMSProp decay=.99. Inactive reserved vocabulary rows no longer receive weight decay; insertion initializes a new constrained row and zero moments. The displayed move/force cosine compares the prior observed move to the current force, in full dimension.
+Parameter counts exclude inactive reserved vocabulary capacity. The CPU viewer checks combined compute limits (2 million allocated parameters, 4 million attention-score cells across layers, and an approximate 100 million forward multiply-accumulates) before allocation. History estimates include full hidden states, full row vectors, and display copies; reset/limit changes reject estimates above 1 GiB. These are interactive safeguards, not hardware-independent performance guarantees. AdamW retains beta1=.9 and beta2=.99; RMSProp decay=.99. Inactive reserved vocabulary rows no longer receive weight decay; insertion initializes a new row at sqrt(modelDim) with zero moments, then follows the active radius mode. The displayed move/force cosine compares the prior observed move to the current force, in full dimension.
 
 ## Dataset source: direct cycle or Markov matrix
 
@@ -72,7 +118,7 @@ Under **View → Average hidden states**, independently enable **Projected on sp
 
 Let `h_i` be the actual post-final-RMSNorm hidden vector supplied to the LM head, `y_i` its next-token target, and `n_j` the number of positions with target `j` in the frame. This simulator gives all valid positions equal CE weight. It records `μ_j = sum(h_i for y_i=j) / n_j`. Free space draws `μ_j`; the sphere draws `R μ_j / ||μ_j||`, with `R=sqrt(modelDim)`. **Average first, then project**; averaging individually normalized hidden states would be a different quantity. These points are hidden-state means, not trained vocabulary rows or force minima.
 
-Targets without observed labels in the selected batch have no samples and no marker. A zero mean can appear at the origin in free space, but its undefined sphere direction is omitted. Each immutable snapshot stores its own means and sample counts, including frames created by target restoration or QAT changes. Averages use the same post-projection/pre-next-update model state as that frame's fields. This is a per-frame batch average, not a moving average over training iterations.
+Targets without observed labels in the selected batch have no samples and no marker. A zero mean can appear at the origin in free space, but its undefined sphere direction is omitted. Each immutable snapshot stores its own means and sample counts, including frames created by target restoration or QAT changes. Averages use the same post-update/pre-next-update model state as that frame's fields. This is a per-frame batch average, not a moving average over training iterations.
 
 ## Quantization-aware training
 
@@ -80,7 +126,7 @@ Choose full precision, ternary (`−1,0,1`), signed int3 (`−4…3`), int4 (`�
 
 Weight-only fake quantization applies to the shared active token embedding/head, positional embeddings, and attention/MLP matrices. Activations, biases, RMSNorm gains, master weights, and optimizer state stay in full precision. Each tensor uses zero point 0 and its own detached scale `s = max(maxPositive/qmax, minNegative/qmin)`; all-zero tensors use scale 1. Rounding chooses the nearest code, with half steps away from zero, then clips to the codebook. Inactive reserved token rows do not affect calibration.
 
-The forward weight is `W_eff = (1 − α) W + α Q(W)`. The backward pass uses the identity straight-through estimator `dW_eff/dW := 1`, including clipping; gradients do not pass through calibration. Sphere projection applies only to master token rows. Effective rows are not renormalized and may leave the sphere. The row inspector displays both master and forward coordinates, and the diagnostics report embedding RMSE.
+The forward weight is `W_eff = (1 − α) W + α Q(W)`. The backward pass uses the identity straight-through estimator `dW_eff/dW := 1`, including clipping; gradients do not pass through calibration. In fixed mode, sphere projection applies only to master token rows. Free mode skips this projection, including during QAT. Effective rows are not renormalized and may leave the sphere. The row inspector displays both master and forward coordinates, and the diagnostics report embedding RMSE.
 
 - **Linear blend** (default): `α(t) = clamp((t − start)/duration, 0, 1)`, default duration 200 iterations.
 - **Cosine blend**: `α = (1 − cos(π × progress))/2` for the same clamped progress.
@@ -93,13 +139,13 @@ The gradient in snapshot `t` drives update `t → t+1` using `α(t)`. At the end
 
 ## Force conventions
 
-For an active row `w` and ambient cross-entropy gradient `g`, the constrained negative-gradient force is
+For an active fixed-radius row `w`, radius `R=sqrt(modelDim)`, and ambient cross-entropy gradient `g`, the constrained negative-gradient force is
 
 ```text
 F_tangent = -(I - w wᵀ / R²) g.
 ```
 
-The probe heatmap freezes the selected frame. At each point `u` on the sphere it counterfactually inserts one new untargeted output row:
+The probe heatmap is available only in fixed-radius mode with at least 3 model dimensions. It freezes the selected frame. At each point `u` on the sphere it counterfactually inserts one new untargeted output row:
 
 ```text
 p_u(s) = sigmoid(uᵀ h_s - log Z_s)
@@ -109,21 +155,21 @@ F(u)   = -(I - u uᵀ / R²) g(u)
 
 At full precision this is an exact instantaneous force field, not a future-trajectory prediction. Existing targeted-row gradients additionally include tied input-side effects. Existing untargeted-row gradients equal the denominator-only expression because those rows never occur in the cyclic training batch.
 
-With QAT, tangent arrows are STE surrogate forces on master rows, not derivatives of the discontinuous rounded loss. The probe uses `u_eff = (1 − α)u + αQ(u)` inside the logit, with the saved embedding scale frozen. Its probabilities and insertion potential use that effective logit; force arrows use the identity STE. Actual insertion may recalibrate the shared embedding scale and change existing logits. The unused-gradient check uses effective row logits and compares the analytic surrogate with autodiff.
+With QAT, CE arrows are STE surrogate forces on master rows, not derivatives of the discontinuous rounded loss. The probe uses `u_eff = (1 − α)u + αQ(u)` inside the logit, with the saved embedding scale frozen. Its probabilities and insertion potential use that effective logit; force arrows use the identity STE. Actual insertion may recalibrate the shared embedding scale and change existing logits. The unused-gradient check uses effective row logits and compares the analytic surrogate with autodiff.
 
 ## Views
 
 1. token rows and trails;
-2. actual tied-row CE tangent-force arrows;
-3. observed optimizer displacement after reprojection;
-4. probe force / potential / probability / radial heatmaps;
-5. ambient, tangent, and removed-radial decomposition.
+2. tied-row CE force arrows: tangent in fixed mode, ambient in free mode;
+3. observed optimizer displacement, including projection only in fixed mode;
+4. fixed-radius probe force / potential / probability / radial heatmaps;
+5. ambient, tangent, and radial decomposition at the selected row.
 
 The timeline retains every iteration up to the user-selected limit (maximum `50,000`). The interface estimates the in-memory history size before reset because larger batches and token counts retain more hidden-state data per frame. A compatibility Canvas renderer preserves the full experiment when WebGL is unavailable; browsers with WebGL use the Three.js scene.
 
 ## Run locally
 
-Standalone React + Vite package, version **9.0.1**. Requirements and repository
+Standalone React + Vite package, version **9.1.0**. Requirements and repository
 instructions are in [REPOSITORY_SETUP.md](REPOSITORY_SETUP.md).
 
 ```sh
@@ -139,4 +185,4 @@ pnpm build
 pnpm preview
 ```
 
-The UI continuously reports maximum row-norm error, normalized tangency residual, and—after an untargeted row is active—the discrepancy between TensorFlow.js autodiff and the analytic denominator-only gradient.
+The UI reports fixed-mode row-norm error or free-mode norm statistics, normalized tangency residual, and—after an untargeted row is active—the discrepancy between TensorFlow.js autodiff and the analytic denominator-only gradient.

@@ -1,6 +1,6 @@
 # Sphere Force Lab — standalone setup
 
-Package version: **9.0.1**. See `VERSION.txt` for source provenance.
+Package version: **9.1.0**. See `VERSION.txt` for source provenance.
 This is a browser-only React + Vite app. It needs no account, API key, database,
 server application, or platform-specific deployment integration.
 
@@ -37,7 +37,7 @@ pnpm build
 pnpm preview
 ```
 
-`pnpm test` runs the existing quantization, architecture, and dataset checks.
+`pnpm test` runs the quantization, architecture, dataset, and fixed/free-radius checks.
 `pnpm build` runs TypeScript checking and produces static files in `dist/`.
 `pnpm preview` serves the build at **http://localhost:4173** for local review.
 `pnpm start` is an alias for the same local preview.
@@ -57,10 +57,11 @@ verification scripts, setup documentation, and a dependency lockfile.
 Installed dependencies, generated builds, caches, Git history, and saved
 training sessions are not included.
 
-The simulator, fields, datasets, controls, and numerical verification logic
-are unchanged from app version 9. This package replaces the hosting framework
-with a static React entry point and removes unused starter components,
-server-side authentication, database examples, and deployment integration.
+Version 9.1.0 adds free-radius tied rows, mode-aware force views and norm
+diagnostics, and explicit optimizer/decay settings. The fixed-radius default is
+retained. This remains a standalone static React app with no server-side
+authentication, database examples, or deployment integration. See README.md for
+the control workflow and compatibility table.
 
 ## Main files
 

@@ -20,12 +20,21 @@ export function tokenLabel(index: number, targetCount: number) {
 }
 
 export type OptimizerKind = "adamw" | "rmsprop";
+export type RadiusMode = "fixed" | "free";
+
+export function validateTrainingSettings(config: Pick<SimConfig, "optimizer" | "learningRate" | "weightDecay" | "radiusMode">) {
+  if (!["adamw", "rmsprop"].includes(config.optimizer)) throw new Error("Unknown optimizer.");
+  if (!Number.isFinite(config.learningRate) || config.learningRate <= 0) throw new Error("Learning rate must be finite and positive.");
+  if (!Number.isFinite(config.weightDecay) || config.weightDecay < 0) throw new Error("Weight decay must be finite and nonnegative.");
+  if (config.radiusMode !== undefined && !["fixed", "free"].includes(config.radiusMode)) throw new Error("LM-head radius mode must be fixed or free.");
+}
 
 export type SimConfig = {
   seed: number;
   optimizer: OptimizerKind;
   learningRate: number;
   weightDecay: number;
+  radiusMode?: RadiusMode;
   targetedTokens: number;
   untargetedTokens: number;
   batchSize: number;
@@ -44,6 +53,10 @@ export type InsertionEvent = {
 export type Snapshot = {
   modelDim: number;
   radius: number;
+  radiusMode: RadiusMode;
+  optimizer: OptimizerKind;
+  learningRate: number;
+  weightDecay: number;
   architecture: ArchitectureConfig;
   sequenceLength: number;
   parameterCount: number;
@@ -60,6 +73,7 @@ export type Snapshot = {
   batchSize: number;
   activeVocab: number;
   positions: Float32Array;
+  rowNorms: Float32Array;
   effectivePositions: Float32Array;
   qat: QatConfig;
   qatBlend: number;
@@ -75,6 +89,11 @@ export type Snapshot = {
   unusedMass: number;
   meanTangentForce: number;
   maxTangentForce: number;
+  meanForce: number;
+  maxForce: number;
+  minRowNorm: number;
+  meanRowNorm: number;
+  maxRowNorm: number;
   meanLetterDistance: number;
   maxNormError: number;
   projectionCorrection: number;
@@ -176,6 +195,7 @@ export function fakeQuantize(weight: tf.Tensor, config: QatConfig, alpha: number
 export type ProbeMode = "force" | "potential" | "probability" | "radial";
 
 export function probeAt(snapshot: Snapshot, point: ArrayLike<number>) {
+  if (snapshot.radiusMode === "free") throw new Error("The spherical probe is unavailable in free-radius mode.");
   const u = point;
   const effective = Array.from(point, (value) => (1 - snapshot.qatBlend) * value + snapshot.qatBlend * quantizeValue(value, snapshot.qat.format, snapshot.embeddingScale));
   const nSamples = snapshot.logPartition.length;
@@ -223,6 +243,7 @@ export class TransformerSphereSimulation {
   readonly architecture: ArchitectureConfig;
   readonly modelDim: number;
   readonly radius: number;
+  readonly radiusMode: RadiusMode;
   readonly variables: NamedVars;
   readonly events: InsertionEvent[] = [];
   readonly history: Snapshot[] = [];
@@ -249,8 +270,9 @@ export class TransformerSphereSimulation {
     this.architecture = validateArchitecture(config.architecture ?? { maxContextLength: config.targetedTokens }, config.batchSize, config.targetedTokens + MAX_UNTARGETED_TOKENS);
     this.modelDim = this.architecture.modelDim;
     this.radius = Math.sqrt(this.modelDim);
+    this.radiusMode = config.radiusMode ?? "fixed";
     this.datasetConfig = validateDataset(config.dataset, config.targetedTokens, config.seed);
-    this.config = { ...config, architecture: this.architecture, dataset: this.datasetConfig };
+    this.config = { ...config, radiusMode: this.radiusMode, architecture: this.architecture, dataset: this.datasetConfig };
     this.qatConfig = validateQat(config.qat ?? DEFAULT_QAT);
     this.activeVocab = config.targetedTokens + config.untargetedTokens;
     this.lastMoves = new Float32Array((config.targetedTokens + MAX_UNTARGETED_TOKENS) * this.modelDim);
@@ -313,6 +335,7 @@ export class TransformerSphereSimulation {
   }
 
   static async create(config: SimConfig) {
+    validateTrainingSettings(config);
     validateQat(config.qat ?? DEFAULT_QAT);
     if (!Number.isInteger(config.targetedTokens) || config.targetedTokens < 1 || config.targetedTokens > MAX_TARGET_TOKENS) {
       throw new Error(`Targeted tokens must be an integer from 1 to ${MAX_TARGET_TOKENS}.`);
@@ -459,24 +482,37 @@ export class TransformerSphereSimulation {
     for (let i = 0; i < positions.length; i += 1) quantizationError += (positions[i] - effectivePositions[i]) ** 2;
     const raw = Float32Array.from(allGradients.wte.slice(0, this.activeVocab * this.modelDim));
     const tangent = new Float32Array(this.activeVocab * this.modelDim);
+    const rowNorms = new Float32Array(this.activeVocab);
     let forceSum = 0;
     let forceMax = 0;
+    let tangentSum = 0;
+    let tangentMax = 0;
+    let normSum = 0;
+    let normMin = Infinity;
+    let normMax = 0;
     let normError = 0;
     let tangencyError = 0;
     for (let row = 0; row < this.activeVocab; row += 1) {
       const o = row * this.modelDim;
-      let dot = 0, norm2 = 0, force2 = 0, tangentDot = 0;
-      for (let d = 0; d < this.modelDim; d++) { dot += positions[o + d] * raw[o + d]; norm2 += positions[o + d] ** 2; }
-      const c = dot / (this.radius * this.radius);
+      let dot = 0, norm2 = 0, force2 = 0, raw2 = 0, tangentDot = 0;
+      for (let d = 0; d < this.modelDim; d++) { dot += positions[o + d] * raw[o + d]; norm2 += positions[o + d] ** 2; raw2 += raw[o + d] ** 2; }
+      const norm = Math.sqrt(norm2);
+      rowNorms[row] = norm;
+      normSum += norm; normMin = Math.min(normMin, norm); normMax = Math.max(normMax, norm);
+      // Free rows use their own current radius for the geometric decomposition.
+      // At the origin there is no radial direction; retain the ambient force.
+      const c = this.radiusMode === "fixed" ? dot / (this.radius * this.radius) : norm2 > 0 ? dot / norm2 : 0;
       for (let d = 0; d < this.modelDim; d++) {
         const f = -raw[o + d] + c * positions[o + d];
         tangent[o + d] = f; force2 += f * f; tangentDot += positions[o + d] * f;
       }
       const fn = Math.sqrt(force2);
-      tangencyError = Math.max(tangencyError, Math.abs(tangentDot) / (this.radius * Math.max(fn, 1e-12)));
-      forceSum += fn;
-      forceMax = Math.max(forceMax, fn);
-      normError = Math.max(normError, Math.abs(Math.sqrt(norm2) - this.radius));
+      if (norm > 0) tangencyError = Math.max(tangencyError, Math.abs(tangentDot) / (norm * Math.max(fn, 1e-12)));
+      tangentSum += fn; tangentMax = Math.max(tangentMax, fn);
+      const shownForceNorm = this.radiusMode === "free" ? Math.sqrt(raw2) : fn;
+      forceSum += shownForceNorm;
+      forceMax = Math.max(forceMax, shownForceNorm);
+      normError = Math.max(normError, Math.abs(norm - this.radius));
     }
     let distanceSum = 0;
     let pairs = 0;
@@ -509,6 +545,8 @@ export class TransformerSphereSimulation {
     }
     const snapshot: Snapshot = {
       modelDim: this.modelDim, radius: this.radius, architecture: this.architecture,
+      radiusMode: this.radiusMode, optimizer: this.config.optimizer,
+      learningRate: this.config.learningRate, weightDecay: this.config.weightDecay,
       sequenceLength: this.inputs.shape[1],
       parameterCount: architectureParameterCount(this.architecture, this.activeVocab),
       dataset: this.datasetSnapshot,
@@ -523,6 +561,7 @@ export class TransformerSphereSimulation {
       batchSize: this.config.batchSize,
       activeVocab: this.activeVocab,
       positions,
+      rowNorms,
       effectivePositions,
       qat: { ...this.qatConfig },
       qatBlend: blendAt(this.qatConfig, this.step),
@@ -537,12 +576,15 @@ export class TransformerSphereSimulation {
       hiddenMeans: averageHiddenByTarget(diagnostics.hidden, this.targets.dataSync(), this.config.targetedTokens, this.radius, this.modelDim),
       logPartition: diagnostics.logPartition,
       unusedMass: diagnostics.unusedMass,
-      meanTangentForce: forceSum / this.activeVocab,
-      maxTangentForce: forceMax,
+      meanTangentForce: tangentSum / this.activeVocab,
+      maxTangentForce: tangentMax,
+      meanForce: forceSum / this.activeVocab,
+      maxForce: forceMax,
+      minRowNorm: normMin, meanRowNorm: normSum / this.activeVocab, maxRowNorm: normMax,
       meanLetterDistance: pairs ? distanceSum / pairs : 0,
-      maxNormError: normError,
+      maxNormError: this.radiusMode === "fixed" ? normError : Number.NaN,
       projectionCorrection: this.lastProjectionCorrection,
-      optimizerForceCosine: cosine(moves, tangent),
+      optimizerForceCosine: cosine(moves, this.radiusMode === "fixed" ? tangent : raw.map(value => -value)),
       maxTangencyError: tangencyError,
       unusedGradientError,
     };
@@ -579,7 +621,7 @@ export class TransformerSphereSimulation {
             this.config.learningRate * grad[i] / (Math.sqrt(s[i]) + 1e-8);
         }
       }
-      if (name === "wte") {
+      if (name === "wte" && this.radiusMode === "fixed") {
         const proposed = new Float32Array(values);
         const projected = normalizeRows(values, this.activeVocab, this.modelDim);
         for (let i = 0; i < this.activeVocab * this.modelDim; i += 1) {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SphereSceneProps } from "@/components/sphere-scene";
 import { D_MODEL, probeAt, tokenLabel } from "@/lib/simulator";
+import { displayExtent, displayedRowForce, supportsSphericalProbe } from "@/lib/view-projection";
 
 type Vec3 = [number, number, number];
 
@@ -82,7 +83,7 @@ export function CanvasSphereFallback(props: SphereSceneProps) {
   const [sizeTick, setSizeTick] = useState(0);
   const dragRef = useRef({ down: false, moved: false, id: -1, x: 0, y: 0, yaw: 0, pitch: 0 });
   const [hover, setHover] = useState<Vec3 | null>(null);
-  const extent = showHiddenInSpace ? Math.max(RADIUS, ...snapshot.hiddenMeans.map(item => Math.hypot(...item.mean))) : RADIUS;
+  const extent = displayExtent(snapshot, history, frameIndex, showTrails, showHiddenInSpace);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -135,7 +136,8 @@ export function CanvasSphereFallback(props: SphereSceneProps) {
     };
 
     let range = rangeFor(probeMode);
-    if (mode === "probe" && snapshot.modelDim >= 3 && snapshot.includedTargetCount > 0 && frameAutoscale) {
+    const heatmapVisible = mode === "probe" && supportsSphericalProbe(snapshot) && snapshot.includedTargetCount > 0;
+    if (heatmapVisible && frameAutoscale) {
       let min = Infinity;
       let max = -Infinity;
       const scaleSteps = snapshot.logPartition.length > 5000 ? 6 : snapshot.logPartition.length > 2000 ? 8 : snapshot.logPartition.length > 500 ? 12 : 18;
@@ -155,7 +157,7 @@ export function CanvasSphereFallback(props: SphereSceneProps) {
     }
     onScale(range);
 
-    if (mode === "probe" && snapshot.modelDim >= 3 && snapshot.includedTargetCount > 0) {
+    if (heatmapVisible) {
       const sampleCount = snapshot.logPartition.length;
       const size = sampleCount > 5000 ? 48 : sampleCount > 2000 ? 64 : sampleCount > 500 ? 104 : 180;
       const offscreen = document.createElement("canvas");
@@ -235,7 +237,8 @@ export function CanvasSphereFallback(props: SphereSceneProps) {
     const arrow = (origin: Vec3, vector: Vec3, color: string, factor: number) => {
       const magnitude = Math.hypot(...vector);
       if (magnitude < 1e-10) return;
-      const length = normalizeArrows ? 0.48 : Math.max(0.08, Math.min(0.8, magnitude * factor));
+      const displayScale = Math.max(1, extent / RADIUS);
+      const length = normalizeArrows ? 0.48 * displayScale : Math.max(0.08 * displayScale, Math.min(0.8 * displayScale, magnitude * factor));
       const unit: Vec3 = [vector[0] / magnitude, vector[1] / magnitude, vector[2] / magnitude];
       const end: Vec3 = [origin[0] + unit[0] * length, origin[1] + unit[1] * length, origin[2] + unit[2] * length];
       const a = project(origin), b = project(end);
@@ -245,7 +248,7 @@ export function CanvasSphereFallback(props: SphereSceneProps) {
       ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - 8 * Math.cos(angle - .45), b.y - 8 * Math.sin(angle - .45)); ctx.lineTo(b.x - 8 * Math.cos(angle + .45), b.y - 8 * Math.sin(angle + .45)); ctx.closePath(); ctx.fill();
     };
 
-    if (mode === "probe" && snapshot.modelDim >= 3 && snapshot.includedTargetCount > 0 && showFieldArrows) {
+    if (heatmapVisible && showFieldArrows) {
       const golden = Math.PI * (3 - Math.sqrt(5));
       for (let i = 0; i < 42; i += 1) {
         const y = 1 - i / 41 * 2;
@@ -288,7 +291,7 @@ export function CanvasSphereFallback(props: SphereSceneProps) {
         ctx.fillText(label, p.x, p.y + .5);
       }
       ctx.globalAlpha = 1;
-      if (mode === "forces") arrow(world, [snapshot.tangentForces[o],snapshot.tangentForces[o+1],snapshot.tangentForces[o+2]], "#ff5bd6", 8);
+      if (mode === "forces") arrow(world, displayedRowForce(snapshot, token), "#ff5bd6", 8);
       if (mode === "optimizer") arrow(world, [snapshot.optimizerMoves[o],snapshot.optimizerMoves[o+1],snapshot.optimizerMoves[o+2]], "#73f7b5", 34);
     }
     if (showHiddenInSpace || showHiddenOnSphere) {
@@ -323,8 +326,10 @@ export function CanvasSphereFallback(props: SphereSceneProps) {
       const raw: Vec3 = [-snapshot.rawGradients[o],-snapshot.rawGradients[o+1],-snapshot.rawGradients[o+2]];
       const tangent: Vec3 = [snapshot.tangentForces[o],snapshot.tangentForces[o+1],snapshot.tangentForces[o+2]];
       arrow(world, raw, "#6bdcff", 8);
-      arrow(world, tangent, "#ff5bd6", 8);
-      arrow(world, [raw[0]-tangent[0],raw[1]-tangent[1],raw[2]-tangent[2]], "#ffc95d", 8);
+      if (snapshot.rowNorms[selectedToken] > 0) {
+        arrow(world, tangent, "#ff5bd6", 8);
+        arrow(world, [raw[0]-tangent[0],raw[1]-tangent[1],raw[2]-tangent[2]], "#ffc95d", 8);
+      }
     }
     if (hover) {
       const p = project(hover);
