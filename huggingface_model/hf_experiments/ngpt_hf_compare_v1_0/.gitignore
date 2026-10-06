@@ -1,0 +1,9 @@
+.venv/
+.hf_cache/
+data/
+runs/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pt
+*.pt.tmp

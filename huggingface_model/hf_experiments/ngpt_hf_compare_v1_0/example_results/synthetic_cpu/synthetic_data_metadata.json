@@ -1,0 +1,14 @@
+{
+  "dataset": "SYNTHETIC noisy cyclic transition test",
+  "synthetic": true,
+  "vocab_size": 32,
+  "dtype": "<u2",
+  "counts": {
+    "train": 65536,
+    "val": 8192
+  },
+  "sha256": {
+    "train": "8a91ff9f4fd46515b3b76d74ba4039e43f69f65654cf2e042ebcf305467c02c6",
+    "val": "1747b8ea3a2faf2a473491a9a811be172c79ecba1b16a11951b7f325eb684c94"
+  }
+}

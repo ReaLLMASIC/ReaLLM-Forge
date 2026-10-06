@@ -1,0 +1,70 @@
+{
+  "spec": {
+    "vocab_size": 32,
+    "width": 64,
+    "layers": 2,
+    "heads": 4,
+    "context": 32,
+    "variant": "gpt",
+    "rope_theta": 10000.0,
+    "alpha_init": 0.05,
+    "norm_eps": 1e-12,
+    "rms_eps": 1e-06,
+    "activation_checkpointing": false,
+    "weight_storage": "fp32",
+    "steps": 100,
+    "batch_size": 4,
+    "accumulation": 1,
+    "peak_lr": 0.003,
+    "warmup": 10,
+    "precision": "fp32",
+    "grad_clip": 1.0,
+    "seed": 0,
+    "data_seed": 1234,
+    "data_sha256": {
+      "train": "8a91ff9f4fd46515b3b76d74ba4039e43f69f65654cf2e042ebcf305467c02c6",
+      "val": "1747b8ea3a2faf2a473491a9a811be172c79ecba1b16a11951b7f325eb684c94"
+    },
+    "eval_batches": 2,
+    "eval_every": 10,
+    "loss_chunk": 128,
+    "core_only": true,
+    "deterministic": false,
+    "weight_decay": 0.1,
+    "adam_betas": [
+      0.9,
+      0.95
+    ],
+    "adam_eps": 1e-08
+  },
+  "parameter_count": 135488,
+  "backbone_matrix_parameter_count": 135168,
+  "synthetic": true,
+  "versions": {
+    "python": "3.13.5",
+    "torch": "2.10.0+cpu",
+    "cuda_runtime": null,
+    "transformers": "not installed",
+    "datasets": "not installed",
+    "numpy": "2.3.5",
+    "matplotlib": "3.10.8",
+    "huggingface_hub": "1.16.1"
+  },
+  "device": "cpu",
+  "device_name": "",
+  "training_tokens_per_update": 128,
+  "dataset_metadata": {
+    "dataset": "SYNTHETIC noisy cyclic transition test",
+    "synthetic": true,
+    "vocab_size": 32,
+    "dtype": "<u2",
+    "counts": {
+      "train": 65536,
+      "val": 8192
+    },
+    "sha256": {
+      "train": "8a91ff9f4fd46515b3b76d74ba4039e43f69f65654cf2e042ebcf305467c02c6",
+      "val": "1747b8ea3a2faf2a473491a9a811be172c79ecba1b16a11951b7f325eb684c94"
+    }
+  }
+}
