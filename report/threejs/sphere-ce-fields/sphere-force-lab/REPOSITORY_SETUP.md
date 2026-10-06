@@ -1,6 +1,6 @@
 # Sphere Force Lab — standalone setup
 
-Package version: **9.0.1**. See `VERSION.txt` for source provenance.
+Package version: **9.2.0**. See `VERSION.txt` for source provenance.
 This is a browser-only React + Vite app. It needs no account, API key, database,
 server application, or platform-specific deployment integration.
 
@@ -37,7 +37,7 @@ pnpm build
 pnpm preview
 ```
 
-`pnpm test` runs the existing quantization, architecture, and dataset checks.
+`pnpm test` runs the quantization, architecture, dataset, fixed/free-radius, and metric/navigation checks.
 `pnpm build` runs TypeScript checking and produces static files in `dist/`.
 `pnpm preview` serves the build at **http://localhost:4173** for local review.
 `pnpm start` is an alias for the same local preview.
@@ -57,16 +57,19 @@ verification scripts, setup documentation, and a dependency lockfile.
 Installed dependencies, generated builds, caches, Git history, and saved
 training sessions are not included.
 
-The simulator, fields, datasets, controls, and numerical verification logic
-are unchanged from app version 9. This package replaces the hosting framework
-with a static React entry point and removes unused starter components,
-server-side authentication, database examples, and deployment integration.
+Version 9.2.0 adds stacked train/reference loss and target-accuracy curves,
+fixed Markov evaluation, and linked plot/slider navigation. It retains free-radius
+tied rows and explicit optimizer/decay settings; fixed radius remains the default. This remains a standalone static React app with no server-side
+authentication, database examples, or deployment integration. See README.md for
+the control workflow and compatibility table.
 
 ## Main files
 
 - `src/main.tsx`: React entry point
 - `src/styles.css`: styling and responsive layout
 - `components/sphere-force-lab.tsx`: controls and replay timeline
+- `components/training-curves.tsx`: stacked curves and linked iteration controls
+- `lib/metric-history.ts`: iteration lookup and gap/extrema-preserving plot sampling
 - `components/sphere-scene.tsx`: Three.js view
 - `components/canvas-sphere-fallback.tsx`: compatibility renderer
 - `lib/simulator.ts`: model, optimizer, force calculations, and snapshots
