@@ -929,6 +929,14 @@ class Trainer:
                 self.train_data_dict[dataset] = np.memmap(os.path.join('data', dataset, 'train.bin'), dtype=dtype, mode='r')
                 self.val_data_dict[dataset] = np.memmap(os.path.join('data', dataset, 'val.bin'), dtype=dtype, mode='r')
 
+            from train_variations.sequence_windows import load_sequence_windows
+            self.multicontext_windows = load_sequence_windows(
+                [os.path.join('data', name) for name in self.args.multicontext_datasets],
+                {'train': [len(self.train_data_dict[name]) for name in self.args.multicontext_datasets],
+                 'val': [len(self.val_data_dict[name]) for name in self.args.multicontext_datasets]},
+                self.args.block_size,
+            )
+
             # Also store total token counts per dataset.
             self.dataset_size_tokens = {d: len(self.train_data_dict[d]) for d in self.args.multicontext_datasets}
             # tell the model we are in "multicontext" mode and pass
@@ -1007,7 +1015,12 @@ class Trainer:
                 data = (self.train_data_dict[dataset_name]
                         if split == 'train' else self.val_data_dict[dataset_name])
                 if ix is None:
-                    ix = torch.randint(len(data) - self.args.block_size, (self.args.batch_size,))
+                    if self.multicontext_windows is None:
+                        ix = torch.randint(len(data) - self.args.block_size, (self.args.batch_size,))
+                    else:
+                        windows = self.multicontext_windows[split]
+                        ranks = torch.randint(windows.total, (self.args.batch_size,)).numpy()
+                        ix = windows.starts(ranks)
                 # pick random offset
                 x = torch.stack([
                     torch.from_numpy(data[i : i+self.args.block_size].astype(np.int64))

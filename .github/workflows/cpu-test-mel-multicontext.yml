@@ -1,0 +1,38 @@
+name: Mel multicontext integration
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'data/mel_mc_int/**'
+      - 'data/mel_spectrogram/**'
+      - 'data/public-domain-poetry/**'
+      - 'demos/mel_mc_int_music_pipeline.sh'
+      - 'train.py'
+      - 'train_variations/sequence_windows.py'
+      - 'tests/*mel_mc_int*'
+      - '.github/workflows/cpu-test-mel-multicontext.yml'
+jobs:
+  cpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements_cpu.txt
+      - name: Data and command regressions
+        run: python -m unittest discover -s tests -p test_mel_mc_int.py
+      - name: Real CPU train, checkpoint reload, sampling and reconstruction
+        run: python tests/smoke_mel_mc_int.py
