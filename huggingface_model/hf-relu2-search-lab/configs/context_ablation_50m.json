@@ -1,0 +1,107 @@
+{
+  "name": "relu2_context_bias_length_50m",
+  "contexts": [
+    512,
+    1024,
+    2048
+  ],
+  "variants": [
+    "softmax_sdpa",
+    "relu2",
+    "linear16",
+    "relu2_bias",
+    "relu2_scale_half",
+    "relu2_scale_one",
+    "relu2_bias_scale_half",
+    "relu2_bias_scale_one"
+  ],
+  "seeds": [
+    0
+  ],
+  "requested_tokens_per_run": 100000000,
+  "tokens_per_step": 32768,
+  "microbatch_token_target": 4096,
+  "max_micro_batch_size": 16,
+  "validation_tokens": 131072,
+  "common_validation_context": 512,
+  "milestone_tokens": [
+    25000000,
+    50000000,
+    100000000
+  ],
+  "dtype": "bfloat16",
+  "sdpa_backend": "flash",
+  "cpu_threads": 4,
+  "model": {
+    "vocab_size": 50304,
+    "hidden_size": 384,
+    "intermediate_size": 1536,
+    "num_hidden_layers": 17,
+    "num_attention_heads": 3,
+    "num_key_value_heads": 3,
+    "max_position_embeddings": 4096,
+    "hidden_act": "gelu",
+    "bias": false,
+    "tie_word_embeddings": true,
+    "use_qk_norm": true,
+    "use_qk_norm_scale": true,
+    "qk_norm_scale_init": 20.0,
+    "qk_norm_eps": 1e-06,
+    "norm_eps": 1e-06,
+    "use_rotary_embeddings": true,
+    "rope_theta": 10000.0,
+    "use_absolute_position_embeddings": false,
+    "relu2max_divisor": 256.0,
+    "relu2max_divide_by_sequence_length": false,
+    "dropout": 0.0,
+    "attention_dropout": 0.0,
+    "bos_token_id": 50256,
+    "eos_token_id": 50256,
+    "pad_token_id": 50256,
+    "kda_conv_size": 4,
+    "subtractive_bias_init": 0.0,
+    "causal_length_anchor": 512.0
+  },
+  "train": {
+    "min_lr_ratio": 0.1,
+    "warmup_steps": 100,
+    "timing_warmup_steps": 10,
+    "grad_clip": 1.0,
+    "gradient_checkpointing": false,
+    "loss_chunk_tokens": 512,
+    "eval_every": 150,
+    "save_every": 300,
+    "log_every": 10,
+    "keep_checkpoints": 1
+  },
+  "optimizers": [
+    "muon"
+  ],
+  "optimizer_recipes": {
+    "muon": {
+      "learning_rate": 0.02,
+      "weight_decay": 0.1,
+      "momentum": 0.95,
+      "nesterov": true,
+      "ns_steps": 5,
+      "ns_coefficients": [
+        3.4445,
+        -4.775,
+        2.0315
+      ],
+      "eps": 1e-07,
+      "adjust_lr_fn": "original",
+      "aux_learning_rate": 0.0006,
+      "aux_weight_decay": 0.1,
+      "aux_betas": [
+        0.9,
+        0.95
+      ],
+      "aux_eps": 1e-08
+    }
+  },
+  "output_norms": [
+    "none",
+    "capped"
+  ]
+}

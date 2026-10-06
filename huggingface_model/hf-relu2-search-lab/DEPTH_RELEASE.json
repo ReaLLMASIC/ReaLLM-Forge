@@ -1,0 +1,15 @@
+{
+  "release": "relu2-depth-lab-v1.1-disk30",
+  "date_utc": "2026-09-26",
+  "base": "relu2-context-lab BF16-check fix, version 1",
+  "base_zip_sha256": "a700cbb9f382d1cfb62c65906ff4b6fb0cb1cd7ee836083bd4ffd4a128a7b4ab",
+  "entry_point": "bash run_depth.sh all",
+  "contexts": [512, 1024],
+  "start_layers": 16,
+  "endpoint": "minimum of 70% VRAM capacity and retained-model disk budget",
+  "default_points": 3,
+  "disk_budget_gb": 30,
+  "disk_free_reserve_gb": 2,
+  "completed_runs": "final models and reports; optimizer state retired after verification",
+  "cuda_execution_validated_here": false
+}

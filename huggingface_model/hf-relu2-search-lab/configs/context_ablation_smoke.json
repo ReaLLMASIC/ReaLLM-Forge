@@ -1,0 +1,106 @@
+{
+  "name": "context_ablation_cpu_smoke",
+  "contexts": [
+    8,
+    16
+  ],
+  "variants": [
+    "softmax_sdpa",
+    "relu2",
+    "linear16",
+    "relu2_bias",
+    "relu2_scale_half",
+    "relu2_scale_one",
+    "relu2_bias_scale_half",
+    "relu2_bias_scale_one"
+  ],
+  "seeds": [
+    0
+  ],
+  "requested_tokens_per_run": 384,
+  "tokens_per_step": 64,
+  "microbatch_token_target": 32,
+  "max_micro_batch_size": 4,
+  "validation_tokens": 64,
+  "common_validation_context": 8,
+  "milestone_tokens": [
+    128,
+    384
+  ],
+  "dtype": "float32",
+  "sdpa_backend": "math",
+  "cpu_threads": 2,
+  "model": {
+    "vocab_size": 128,
+    "hidden_size": 24,
+    "intermediate_size": 48,
+    "num_hidden_layers": 2,
+    "num_attention_heads": 3,
+    "num_key_value_heads": 3,
+    "max_position_embeddings": 32,
+    "hidden_act": "gelu",
+    "bias": false,
+    "tie_word_embeddings": true,
+    "use_qk_norm": true,
+    "use_qk_norm_scale": true,
+    "qk_norm_scale_init": 3.0,
+    "qk_norm_eps": 1e-06,
+    "norm_eps": 1e-06,
+    "use_rotary_embeddings": true,
+    "rope_theta": 10000.0,
+    "use_absolute_position_embeddings": false,
+    "relu2max_divisor": 256.0,
+    "relu2max_divide_by_sequence_length": false,
+    "dropout": 0.0,
+    "attention_dropout": 0.0,
+    "bos_token_id": 1,
+    "eos_token_id": 1,
+    "pad_token_id": 1,
+    "kda_conv_size": 4,
+    "causal_length_anchor": 8.0,
+    "subtractive_bias_init": 0.0
+  },
+  "train": {
+    "min_lr_ratio": 0.1,
+    "warmup_steps": 1,
+    "timing_warmup_steps": 1,
+    "grad_clip": 1.0,
+    "gradient_checkpointing": false,
+    "loss_chunk_tokens": 16,
+    "eval_every": 2,
+    "save_every": 3,
+    "log_every": 1,
+    "keep_checkpoints": 1
+  },
+  "smoke_only": true,
+  "optimizers": [
+    "muon"
+  ],
+  "optimizer_recipes": {
+    "muon": {
+      "learning_rate": 0.02,
+      "weight_decay": 0.1,
+      "momentum": 0.95,
+      "nesterov": true,
+      "ns_steps": 5,
+      "ns_coefficients": [
+        3.4445,
+        -4.775,
+        2.0315
+      ],
+      "eps": 1e-07,
+      "adjust_lr_fn": "original",
+      "aux_learning_rate": 0.0006,
+      "aux_weight_decay": 0.1,
+      "aux_betas": [
+        0.9,
+        0.95
+      ],
+      "aux_eps": 1e-08
+    }
+  },
+  "output_norms": [
+    "none",
+    "capped"
+  ]
+}

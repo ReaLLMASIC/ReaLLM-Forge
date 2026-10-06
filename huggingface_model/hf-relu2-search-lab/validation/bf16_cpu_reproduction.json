@@ -1,0 +1,151 @@
+{
+  "mode": "CPU cast emulation; no CUDA execution",
+  "seed": 928,
+  "alpha": 0.0,
+  "shape": [
+    1,
+    3,
+    3,
+    1057,
+    128
+  ],
+  "torch": "2.9.1+cpu",
+  "python": "3.12.14",
+  "device": "cpu",
+  "triton": "3.5.1",
+  "gpu": null,
+  "passed": true,
+  "checks": {
+    "output": {
+      "name": "output",
+      "passed": true,
+      "relative_rms": 0.0024622988269920537,
+      "rms_limit": 0.015,
+      "max_abs_error": 0.011795082721362427,
+      "strict_fp32_tolerance_violations": 0,
+      "interval_violations": 0,
+      "max_abs_difference_from_cast_prediction": 0.0,
+      "most_discrepant": {
+        "index": [
+          0,
+          0,
+          2,
+          113
+        ],
+        "actual": -0.0673828125,
+        "ideal_fp64": -0.06159037921481311,
+        "predicted_with_casts": -0.0673828125,
+        "lower": -0.06982421875,
+        "upper": -0.064453125
+      }
+    },
+    "dq": {
+      "name": "dq",
+      "passed": true,
+      "relative_rms": 0.002320957313988344,
+      "rms_limit": 0.015,
+      "max_abs_error": 0.07803158685014822,
+      "strict_fp32_tolerance_violations": 2,
+      "interval_violations": 0,
+      "max_abs_difference_from_cast_prediction": 0.0,
+      "most_discrepant": {
+        "index": [
+          0,
+          0,
+          0,
+          51
+        ],
+        "actual": -0.0341796875,
+        "ideal_fp64": -0.006090988964143983,
+        "predicted_with_casts": -0.0341796875,
+        "lower": -0.07666015625,
+        "upper": 0.00836181640625
+      }
+    },
+    "dk": {
+      "name": "dk",
+      "passed": true,
+      "relative_rms": 0.0023538342011000233,
+      "rms_limit": 0.015,
+      "max_abs_error": 0.014636077951073467,
+      "strict_fp32_tolerance_violations": 0,
+      "interval_violations": 0,
+      "max_abs_difference_from_cast_prediction": 0.0,
+      "most_discrepant": {
+        "index": [
+          0,
+          0,
+          832,
+          121
+        ],
+        "actual": -0.035400390625,
+        "ideal_fp64": -0.03119861897224448,
+        "predicted_with_casts": -0.035400390625,
+        "lower": -0.041259765625,
+        "upper": -0.029541015625
+      }
+    },
+    "dv": {
+      "name": "dv",
+      "passed": true,
+      "relative_rms": 0.002273562942251421,
+      "rms_limit": 0.015,
+      "max_abs_error": 0.001942983218379879,
+      "strict_fp32_tolerance_violations": 0,
+      "interval_violations": 0,
+      "max_abs_difference_from_cast_prediction": 0.0,
+      "most_discrepant": {
+        "index": [
+          0,
+          0,
+          165,
+          3
+        ],
+        "actual": 0.2578125,
+        "ideal_fp64": 0.2597554832183799,
+        "predicted_with_casts": 0.2578125,
+        "lower": 0.2578125,
+        "upper": 0.2578125
+      }
+    },
+    "dscale": {
+      "name": "dscale",
+      "passed": true,
+      "relative_rms": 4.048501393120181e-08,
+      "rms_limit": 0.015,
+      "max_abs_error": 2.3488082234734975e-07,
+      "strict_fp32_tolerance_violations": 0,
+      "interval_violations": 0,
+      "max_abs_difference_from_cast_prediction": 0.0,
+      "most_discrepant": {
+        "index": [],
+        "actual": 5.800673484802246,
+        "ideal_fp64": 5.800673249921424,
+        "predicted_with_casts": 5.800673484802246,
+        "lower": 4.9700117111206055,
+        "upper": 6.6313347816467285
+      }
+    },
+    "dbias": {
+      "name": "dbias",
+      "passed": true,
+      "relative_rms": 2.728346163119654e-08,
+      "rms_limit": 0.015,
+      "max_abs_error": 3.026843842235394e-06,
+      "strict_fp32_tolerance_violations": 0,
+      "interval_violations": 0,
+      "max_abs_difference_from_cast_prediction": 0.0,
+      "most_discrepant": {
+        "index": [
+          0
+        ],
+        "actual": -46.4813346862793,
+        "ideal_fp64": -46.48133334852807,
+        "predicted_with_casts": -46.4813346862793,
+        "lower": -48.16948318481445,
+        "upper": -44.79318618774414
+      }
+    }
+  },
+  "note": "The old elementwise FP32-style tolerance is retained as a diagnostic. Acceptance requires every element within the arithmetic-derived rounding interval AND the unchanged 1.5% mathematical RMS limit. FP64 ideal math is independently tested against autograd."
+}
