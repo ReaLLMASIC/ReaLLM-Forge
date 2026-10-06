@@ -38,6 +38,7 @@ import { ArchitectureConfig, DEFAULT_ARCHITECTURE, validateArchitecture } from "
 import { toDisplaySnapshot, supportsSphericalProbe } from "@/lib/view-projection";
 import { SphereScene, ViewMode } from "@/components/sphere-scene";
 import { TargetScheduleControls } from "@/components/target-schedule-controls";
+import { TrainingCurves } from "@/components/training-curves";
 import { TargetRuleDraft } from "@/lib/target-schedule";
 import { BlendSchedule, DEFAULT_QAT, QatConfig, QUANTIZATION_FORMATS, QuantizationFormat, validateQat } from "@/lib/quantization";
 import {
@@ -101,7 +102,7 @@ function estimateHistoryBytes(targeted: number, untargeted: number, batchSize: n
   const samples = architecture.maxContextLength * batchSize;
   const d = architecture.modelDim;
   const activeRows = targeted + untargeted;
-  const bytesPerFrame = samples * (d + 1) * 4 + activeRows * ((d + 3) * 5 + 1) * 4 + targeted * (16 * d + 240) + (architecture.maxContextLength + 1) * 8 + 928;
+  const bytesPerFrame = samples * (d + 1) * 4 + activeRows * ((d + 3) * 5 + 1) * 4 + targeted * (16 * d + 240) + (architecture.maxContextLength + 1) * 8 + 1056;
   return bytesPerFrame * (iterations + 1);
 }
 
@@ -118,46 +119,6 @@ function Metric({ label, value, detail, accent = "cyan" }: { label: string; valu
       <div className={`mt-1 font-mono text-[15px] font-semibold tabular-nums ${colors[accent]}`}>{value}</div>
       {detail && <div className="mt-0.5 text-[10px] text-slate-500">{detail}</div>}
     </div>
-  );
-}
-
-function TinyLossChart({ history, frame }: { history: Snapshot[]; frame: number }) {
-  const path = useMemo(() => {
-    const source = history.slice(0, frame + 1);
-    const stride = Math.max(1, Math.ceil(source.length / 260));
-    const points = source.map((point, index) => ({ point, index })).filter((_, index) => index % stride === 0 || index === source.length - 1);
-    if (points.length < 2) return "";
-    const values = points.map((p) => p.point.loss);
-    const finite = values.filter(Number.isFinite);
-    if (!finite.length) return "";
-    const min = Math.min(...finite);
-    const max = Math.max(...finite);
-    const span = Math.max(max - min, 1e-8);
-    let drawing = false;
-    let previousIndex = -1;
-    return values.map((v, i) => {
-      for (let index = previousIndex + 1; index <= points[i].index; index += 1) {
-        if (!Number.isFinite(source[index].loss)) drawing = false;
-      }
-      previousIndex = points[i].index;
-      if (!Number.isFinite(v)) { drawing = false; return ""; }
-      const x = (points[i].index / Math.max(1, source.length - 1)) * 260;
-      const y = 58 - ((v - min) / span) * 48;
-      const command = drawing ? "L" : "M";
-      drawing = true;
-      return `${command}${x.toFixed(2)},${y.toFixed(2)}`;
-    }).join(" ");
-  }, [history, frame]);
-  return (
-    <svg viewBox="0 0 260 68" className="h-[68px] w-full" role="img" aria-label="Loss history through the selected iteration">
-      <defs>
-        <linearGradient id="loss-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#67e8f9" stopOpacity=".28" />
-          <stop offset="1" stopColor="#67e8f9" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={path} fill="none" stroke="#67e8f9" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-    </svg>
   );
 }
 
@@ -298,6 +259,16 @@ export function SphereForceLab() {
   const displayHistory = useMemo(() => history.map(toDisplaySnapshot), [history, timeline.revision]);
   const events = timeline.events;
   const liveFrame = Math.max(0, history.length - 1);
+
+  const seekFrame = useCallback((next: number) => {
+    if (working || !ready || !history.length || !Number.isFinite(next)) return;
+    const selectedFrame = Math.max(0, Math.min(liveFrame, Math.round(next)));
+    setRunning(false);
+    setReplaying(false);
+    setPlacingLetter(false);
+    setFrame(selectedFrame);
+    setAnnouncement(`Viewing iteration ${history[selectedFrame].step}, frame ${selectedFrame} of ${liveFrame}.`);
+  }, [working, ready, history, liveFrame]);
 
   const trainMany = useCallback(async (count: number) => {
     const sim = simulationRef.current;
@@ -809,7 +780,10 @@ export function SphereForceLab() {
               </div>
             </div>
             <div className="relative mt-4 px-1">
-              <Slider aria-label="Training iteration" min={0} max={Math.max(1, liveFrame)} disabled={liveFrame === 0 || working} step={1} value={[frame]} onValueChange={(value) => { setRunning(false); setReplaying(false); setPlacingLetter(false); setFrame(value[0]); }} />
+              <Slider aria-label="Training iteration" aria-valuetext={`Iteration ${snapshot.step}, frame ${frame} of ${liveFrame}`} min={0} max={Math.max(1, liveFrame)} disabled={!ready || liveFrame === 0 || working} step={1} value={[frame]}
+                onPointerDownCapture={() => seekFrame(frame)}
+                onKeyDownCapture={event => { if (["Home", "End", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown"].includes(event.key)) seekFrame(frame); }}
+                onValueChange={([next]) => seekFrame(next)} />
               <div className="timeline-events pointer-events-none absolute inset-x-1 top-[5px] h-1.5">
                 {events.map((event, index) => <span key={`${event.token}-${event.step}-${index}`} className="absolute top-0 size-1.5 -translate-x-1/2 rounded-full bg-amber-300 ring-2 ring-[#07101e]" style={{ left: `${liveFrame ? event.frame / liveFrame * 100 : 0}%` }} title={`${event.token} inserted at step ${event.step}`} />)}
                 {history.map((item, index) => item.qatChanged ? <span key={`qat-${index}`} className="absolute top-0 size-1.5 -translate-x-1/2 rounded-full bg-fuchsia-300 ring-2 ring-[#07101e]" style={{ left: `${liveFrame ? index / liveFrame * 100 : 0}%` }} title={`${item.qat.format} applied at step ${item.step}`} /> : null)}
@@ -834,7 +808,7 @@ export function SphereForceLab() {
               <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${isLive ? "bg-emerald-300/10 text-emerald-300" : "bg-amber-300/10 text-amber-300"}`}>{isLive ? "LIVE EDGE" : "HISTORY"}</span>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <Metric label="Loss" value={format(snapshot.loss)} accent="cyan" />
+              <Metric label="Train CE loss" value={format(snapshot.loss)} accent="cyan" />
               <Metric label="Next-token acc." value={Number.isFinite(snapshot.accuracy) ? `${(snapshot.accuracy * 100).toFixed(1)}%` : "—"} accent="green" />
               <Metric label={freeRadius ? "Mean ambient force" : "Mean tangent force"} value={format(snapshot.meanForce)} accent="pink" />
               <Metric label="Unused prob. mass" value={format(snapshot.unusedMass)} accent="gold" />
@@ -859,10 +833,7 @@ export function SphereForceLab() {
               <div className="mt-1 text-slate-400">Row quantization RMSE: <span className="font-mono">{format(snapshot.quantizationRmse)}</span></div>
               {snapshot.qatChanged && <p className="mt-1 text-fuchsia-200">QAT configuration applied at this frame.</p>}
             </div>
-            <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 pt-2">
-              <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500"><span>Cross-entropy loss</span><span>0 → {snapshot.step}</span></div>
-              <TinyLossChart history={history} frame={frame} />
-            </div>
+            <TrainingCurves history={history} frame={frame} revision={timeline.revision} disabled={!ready || working} onSeek={seekFrame} />
           </section>
 
           <section className="border-t border-white/[0.07] pt-4">

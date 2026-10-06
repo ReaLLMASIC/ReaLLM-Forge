@@ -69,6 +69,13 @@ export type Snapshot = {
   targetRules: readonly TargetRule[];
   loss: number;
   accuracy: number;
+  validation: Readonly<{
+    loss: number;
+    accuracy: number;
+    kind: "independent-markov" | "same-data" | "empty";
+    seed: number | null;
+    sampleCount: number;
+  }>;
   targetCount: number;
   batchSize: number;
   activeVocab: number;
@@ -249,6 +256,8 @@ export class TransformerSphereSimulation {
   readonly history: Snapshot[] = [];
   private inputs!: tf.Tensor2D;
   private targets!: tf.Tensor2D;
+  private validationInputs?: tf.Tensor2D;
+  private validationTargets?: tf.Tensor2D;
   private causalMask!: tf.Tensor2D;
   private included: number[] = [];
   readonly datasetConfig: DatasetConfig;
@@ -316,6 +325,19 @@ export class TransformerSphereSimulation {
     }
     this.inputs = tf.tensor2d(inputs, [this.config.batchSize, length], "int32");
     this.targets = tf.tensor2d(targets, [this.config.batchSize, length], "int32");
+    if (membershipChanged) {
+      this.validationInputs?.dispose();
+      this.validationTargets?.dispose();
+      this.validationInputs = undefined;
+      this.validationTargets = undefined;
+      // Independent, fixed random stream; never advances the training sampler.
+      // Deterministic datasets reuse the training metrics without another pass.
+      if (length && markov && !this.compiledMarkov!.deterministic) {
+        const reference = markovBatch(this.compiledMarkov!, included, this.config.batchSize, length, this.validationSeed, 0);
+        this.validationInputs = tf.tensor2d(reference.inputs, [this.config.batchSize, length], "int32");
+        this.validationTargets = tf.tensor2d(reference.targets, [this.config.batchSize, length], "int32");
+      }
+    }
     if (!this.causalMask || this.causalMask.shape[0] !== length) {
       this.causalMask?.dispose();
       const mask = new Float32Array(length * length);
@@ -391,7 +413,11 @@ export class TransformerSphereSimulation {
     }
   }
 
-  private forward() {
+  private get validationSeed() {
+    return ((this.datasetConfig.seed ?? this.config.seed) ^ 0xa511e9b3) >>> 0;
+  }
+
+  private forward(inputs = this.inputs, targets = this.targets) {
     const alpha = blendAt(this.qatConfig, this.step);
     const v: Record<string, tf.Tensor> = {};
     for (const [name, variable] of Object.entries(this.variables)) {
@@ -401,12 +427,12 @@ export class TransformerSphereSimulation {
         ? fakeQuantize(weight, this.qatConfig, alpha) : weight;
     }
     const batchSize = this.config.batchSize;
-    const sequenceLength = this.inputs.shape[1];
+    const sequenceLength = inputs.shape[1];
     const sampleCount = batchSize * sequenceLength;
     const linear = (input: tf.Tensor, weight: tf.Tensor2D, outputWidth: number) =>
       tf.matMul(input.reshape([sampleCount, weight.shape[0]]), weight).reshape([batchSize, sequenceLength, outputWidth]);
     const a = this.architecture;
-    let x = tf.gather(v.wte, this.inputs);
+    let x = tf.gather(v.wte, inputs);
     if (a.positionEncoding === "absolute") x = x.add(v.wpe.slice([0, 0], [sequenceLength, this.modelDim]).expandDims(0));
     for (let layer = 0; layer < a.layers; layer++) {
       const p = `block${layer}_`;
@@ -435,7 +461,7 @@ export class TransformerSphereSimulation {
       .reshape([batchSize, sequenceLength, this.activeVocab]);
     const loss = this.activeVocab === 1
       ? logits.sum().mul(0)
-      : tf.losses.softmaxCrossEntropy(tf.oneHot(this.targets, this.activeVocab), logits).mean();
+      : tf.losses.softmaxCrossEntropy(tf.oneHot(targets, this.activeVocab), logits).mean();
     return { hidden, logits, loss, effectiveRows: activeRows };
   }
 
@@ -474,6 +500,21 @@ export class TransformerSphereSimulation {
         accuracy,
         unusedMass,
       };
+    });
+
+    const independentValidation = Boolean(hasData && this.validationInputs);
+    const referenceMetrics = independentValidation ? tf.tidy(() => {
+      const result = this.forward(this.validationInputs!, this.validationTargets!);
+      return {
+        loss: result.loss.dataSync()[0],
+        accuracy: result.logits.argMax(-1).equal(this.validationTargets!).mean().dataSync()[0],
+      };
+    }) : { loss, accuracy: diagnostics.accuracy };
+    const validation: Snapshot["validation"] = Object.freeze({
+      ...referenceMetrics,
+      kind: !hasData ? "empty" : independentValidation ? "independent-markov" : "same-data",
+      seed: independentValidation ? this.validationSeed : null,
+      sampleCount,
     });
 
     const positions = Float32Array.from(this.variables.wte.dataSync().slice(0, this.activeVocab * this.modelDim));
@@ -557,6 +598,7 @@ export class TransformerSphereSimulation {
       targetRules: this.targetRules,
       loss,
       accuracy: diagnostics.accuracy,
+      validation,
       targetCount: this.config.targetedTokens,
       batchSize: this.config.batchSize,
       activeVocab: this.activeVocab,
@@ -725,6 +767,8 @@ export class TransformerSphereSimulation {
     Object.values(this.variables).forEach((v) => v.dispose());
     this.inputs.dispose();
     this.targets.dispose();
+    this.validationInputs?.dispose();
+    this.validationTargets?.dispose();
     this.causalMask.dispose();
   }
 }

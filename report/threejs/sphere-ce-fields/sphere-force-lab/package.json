@@ -1,6 +1,6 @@
 {
   "name": "sphere-force-lab",
-  "version": "9.1.0",
+  "version": "9.2.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -13,7 +13,7 @@
     "build": "pnpm run typecheck && vite build",
     "preview": "vite preview --port 4173",
     "start": "vite preview --port 4173",
-    "test": "node scripts/verify-qat.mjs && node scripts/verify-architecture.mjs && node scripts/verify-dataset.mjs && node scripts/verify-radius.mjs"
+    "test": "node scripts/verify-qat.mjs && node scripts/verify-architecture.mjs && node scripts/verify-dataset.mjs && node scripts/verify-radius.mjs && node scripts/verify-curves.mjs"
   },
   "dependencies": {
     "@tensorflow/tfjs": "^4.22.0",

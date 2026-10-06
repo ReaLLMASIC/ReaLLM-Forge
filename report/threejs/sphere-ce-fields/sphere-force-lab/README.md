@@ -25,6 +25,22 @@ The selected iteration is defined **after** the completed optimizer step (and pr
 
 The iteration limit is independent of model setup. Raising it with **Set + resume** continues the current weights, optimizer moments, manually placed rows, and complete timeline. The timeline can replay all collected frames at `0.25×–4×` speed without changing the model.
 
+## Loss, accuracy, and linked iteration navigation (version 9.2.0)
+
+The Diagnostics panel stacks three plots: **training cross-entropy**, **validation/reference cross-entropy**, and **target accuracy**. Both loss plots use the same vertical scale; accuracy uses a fixed 0–100% scale and shows training and validation/reference as separate lines. The current frame's exact values and a shared vertical cursor appear on the plots. Accuracy is the fraction of batch positions where the top-1 prediction over the active vocabulary equals the next-token label; it is not an average of per-token accuracies.
+
+The entire recorded run remains visible when selecting earlier frames. Both plot axes and scales remain fixed while scrubbing, and use actual iteration numbers. Click or tap a plot, or drag the **Metric iteration** slider directly below the stack, to move the existing viewer, hidden means, forces, diagnostics, and primary timeline together. Seeking pauses training and replay. The new slider supports keyboard arrows, Home, and End. **Latest** returns to the live edge without starting training.
+
+Edits such as insertion, QAT, or target policies may create multiple frames at one iteration. Plot clicks and the new slider select the last recorded frame at that iteration. The adjacent previous/next frame buttons and the original frame-based timeline can inspect every intermediate edit. Curves preserve gaps during empty-data phases. Display sampling retains first/last points and local minima/maxima in each horizontal bin, preserving brief peaks without rendering every training point; selected values always come from the exact frame.
+
+Validation/reference definitions:
+
+- **Stochastic Markov data:** a fixed, independently sampled batch with the same batch size, context length, transition probabilities, membership mask, self-loop fallback, and round-robin starting-state convention as training. Its seed is `(datasetSeed XOR 0xa511e9b3) >>> 0`, and its sampling index is always zero. This batch never supplies optimizer gradients or updates. It remains cached across training steps, QAT edits, and insertion, and is rebuilt deterministically when included targets change. Restoring a membership set restores the same reference sequences. Independently drawn sequences can coincide with training sequences; this is a finite-sample estimate under the same synthetic process, not a disjoint corpus split or an exact expected loss.
+- **Direct cycles or deterministic Markov data:** there is no independently sampled validation set. The reference reuses the exact training metrics, is explicitly labeled **same data**, and coincides with the training curve. This avoids an extra forward pass and retains the direct-data fast path.
+- **No included targets:** both losses and accuracies are unavailable and appear as gaps. The iteration clock and restoration policies continue normally.
+
+All metrics use the current frame's weights and QAT blend. The training loss at iteration t describes the batch used for the next update t→t+1; the reference describes the fixed evaluation batch at those same weights. Membership or vocabulary changes alter the objective, so values across such changes are not directly comparable. Stochastic validation costs one additional forward pass per recorded frame; it does not record another set of hidden states and does not change training batches, gradients, random streams, optimizer state, or trajectories.
+
 ## Fixed or free LM-head radius (version 9.1.0)
 
 In **Experiment**, set **LM-head radius** to **Fixed radius √d** or **Free radius · no projection**. Choose **AdamW** and enter **Weight decay λ** (zero disables decay), then select **Apply model + optimizer**. This resets weights, optimizer moments, and timeline using all current drafts. Changing a draft does not alter a running experiment. Applied optimizer, learning rate, weight decay, and radius mode are recorded in every frame and displayed in Diagnostics.
@@ -169,7 +185,7 @@ The timeline retains every iteration up to the user-selected limit (maximum `50,
 
 ## Run locally
 
-Standalone React + Vite package, version **9.1.0**. Requirements and repository
+Standalone React + Vite package, version **9.2.0**. Requirements and repository
 instructions are in [REPOSITORY_SETUP.md](REPOSITORY_SETUP.md).
 
 ```sh
