@@ -29,6 +29,14 @@ def parse_args():
     )
     model_group.add_argument('--attention_residual_eps', default=1e-6, type=float,
                              help='RMSNorm epsilon used for Full Attention Residual routing keys.')
+    model_group.add_argument(
+        '--attention_residual_weight_variant', default='softmax', choices=['softmax', 'relu2max'],
+        help='Normalization used for Full Attention Residual depth-routing weights.',
+    )
+    model_group.add_argument(
+        '--attention_residual_relu2max_shift', default=1.0, type=float,
+        help='Positive shift applied to centered scores before squared ReLU depth routing.',
+    )
 
     # MLP Bias Configuration
     model_group.add_argument('--mlp_up_bias', default=None, action=argparse.BooleanOptionalAction, help='Whether to use bias in MLP up projections. If None, uses global bias setting.')

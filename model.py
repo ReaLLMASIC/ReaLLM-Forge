@@ -147,7 +147,11 @@ class GPT(nn.Module):
         self.attention_residual_variant = config.attention_residual_variant
         if self.attention_residual_variant == "full":
             self.attention_residual = FullAttentionResidual(
-                2 * config.n_layer + 1, config.n_embd, config.attention_residual_eps
+                2 * config.n_layer + 1,
+                config.n_embd,
+                config.attention_residual_eps,
+                config.attention_residual_weight_variant,
+                config.attention_residual_relu2max_shift,
             )
         elif self.attention_residual_variant != "standard":
             raise ValueError(f"unknown attention_residual_variant: {self.attention_residual_variant}")
