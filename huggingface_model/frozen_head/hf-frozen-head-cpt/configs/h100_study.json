@@ -1,0 +1,47 @@
+{
+  "model": "Qwen/Qwen2.5-1.5B",
+  "revision": "main",
+  "output": "runs/h100_study",
+  "device": "cuda",
+  "memory_limit_gib": 70,
+  "seq_len": 1024,
+  "micro_batch": 1,
+  "accumulation": 16,
+  "head_chunk": 128,
+  "a_steps": 500,
+  "b_steps": 1500,
+  "a_lr": 0.00003,
+  "lrs": [0.00001, 0.00003, 0.0001],
+  "seeds": [42, 43, 44],
+  "modes": ["full", "freeze_head", "freeze_embed", "freeze_both", "slow_head", "replay"],
+  "slow_head_multiplier": 0.1,
+  "replay_fraction": 0.1,
+  "weight_decay": 0.01,
+  "eval_every": 100,
+  "save_every": 100,
+  "probe_blocks": 8,
+  "data": {
+    "a": {
+      "id": "Salesforce/wikitext",
+      "config": "wikitext-103-raw-v1",
+      "text_field": "text",
+      "splits": {"train": "train", "validation": "validation", "test": "test"},
+      "min_chars": 64,
+      "train_tokens": 20971520,
+      "validation_tokens": 131072,
+      "test_tokens": 131072
+    },
+    "b": {
+      "id": "codeparrot/codeparrot-clean",
+      "source_split": "train",
+      "text_field": "content",
+      "group_field": "repo_name",
+      "validation_fraction": 0.05,
+      "test_fraction": 0.05,
+      "shuffle_buffer": 10000,
+      "train_tokens": 33554432,
+      "validation_tokens": 131072,
+      "test_tokens": 131072
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "model": "Qwen/Qwen2.5-1.5B",
+  "revision": "main",
+  "output": "runs/h100_pilot",
+  "device": "cuda",
+  "memory_limit_gib": 70,
+  "memory_fraction": 0.9,
+  "seq_len": 1024,
+  "micro_batch": 1,
+  "accumulation": 16,
+  "head_chunk": 128,
+  "a_steps": 100,
+  "b_steps": 300,
+  "a_lr": 0.00003,
+  "lrs": [0.00003],
+  "seeds": [42],
+  "modes": ["full", "freeze_head"],
+  "eval_every": 50,
+  "save_every": 50,
+  "log_every": 10,
+  "probe_blocks": 4,
+  "data": {
+    "a": {
+      "id": "Salesforce/wikitext",
+      "config": "wikitext-103-raw-v1",
+      "text_field": "text",
+      "splits": {"train": "train", "validation": "validation", "test": "test"},
+      "min_chars": 64,
+      "train_tokens": 4194304,
+      "validation_tokens": 32768,
+      "test_tokens": 65536
+    },
+    "b": {
+      "id": "codeparrot/codeparrot-clean",
+      "source_split": "train",
+      "text_field": "content",
+      "group_field": "repo_name",
+      "validation_fraction": 0.05,
+      "test_fraction": 0.05,
+      "shuffle_buffer": 1000,
+      "train_tokens": 8388608,
+      "validation_tokens": 32768,
+      "test_tokens": 65536
+    }
+  }
+}
