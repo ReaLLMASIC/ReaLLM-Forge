@@ -737,6 +737,7 @@ def parse_args():
             "swiglu",
             "dual_path",
             "dual_path_swiglu",
+            "hadamard",
             "identity",
             ]
 
@@ -746,6 +747,10 @@ def parse_args():
     model_group.add_argument("--mlp_size", type=int, default=None, help="If not None, is used instead of mlp_expansion_factor")
     model_group.add_argument('--mlp_cproj_scale', default=1.0, type=float, help="Divide MLP down projection outputs by this value")
     model_group.add_argument('--mlp_post_act_l2_norm', default=False, action=argparse.BooleanOptionalAction, help="L2 normalize MLP activation vectors before down projection")
+    model_group.add_argument("--hadamard_mlp_factor_size", type=int, default=0, help="Kronecker factor width for Hadamard MLP; 0 chooses the smallest power of two whose square covers n_embd")
+    model_group.add_argument("--hadamard_mlp_stages", type=int, default=3, help="Number of learned Kronecker mixing stages")
+    model_group.add_argument("--hadamard_mlp_gain_rank", type=int, default=8, help="Rank of the token-dependent channel gain; 0 disables it")
+    model_group.add_argument("--hadamard_mlp_output_scale", type=float, default=0.02, help="Initial value of the Hadamard MLP output diagonal")
 
     ## KAN Options
     model_group.add_argument("--kan_poly_order", type=int, default=3, help="Order of KAN non-linearity")

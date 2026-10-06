@@ -1,5 +1,7 @@
 # variations/mlp_variations.py
 
+import math
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -883,6 +885,102 @@ class MLP_Identity(nn.Module):
         x = self.activation(x)
         return x
 
+
+def _normalized_hadamard(size, *, device=None, dtype=None):
+    """Construct the orthonormal Walsh-Hadamard matrix (size must be 2^k)."""
+    if size < 1 or size & (size - 1):
+        raise ValueError(f"Hadamard factor size must be a positive power of two, got {size}")
+    result = torch.ones(1, 1, device=device, dtype=dtype)
+    while result.size(0) < size:
+        result = torch.cat(
+            (torch.cat((result, result), dim=1), torch.cat((result, -result), dim=1)),
+            dim=0,
+        ) / math.sqrt(2.0)
+    return result
+
+
+class HadamardMLP(nn.Module):
+    """Parameter-efficient channel mixer based on learned Kronecker factors.
+
+    Channels are zero-padded to a square tile. Each stage applies A^T Z B,
+    starting from an exact Walsh-Hadamard transform, with fixed shuffles between
+    stages. Learned diagonals and an optional low-rank token-conditioned gain
+    surround the SiLU nonlinearity as described by Cactus' Hadamard MLP.
+    """
+
+    def __init__(self, config):
+        super().__init__()
+        self.input_size = config.n_embd
+        requested_size = config.hadamard_mlp_factor_size
+        if requested_size == 0:
+            requested_size = 1 << math.ceil(math.log2(math.ceil(math.sqrt(self.input_size))))
+        if requested_size * requested_size < self.input_size:
+            raise ValueError("hadamard_mlp_factor_size squared must cover n_embd")
+        # Validate before creating parameters and retain the matrix for initialization.
+        hadamard = _normalized_hadamard(requested_size)
+        self.factor_size = requested_size
+        self.padded_size = requested_size * requested_size
+        self.num_stages = config.hadamard_mlp_stages
+        if self.num_stages < 1:
+            raise ValueError("hadamard_mlp_stages must be at least 1")
+
+        self.left_factors = nn.ParameterList()
+        self.right_factors = nn.ParameterList()
+        for _ in range(self.num_stages):
+            self.left_factors.append(nn.Parameter(hadamard.clone()))
+            self.right_factors.append(nn.Parameter(hadamard.clone()))
+
+        self.diagonals = nn.ParameterList(
+            [nn.Parameter(torch.ones(self.padded_size)) for _ in range(4)]
+        )
+        nn.init.constant_(self.diagonals[-1], config.hadamard_mlp_output_scale)
+        self.bias = nn.Parameter(torch.zeros(self.padded_size))
+
+        self.gain_rank = config.hadamard_mlp_gain_rank
+        if self.gain_rank < 0:
+            raise ValueError("hadamard_mlp_gain_rank cannot be negative")
+        if self.gain_rank:
+            self.gain_v = nn.Linear(self.input_size, self.gain_rank, bias=False)
+            self.gain_u = nn.Parameter(torch.zeros(self.gain_rank, self.padded_size))
+
+        # randperm follows the run's torch seed and buffers make checkpoint reload exact.
+        for stage in range(self.num_stages - 1):
+            self.register_buffer(f"permutation_{stage}", torch.randperm(self.padded_size))
+        self.dropout = nn.Dropout(config.dropout)
+
+    def _mix(self, x, stage):
+        shape = x.shape
+        tile = x.reshape(*shape[:-1], self.factor_size, self.factor_size)
+        tile = torch.matmul(self.left_factors[stage].t(), tile)
+        tile = torch.matmul(tile, self.right_factors[stage])
+        return tile.reshape(shape)
+
+    def forward(self, x, iter_num=None):
+        del iter_num
+        if self.padded_size != self.input_size:
+            x_padded = F.pad(x, (0, self.padded_size - self.input_size))
+        else:
+            x_padded = x
+
+        hidden = self._mix(x_padded * self.diagonals[0], 0)
+        if self.num_stages > 1:
+            hidden = hidden.index_select(-1, self.permutation_0)
+        gain = 1.0
+        if self.gain_rank:
+            gain = 1.0 + torch.matmul(F.softmax(self.gain_v(x), dim=-1), self.gain_u)
+        hidden = F.silu(hidden * self.diagonals[1] * gain + self.bias)
+
+        if self.num_stages == 1:
+            hidden = hidden * self.diagonals[2]
+        for stage in range(1, self.num_stages):
+            if stage == self.num_stages - 1:
+                hidden = hidden * self.diagonals[2]
+            hidden = self._mix(hidden, stage)
+            if stage < self.num_stages - 1:
+                hidden = hidden.index_select(-1, getattr(self, f"permutation_{stage}"))
+        hidden = hidden * self.diagonals[3]
+        return self.dropout(hidden[..., :self.input_size])
+
 mlp_dictionary = {
     "mlp": OriginalMLP,
     "edgellm_asic_mlp": EdgeLLMASICMLP,
@@ -890,7 +988,8 @@ mlp_dictionary = {
     "identity": MLP_Identity,
     "kan": KanMLP,
     "dual_path": DualPathMLP,
-    "dual_path_swiglu": DualPathSwiglu
+    "dual_path_swiglu": DualPathSwiglu,
+    "hadamard": HadamardMLP,
     }
 
 def get_mlp_instance(config):
@@ -899,4 +998,3 @@ def get_mlp_instance(config):
     if mlp_class is None:
         raise ValueError(f"Unsupported MLP variant: {mlp_type}")
     return mlp_class(config)
-

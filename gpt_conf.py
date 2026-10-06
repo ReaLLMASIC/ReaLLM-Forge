@@ -214,6 +214,10 @@ class GPTConfig:
     mlp_size: int = None
     mlp_cproj_scale: float = 1.0
     mlp_post_act_l2_norm: bool = False
+    hadamard_mlp_factor_size: int = 0
+    hadamard_mlp_stages: int = 3
+    hadamard_mlp_gain_rank: int = 8
+    hadamard_mlp_output_scale: float = 0.02
 
     ## KAN Option
     kan_poly_order: int = 3

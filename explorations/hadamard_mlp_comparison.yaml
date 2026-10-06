@@ -1,0 +1,24 @@
+---
+# Compare the Cactus Hadamard/Monarch channel mixer against the dense 4x MLP.
+# Both groups share every training setting so mixer choice is the only change.
+common_group:
+  dataset: ["minipile"]
+  max_iters: [10000]
+  eval_interval: [1000]
+  eval_iters: [200]
+  never_save_checkpoint: [true]
+  compile: [true]
+  dtype: ["bfloat16"]
+  use_rotary_embeddings: [true]
+  use_abs_pos_embeddings: [false]
+
+parameter_groups:
+  - mlp_variant: ["mlp"]
+    mlp_expansion_factor: [4]
+    activation_variant: ["gelu"]
+
+  - mlp_variant: ["hadamard"]
+    hadamard_mlp_factor_size: [0]
+    hadamard_mlp_stages: [3]
+    hadamard_mlp_gain_rank: [8]
+    hadamard_mlp_output_scale: [0.02]
