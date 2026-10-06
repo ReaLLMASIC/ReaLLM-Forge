@@ -1,0 +1,33 @@
+{
+  "status": "complete",
+  "model_id": "tencent/Hunyuan-0.5B-Instruct",
+  "revision": "2359fb220c010e9d6d62c62d466f0eda179c2cf3",
+  "method": "native",
+  "source": "configs/hunyuan-native.json",
+  "lengths": [
+    4096
+  ],
+  "tasks": [
+    "recall",
+    "multi"
+  ],
+  "facts": [
+    8
+  ],
+  "positions": [
+    0.05
+  ],
+  "seed": 91991,
+  "samples": 1,
+  "max_new_tokens": 32,
+  "thinking": false,
+  "chat_template": true,
+  "do_sample": false,
+  "repetition_penalty": 1.0,
+  "metrics": [
+    "exact_match",
+    "value_exact_match"
+  ],
+  "skipped_combinations": [],
+  "completed_examples": 2
+}

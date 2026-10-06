@@ -1,0 +1,28 @@
+{
+  "release": "0.2.0",
+  "validation_date": "2026-09-27",
+  "python": "3.12.14",
+  "cpu_tests": {
+    "tests": 50,
+    "failures": 0,
+    "errors": 0
+  },
+  "pretrained_hunyuan_parity": {
+    "model_id": "tencent/Hunyuan-0.5B-Instruct",
+    "revision": "2359fb220c010e9d6d62c62d466f0eda179c2cf3",
+    "architecture": "hunyuan_v1_dense",
+    "length": 512,
+    "dtype": "float32",
+    "max_absolute_error": 2.09808349609375e-05,
+    "mean_absolute_error": 1.2275052085897187e-06,
+    "passed": true,
+    "backbone_parameters": 539010048,
+    "all_backbone_trainable": true
+  },
+  "cuda_training_profiled": false,
+  "full_pretrained_training_run": false,
+  "pretrained_minicpm_weights_tested": false,
+  "official_long_context_benchmarks_run": false,
+  "dependency_check": "pip check: no broken requirements",
+  "scope": "CPU correctness, real Hunyuan inference integration, real Hunyuan/MiniCPM tokenizers. Smoke samples are too small to rank models."
+}

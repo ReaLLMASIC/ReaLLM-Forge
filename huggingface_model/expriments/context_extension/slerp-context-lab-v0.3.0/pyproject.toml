@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slerp-context-lab"
+version = "0.3.0"
+description = "Full-weight long-context memory experiments for Hunyuan, Llama and Pythia"
+requires-python = ">=3.10,<3.13"
+dependencies = ["torch>=2.7,<2.8", "transformers==4.57.6", "accelerate==1.12.0", "datasets==4.4.1", "fsspec[http]==2025.10.0", "huggingface-hub==0.36.2", "safetensors==0.8.0", "numpy==2.2.6", "matplotlib==3.10.3", "rouge-score==0.1.2", "psutil==7.0.0"]
+
+[project.scripts]
+slerp-context = "slerp_context.cli:main"
+context-summary = "slerp_context.summary.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,21 @@
+{
+  "version": "0.3.0",
+  "validation_date": "2026-09-29",
+  "tests": 70,
+  "failures": 0,
+  "errors": 0,
+  "cpu_only": true,
+  "pretrained_training_run": false,
+  "rtx_4090_profile_run": false,
+  "orin_benchmark_run": false,
+  "whole_govreport_streaming_checked": true,
+  "pinned_fsspec_streaming_checked": true,
+  "summary_semantic_encoder_long_reference_checked": true,
+  "dependency_check": "passed",
+  "python_parse": "passed",
+  "shell_syntax": "passed",
+  "notes": [
+    "Software and integration evidence only; no learned summary quality or hardware fit claim.",
+    "First short CPU generation checks used eight output tokens, not the 512-token study budget."
+  ]
+}

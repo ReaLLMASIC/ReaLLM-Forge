@@ -1,0 +1,49 @@
+{
+  "model_id": "tencent/Hunyuan-0.5B-Instruct",
+  "revision": "main",
+  "method": "local",
+  "window": 256,
+  "chunk": 64,
+  "slots": 16,
+  "pi_factor": 4.0,
+  "fixed_alpha": 0.1,
+  "backbone_lr": 3e-05,
+  "memory_lr": 0.0005,
+  "optimizer": "adamw",
+  "weight_decay": 0.01,
+  "token_budget": 500000,
+  "tokens_per_update": 1536,
+  "lengths": [
+    768
+  ],
+  "length_weights": [
+    1.0
+  ],
+  "tasks": [
+    "recall"
+  ],
+  "fact_counts": [
+    2
+  ],
+  "positions": [
+    0.05
+  ],
+  "seed": 17,
+  "save_every": 100,
+  "keep_checkpoints": 1,
+  "min_free_gb": 8.0,
+  "max_project_gb": 40.0,
+  "checkpoint": true,
+  "detach_local": false,
+  "warmup_fraction": 0.03,
+  "natural_fraction": 0.0,
+  "data_dir": "data/pg19-hunyuan",
+  "chat_template": true,
+  "loss_chunk_tokens": 32,
+  "kl_weight": 0.0,
+  "kl_every": 4,
+  "kl_context": 512,
+  "kl_tokens": 16,
+  "tiny": false,
+  "tiny_arch": "hunyuan_v1_dense"
+}

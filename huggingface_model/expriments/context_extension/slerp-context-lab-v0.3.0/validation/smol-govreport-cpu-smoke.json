@@ -1,0 +1,65 @@
+{
+  "validation": "CPU integration only; no trained memory or quality ranking",
+  "model_revision": "a10cc1512eabd3dde888204e902eca88bddb4951",
+  "dataset_revision": "4e21184e01ae8017e2c036e180fe5e541fef60a0",
+  "source_sha256": "d1187333c91ddb45df26f161f06561c2a2437ba09e8693d20cf0a64b7ddbe6c7",
+  "source_tokens": 8990,
+  "native_context": 8192,
+  "reference_tokens": 984,
+  "parity_max_abs_error": 2.765655517578125e-05,
+  "parity_tokens": 512,
+  "all_backbone_parameters_trainable": true,
+  "local_beyond_native": {
+    "status": "ok",
+    "prediction": "\"Extract and Re----",
+    "source_tokens_seen": 8990,
+    "end_to_end_s": 39.39190119200066,
+    "final_first_token_s": 37.937461737001286,
+    "all_generation_tokens": 8,
+    "final_generation_tokens": 8,
+    "all_call_input_tokens": 9074,
+    "max_call_cache_bytes": 156712960,
+    "final_cache_bytes": 156712960,
+    "generation_limit_hit": true,
+    "intermediate_limit_hits": 0,
+    "num_calls": 1,
+    "calls": [
+      {
+        "input_tokens": 9074,
+        "generated_tokens": 8,
+        "first_token_at": 32183.152188092,
+        "elapsed_s": 39.38294931500059,
+        "cache_bytes": 156712960,
+        "limit_hit": true
+      }
+    ]
+  },
+  "head": {
+    "status": "ok",
+    "prediction": "The document discusses the evolution of 9",
+    "source_tokens_seen": 1956,
+    "end_to_end_s": 12.156574648997776,
+    "final_first_token_s": 11.045717870998487,
+    "all_generation_tokens": 8,
+    "final_generation_tokens": 8,
+    "all_call_input_tokens": 2040,
+    "max_call_cache_bytes": 167690240,
+    "final_cache_bytes": 167690240,
+    "generation_limit_hit": true,
+    "intermediate_limit_hits": 0,
+    "num_calls": 1,
+    "calls": [
+      {
+        "input_tokens": 2040,
+        "generated_tokens": 8,
+        "first_token_at": 32195.652695744,
+        "elapsed_s": 12.14040408800065,
+        "cache_bytes": 167690240,
+        "limit_hit": true
+      }
+    ]
+  },
+  "native_full_status": "skipped_native_limit",
+  "cuda_available": false,
+  "parity_mean_abs_error": 2.0048748865519883e-06
+}

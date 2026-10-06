@@ -1,0 +1,19 @@
+{
+  "threshold": null,
+  "metric": "value_exact_match",
+  "groups": [
+    {
+      "model_id": "tencent/Hunyuan-0.5B-Instruct",
+      "method": "native",
+      "run_id": "pretrained",
+      "length": 4096,
+      "n": 1,
+      "accuracy": 0.0,
+      "strict_accuracy": 0.0,
+      "evicted_n": 1,
+      "evicted_accuracy": 0.0,
+      "passed": null
+    }
+  ],
+  "note": "These are package synthetic tasks, not official RULER/LongBench scores."
+}

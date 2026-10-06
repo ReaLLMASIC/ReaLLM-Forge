@@ -1,0 +1,12 @@
+{
+  "model_id": "tencent/Hunyuan-0.5B-Instruct",
+  "revision": "2359fb220c010e9d6d62c62d466f0eda179c2cf3",
+  "architecture": "hunyuan_v1_dense",
+  "length": 512,
+  "dtype": "float32",
+  "max_absolute_error": 2.09808349609375e-05,
+  "mean_absolute_error": 1.2275052085897187e-06,
+  "passed": true,
+  "backbone_parameters": 539010048,
+  "all_backbone_trainable": true
+}

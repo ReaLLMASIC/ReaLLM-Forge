@@ -1,0 +1,32 @@
+[
+  {
+    "model_id": "tencent/Hunyuan-0.5B-Instruct",
+    "tokenizer_class": "PreTrainedTokenizerFast",
+    "chat_prefix": "<\uff5chy_begin\u2581of\u2581sentence\uff5c><\uff5chy_User\uff5c>",
+    "chat_suffix": "<\uff5chy_Assistant\uff5c><think>\n\n</think>\n",
+    "encoded_lengths_checked": [
+      2048,
+      4096
+    ],
+    "facts_checked": [
+      1,
+      8,
+      32
+    ]
+  },
+  {
+    "model_id": "openbmb/MiniCPM5-1B",
+    "tokenizer_class": "PreTrainedTokenizerFast",
+    "chat_prefix": "<s><|im_start|>user\n",
+    "chat_suffix": "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "encoded_lengths_checked": [
+      2048,
+      4096
+    ],
+    "facts_checked": [
+      1,
+      8,
+      32
+    ]
+  }
+]

@@ -1,0 +1,3 @@
+method,task,total_length,fact_count,position_fraction,memory_disabled,n,exact_match,ci_low,ci_high,evicted_n,evicted_exact_match,value_exact_match,evicted_value_exact_match
+native,multi,4096,8,0.05,False,1,0.0,0.0,0.0,1,0.0,0.0,0.0
+native,recall,4096,8,0.05,False,1,0.0,0.0,0.0,1,0.0,1.0,1.0

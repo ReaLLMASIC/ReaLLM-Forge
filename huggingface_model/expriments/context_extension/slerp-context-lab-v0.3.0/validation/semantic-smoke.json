@@ -1,0 +1,18 @@
+{
+  "run_id": "integration-fixture",
+  "source_sha256": "d1187333c91ddb45df26f161f06561c2a2437ba09e8693d20cf0a64b7ddbe6c7",
+  "reference_sha256": "6b65d0aad97c4d63e1bb5ab0bd18153ebeed15dc1f2c9ec6bdcf55e6cf7d20d0",
+  "prediction_sha256": "6c79db054a5cf2bf79ec5bac781acf748a2944eb5c48d538cf70d77031fec605",
+  "prediction_encoder_tokens": 907,
+  "reference_encoder_tokens": 907,
+  "semantic_precision": 1.0,
+  "semantic_recall": 1.0,
+  "semantic_f1": 1.0,
+  "encoder": "sentence-transformers/all-MiniLM-L6-v2",
+  "encoder_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+  "block_tokens": 192,
+  "recipe": "whole-summary chunked contextual token matching; no IDF or baseline rescaling",
+  "canonical_bertscore": false,
+  "factuality_metric": false,
+  "validation": "Identical whole summary, >512 encoder tokens; integration only, not model quality"
+}
