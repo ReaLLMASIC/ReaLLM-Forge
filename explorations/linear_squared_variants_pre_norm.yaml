@@ -1,0 +1,40 @@
+# Sweep C1-continuous linear-tail squared variants using the default recipe.
+---
+
+named_static_groups:
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  - named_group: "pre_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [false]
+    use_post_ln: [false]
+
+  - named_group: "rotary"
+    named_group_settings:
+      use_rotary_embeddings: [true]
+      use_abs_pos_embeddings: [false]
+
+named_variation_groups:
+  - named_group: "wte_norm"
+    norm_variant_wte: [default, "hyperspherenorm", null]
+
+common_group:
+  dataset: ["minipile"]
+  eval_interval: [1000]
+  max_iters: [10000]
+  never_save_checkpoint: [true]
+
+parameter_groups:
+  - compile: [true]
+    named_group_static: ["qk_norm", "pre_ln", "rotary"]
+    named_group_variations: ["wte_norm"]
+    softmax_variant_attn: ["relu2max_linear"]
+    relu2max_linear_cutoff: [2, 5, 10, 20, 50]
+
+  - compile: [true]
+    named_group_static: ["qk_norm", "pre_ln", "rotary"]
+    named_group_variations: ["wte_norm"]
+    activation_variant: ["squared_relu_linear"]
+    squared_relu_linear_cutoff: [2, 5, 10, 20, 50]

@@ -577,6 +577,30 @@ class ReLU2Max(nn.Module):
         return result
 
 
+class ReLU2MaxLinear(nn.Module):
+    """ReLU2Max with a C1-continuous linear tail above a cutoff."""
+
+    def __init__(self, config, dim=-1):
+        super().__init__()
+        self.dim = dim
+        self.relu2max_divisor = config.relu2max_divisor
+        self.cutoff = config.relu2max_linear_cutoff
+        self.div_by_seq_len = config.div_by_seq_len
+        if self.cutoff <= 0:
+            raise ValueError("relu2max_linear_cutoff must be greater than zero")
+
+    def forward(self, x):
+        relu_x = torch.relu(x)
+        linear_tail = 2 * self.cutoff * relu_x - self.cutoff**2
+        result = torch.where(relu_x <= self.cutoff, relu_x**2, linear_tail)
+        result = result / self.relu2max_divisor
+
+        if self.div_by_seq_len:
+            result = result / x.shape[self.dim]
+
+        return result
+
+
 class Softplus2Max(nn.Module):
     """ Softmax variant based on arxiv 1805.10829 with added handles for base """
     def __init__(self, config, dim=-1):
@@ -870,6 +894,7 @@ softmax_dictionary = {
     "sigsoftmax": SigSoftmax,
     "relumax": ReLUMax,
     "relu2max": ReLU2Max,
+    "relu2max_linear": ReLU2MaxLinear,
     "sigmoidmax": SigmoidMax,
     "softshrink": Softshrink,
     "gelumax": Gelumax,
