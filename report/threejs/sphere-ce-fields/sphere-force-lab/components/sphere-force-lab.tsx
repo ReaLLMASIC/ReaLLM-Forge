@@ -35,9 +35,10 @@ import { ArchitectureControls } from "@/components/architecture-controls";
 import { DatasetControls } from "@/components/dataset-controls";
 import { DatasetConfig, validateDataset } from "@/lib/dataset";
 import { ArchitectureConfig, DEFAULT_ARCHITECTURE, validateArchitecture } from "@/lib/architecture";
-import { toDisplaySnapshot } from "@/lib/view-projection";
+import { toDisplaySnapshot, supportsSphericalProbe } from "@/lib/view-projection";
 import { SphereScene, ViewMode } from "@/components/sphere-scene";
 import { TargetScheduleControls } from "@/components/target-schedule-controls";
+import { TrainingCurves } from "@/components/training-curves";
 import { TargetRuleDraft } from "@/lib/target-schedule";
 import { BlendSchedule, DEFAULT_QAT, QatConfig, QUANTIZATION_FORMATS, QuantizationFormat, validateQat } from "@/lib/quantization";
 import {
@@ -45,11 +46,13 @@ import {
   MAX_TARGET_TOKENS,
   MAX_UNTARGETED_TOKENS,
   OptimizerKind,
+  RadiusMode,
   ProbeMode,
   SimConfig,
   Snapshot,
   TransformerSphereSimulation,
   tokenLabel,
+  validateTrainingSettings,
 } from "@/lib/simulator";
 
 const DEFAULT_MAX_ITERATIONS = 1200;
@@ -99,7 +102,7 @@ function estimateHistoryBytes(targeted: number, untargeted: number, batchSize: n
   const samples = architecture.maxContextLength * batchSize;
   const d = architecture.modelDim;
   const activeRows = targeted + untargeted;
-  const bytesPerFrame = samples * (d + 1) * 4 + activeRows * (d + 3) * 5 * 4 + targeted * (16 * d + 240) + (architecture.maxContextLength + 1) * 8 + 800;
+  const bytesPerFrame = samples * (d + 1) * 4 + activeRows * ((d + 3) * 5 + 1) * 4 + targeted * (16 * d + 240) + (architecture.maxContextLength + 1) * 8 + 1056;
   return bytesPerFrame * (iterations + 1);
 }
 
@@ -116,46 +119,6 @@ function Metric({ label, value, detail, accent = "cyan" }: { label: string; valu
       <div className={`mt-1 font-mono text-[15px] font-semibold tabular-nums ${colors[accent]}`}>{value}</div>
       {detail && <div className="mt-0.5 text-[10px] text-slate-500">{detail}</div>}
     </div>
-  );
-}
-
-function TinyLossChart({ history, frame }: { history: Snapshot[]; frame: number }) {
-  const path = useMemo(() => {
-    const source = history.slice(0, frame + 1);
-    const stride = Math.max(1, Math.ceil(source.length / 260));
-    const points = source.map((point, index) => ({ point, index })).filter((_, index) => index % stride === 0 || index === source.length - 1);
-    if (points.length < 2) return "";
-    const values = points.map((p) => p.point.loss);
-    const finite = values.filter(Number.isFinite);
-    if (!finite.length) return "";
-    const min = Math.min(...finite);
-    const max = Math.max(...finite);
-    const span = Math.max(max - min, 1e-8);
-    let drawing = false;
-    let previousIndex = -1;
-    return values.map((v, i) => {
-      for (let index = previousIndex + 1; index <= points[i].index; index += 1) {
-        if (!Number.isFinite(source[index].loss)) drawing = false;
-      }
-      previousIndex = points[i].index;
-      if (!Number.isFinite(v)) { drawing = false; return ""; }
-      const x = (points[i].index / Math.max(1, source.length - 1)) * 260;
-      const y = 58 - ((v - min) / span) * 48;
-      const command = drawing ? "L" : "M";
-      drawing = true;
-      return `${command}${x.toFixed(2)},${y.toFixed(2)}`;
-    }).join(" ");
-  }, [history, frame]);
-  return (
-    <svg viewBox="0 0 260 68" className="h-[68px] w-full" role="img" aria-label="Loss history through the selected iteration">
-      <defs>
-        <linearGradient id="loss-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#67e8f9" stopOpacity=".28" />
-          <stop offset="1" stopColor="#67e8f9" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={path} fill="none" stroke="#67e8f9" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-    </svg>
   );
 }
 
@@ -200,6 +163,7 @@ export function SphereForceLab() {
   const [optimizer, setOptimizer] = useState<OptimizerKind>("adamw");
   const [learningRate, setLearningRate] = useState(0.018);
   const [weightDecay, setWeightDecay] = useState(0.05);
+  const [radiusMode, setRadiusMode] = useState<RadiusMode>("fixed");
   const [targetedTokens, setTargetedTokens] = useState(10);
   const [untargetedTokens, setUntargetedTokens] = useState(10);
   const [batchSize, setBatchSize] = useState(10);
@@ -213,6 +177,7 @@ export function SphereForceLab() {
 
   const initialize = useCallback(async (settings?: Partial<SimConfig>) => {
     try {
+      validateTrainingSettings({ optimizer: settings?.optimizer ?? optimizer, learningRate: settings?.learningRate ?? learningRate, weightDecay: settings?.weightDecay ?? weightDecay, radiusMode: settings?.radiusMode ?? radiusMode });
       validateQat(settings?.qat ?? qatDraft);
       validateDataset(settings?.dataset ?? datasetDraft, settings?.targetedTokens ?? boundedInteger(targetedTokens, 1, MAX_TARGET_TOKENS, 10), settings?.seed ?? seed);
       const architecture = validateArchitecture(settings?.architecture ?? architectureDraft, settings?.batchSize ?? batchSize, (settings?.targetedTokens ?? targetedTokens) + MAX_UNTARGETED_TOKENS);
@@ -235,6 +200,7 @@ export function SphereForceLab() {
         optimizer: settings?.optimizer ?? optimizer,
         learningRate: settings?.learningRate ?? learningRate,
         weightDecay: settings?.weightDecay ?? weightDecay,
+        radiusMode: settings?.radiusMode ?? radiusMode,
         targetedTokens: settings?.targetedTokens ?? boundedInteger(targetedTokens, 1, MAX_TARGET_TOKENS, 10),
         untargetedTokens: settings?.untargetedTokens ?? boundedInteger(untargetedTokens, 0, MAX_UNTARGETED_TOKENS, 10),
         batchSize: settings?.batchSize ?? boundedInteger(batchSize, 1, 100, 10),
@@ -249,7 +215,9 @@ export function SphereForceLab() {
       simulationRef.current?.dispose();
       simulationRef.current = sim;
       setArchitectureDraft({ ...sim.architecture });
+      setRadiusMode(sim.radiusMode);
       if (sim.modelDim === 2) setMode("rows");
+      else if (sim.radiusMode === "free") setMode(current => current === "probe" ? "forces" : current);
       setTimeline((current) => ({ history: sim.history, events: sim.events, liveStep: sim.step, revision: current.revision + 1 }));
       setFrame(0);
       setSelectedToken(0);
@@ -266,7 +234,7 @@ export function SphereForceLab() {
       setReady(Boolean(simulationRef.current));
       setAnnouncement("The simulation could not initialize. The previous run is retained.");
     }
-  }, [architectureDraft, datasetDraft, batchSize, learningRate, maxIterationsDraft, optimizer, qatDraft, seed, targetedTokens, untargetedTokens, weightDecay]);
+  }, [architectureDraft, datasetDraft, batchSize, learningRate, maxIterationsDraft, optimizer, qatDraft, seed, targetedTokens, untargetedTokens, weightDecay, radiusMode]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void initialize(), 0);
@@ -291,6 +259,16 @@ export function SphereForceLab() {
   const displayHistory = useMemo(() => history.map(toDisplaySnapshot), [history, timeline.revision]);
   const events = timeline.events;
   const liveFrame = Math.max(0, history.length - 1);
+
+  const seekFrame = useCallback((next: number) => {
+    if (working || !ready || !history.length || !Number.isFinite(next)) return;
+    const selectedFrame = Math.max(0, Math.min(liveFrame, Math.round(next)));
+    setRunning(false);
+    setReplaying(false);
+    setPlacingLetter(false);
+    setFrame(selectedFrame);
+    setAnnouncement(`Viewing iteration ${history[selectedFrame].step}, frame ${selectedFrame} of ${liveFrame}.`);
+  }, [working, ready, history, liveFrame]);
 
   const trainMany = useCallback(async (count: number) => {
     const sim = simulationRef.current;
@@ -441,7 +419,18 @@ export function SphereForceLab() {
 
   const snapshot = history[Math.min(frame, history.length - 1)];
   const isLive = frame === liveFrame;
-  const activeMode = modes.find((item) => item.id === mode)!;
+  const freeRadius = snapshot?.radiusMode === "free";
+  const probeSupported = snapshot ? supportsSphericalProbe(snapshot) : true;
+  const viewMode = mode === "probe" && !probeSupported ? "forces" : mode;
+  const viewModes = modes.map(item => {
+    if (item.id === "probe" && !probeSupported) return { ...item, description: "Requires fixed radius and at least 3 model dimensions." };
+    if (!freeRadius) return item;
+    if (item.id === "forces") return { ...item, label: "CE ambient force", description: "Full −∇L at each row; excludes optimizer momentum and decay." };
+    if (item.id === "optimizer") return { ...item, description: "Observed full step, including momentum and weight decay." };
+    if (item.id === "decomposition") return { ...item, description: "Split at the row’s current radius; radial force is retained." };
+    return item;
+  });
+  const activeMode = viewModes.find((item) => item.id === viewMode)!;
   const activeProbeMode = probeModes.find((item) => item.id === probeMode)!;
   const selected = snapshot && selectedToken < snapshot.activeVocab ? selectedToken : 0;
 
@@ -518,7 +507,7 @@ export function SphereForceLab() {
             <span className="chip"><Cpu className="size-3.5" /> CPU</span>
             <span className="chip">{snapshot.architecture.layers} {snapshot.architecture.blockMode === "mlp" ? "MLP" : "decoder"} block{snapshot.architecture.layers === 1 ? "" : "s"}</span>
             <span className="chip">d = {snapshot.modelDim}</span>
-            <span className="chip">R = √{snapshot.modelDim}</span>
+            <span className="chip">{freeRadius ? "Free radius" : `R = √${snapshot.modelDim}`}</span>
             <span className="chip">{snapshot.sequenceLength} context · {snapshot.parameterCount.toLocaleString()} parameters</span>
             <span className="chip">{snapshot.dataset.mode === "cycle" ? "Direct cycle" : "Markov"}</span>
             <span className="chip">{snapshot.includedTargetCount}/{snapshot.targetCount} targets included</span>
@@ -607,7 +596,7 @@ export function SphereForceLab() {
               <details className="text-sm leading-relaxed text-slate-400">
                 <summary className="cursor-pointer text-slate-300">Quantization details</summary>
                 <p className="mt-2">Embeddings and attention/MLP matrices use per-tensor scaled integer codes with zero point 0. Activations, biases, and norm gains stay full precision. Ternary uses scaled −1, 0, 1 with nearest rounding. Scales are recalculated each forward pass.</p>
-                <p className="mt-2">Effective weight = (1 − blend) × master + blend × quantized. The backward pass uses an identity straight-through estimator (STE). The sphere shows full-precision master rows; quantized forward rows are not renormalized.</p>
+                <p className="mt-2">Effective weight = (1 − blend) × master + blend × quantized. The backward pass uses an identity straight-through estimator (STE). The view shows full-precision master rows; quantized forward rows are not renormalized.</p>
               </details>
             </div>
           </section>
@@ -642,12 +631,25 @@ export function SphereForceLab() {
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="control-label">Learning rate
-                  <input className="lab-input mt-1" type="number" min="0.0001" max="0.2" step="0.001" value={learningRate} onChange={(e) => setLearningRate(Number(e.target.value))} />
+                  <input aria-label="Learning rate" className="lab-input mt-1" type="number" min="0.000001" step="0.001" value={learningRate} onChange={(e) => setLearningRate(Number(e.target.value))} />
                 </label>
-                <label className="control-label">Weight decay
-                  <input className="lab-input mt-1" type="number" min="0" max="1" step="0.01" value={weightDecay} onChange={(e) => setWeightDecay(Number(e.target.value))} />
+                <label className="control-label">Weight decay λ
+                  <input aria-label="Weight decay" className="lab-input mt-1" type="number" min="0" step="0.01" value={weightDecay} onChange={(e) => setWeightDecay(Number(e.target.value))} />
                 </label>
               </div>
+              <label className="control-label">LM-head radius
+                <Select value={radiusMode} onValueChange={value => setRadiusMode(value as RadiusMode)}>
+                  <SelectTrigger aria-label="LM-head radius" className="mt-1 w-full border-white/10 bg-[#091527] text-slate-200"><SelectValue /></SelectTrigger>
+                  <SelectContent className="border-white/10 bg-[#0b1728] text-slate-100">
+                    <SelectItem value="fixed">Fixed radius √d</SelectItem>
+                    <SelectItem value="free">Free radius · no projection</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <p className="text-sm leading-relaxed text-slate-400">The WTE and LM head stay tied. Both modes initialize at √d. Free radius allows norms to grow or shrink after each update.</p>
+              <p className="text-sm leading-relaxed text-slate-400">Decoupled weight decay applies to all trainable parameters, including the tied rows. AdamW uses β₁ = 0.9 and β₂ = 0.99. Use 0 to disable decay. These settings apply on reset.</p>
+              <Button variant="secondary" disabled={!ready || working} onClick={() => void initialize()}>Apply model + optimizer</Button>
+              <p className="text-xs text-slate-400">Resets weights, moments, and timeline using all current drafts.</p>
               <div className={`rounded-lg border px-3 py-2 text-[10px] leading-relaxed ${estimatedHistory > 512 * 1024 ** 2 ? "border-amber-300/20 bg-amber-300/[0.06] text-amber-200" : "border-white/[0.06] bg-white/[0.025] text-slate-500"}`}>
                 Estimated recorded history at this setup: <span className="font-mono">{formatMemory(estimatedHistory)}</span>. Every iteration remains replayable.
               </div>
@@ -657,17 +659,17 @@ export function SphereForceLab() {
           <section className="border-t border-white/[0.07] pt-4">
             <div className="section-label"><Sparkles className="size-3.5" /> View</div>
             <div className="mt-3 space-y-1.5">
-              {modes.map((item) => {
+              {viewModes.map((item) => {
                 const Icon = item.icon;
-                const active = mode === item.id;
+                const active = viewMode === item.id;
                 return (
-                  <button key={item.id} type="button" onClick={() => setMode(item.id)} className={`view-button ${active ? "view-button-active" : ""}`}>
+                  <button key={item.id} type="button" disabled={item.id === "probe" && !probeSupported} onClick={() => setMode(item.id)} className={`view-button disabled:opacity-40 disabled:cursor-not-allowed ${active ? "view-button-active" : ""}`}>
                     <Icon className="size-4" /><span><strong>{item.label}</strong><small>{item.description}</small></span>
                   </button>
                 );
               })}
             </div>
-            {mode === "probe" && (
+            {viewMode === "probe" && (
               <label className="control-label mt-3 block">Surface quantity
                 <Select value={probeMode} onValueChange={(value) => setProbeMode(value as ProbeMode)}>
                   <SelectTrigger className="mt-1 w-full border-white/10 bg-[#091527] text-slate-200"><SelectValue /></SelectTrigger>
@@ -680,12 +682,12 @@ export function SphereForceLab() {
             <div className="mt-3 space-y-2.5">
               <label className="toggle-row"><span>Trajectory trails</span><Switch checked={showTrails} onCheckedChange={setShowTrails} /></label>
               <label className="toggle-row"><span>Normalize arrow lengths</span><Switch checked={normalizeArrows} onCheckedChange={setNormalizeArrows} /></label>
-              {mode === "probe" && <label className="toggle-row"><span>Sparse field arrows</span><Switch checked={showFieldArrows} onCheckedChange={setShowFieldArrows} /></label>}
-              {mode === "probe" && <label className="toggle-row"><span>Per-frame color scale</span><Switch checked={frameAutoscale} onCheckedChange={setFrameAutoscale} /></label>}
+              {viewMode === "probe" && <label className="toggle-row"><span>Sparse field arrows</span><Switch checked={showFieldArrows} onCheckedChange={setShowFieldArrows} /></label>}
+              {viewMode === "probe" && <label className="toggle-row"><span>Per-frame color scale</span><Switch checked={frameAutoscale} onCheckedChange={setFrameAutoscale} /></label>}
             </div>
             <fieldset className="mt-4 space-y-3 border-t border-white/10 pt-3">
               <legend className="px-1 text-sm font-medium text-slate-200">Average hidden states</legend>
-              <label className="toggle-row"><span>Projected on sphere</span><Switch aria-label="Average hidden states projected on sphere" checked={showHiddenOnSphere} onCheckedChange={setShowHiddenOnSphere} /></label>
+              <label className="toggle-row"><span>{freeRadius ? "Projected to reference sphere" : "Projected on sphere"}</span><Switch aria-label="Average hidden states projected on sphere" checked={showHiddenOnSphere} onCheckedChange={setShowHiddenOnSphere} /></label>
               <label className="toggle-row"><span>In free space</span><Switch aria-label="Average hidden states in free space" checked={showHiddenInSpace} onCheckedChange={setShowHiddenInSpace} /></label>
               <p className="text-sm leading-relaxed text-slate-400">Mean LM-head input for each predicted target at this frame. Enable either view or both. Projection follows averaging; free space preserves length. Targets absent from this frame are omitted.</p>
             </fieldset>
@@ -702,20 +704,20 @@ export function SphereForceLab() {
               <Button variant="outline" aria-pressed={placingLetter} disabled={!ready || !isLive || !nextUntargeted || working || replaying} onClick={() => setPlacingLetter((value) => !value)}>{placingLetter ? "Cancel" : `Place ${nextUntargeted ?? "—"}`}</Button>
             </div>
             <div className="mobile-view-row">
-              <Select value={mode} onValueChange={(value) => setMode(value as ViewMode)}>
+              <Select value={viewMode} onValueChange={(value) => setMode(value as ViewMode)}>
                 <SelectTrigger aria-label="Visualization" className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>{modes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{viewModes.map((item) => <SelectItem key={item.id} value={item.id} disabled={item.id === "probe" && !probeSupported}>{item.label}</SelectItem>)}</SelectContent>
               </Select>
               <div className="mobile-live-metrics"><span>Step <b>{snapshot.step}</b></span><span>Loss <b>{format(snapshot.loss, 3)}</b></span></div>
             </div>
           </div>
           <div className="sphere-viewport relative h-[min(68vh,760px)] min-h-[500px] overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#050914] shadow-2xl shadow-black/25">
             <SphereScene
-              key={JSON.stringify(snapshot.architecture)}
+              key={JSON.stringify([snapshot.architecture, snapshot.radiusMode])}
               snapshot={displaySnapshot}
               history={displayHistory}
               frameIndex={frame}
-              mode={mode}
+              mode={viewMode}
               probeMode={probeMode}
               selectedToken={selected}
               showTrails={showTrails}
@@ -733,13 +735,13 @@ export function SphereForceLab() {
             <div className="sphere-caption pointer-events-none absolute bottom-4 left-4 right-4 flex flex-wrap items-end justify-between gap-3">
               <div className="max-w-[430px] rounded-xl border border-white/10 bg-[#07101e]/88 p-3 backdrop-blur-md">
                 <div className="flex items-center gap-2 text-sm font-semibold text-white"><activeMode.icon className="size-4 text-cyan-300" />{activeMode.label}</div>
-                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{activeMode.description} Displayed gradient is evaluated after iteration {snapshot.step} projection and before the next update.</p>
-                {mode === "decomposition" && <div className="mt-2 flex gap-3 text-[10px]"><span className="text-cyan-300">● ambient −∇L</span><span className="text-fuchsia-300">● tangent −P∇L</span><span className="text-amber-300">● radial removed</span></div>}
-                {qatActive && <p className="mt-1 text-[11px] text-fuchsia-200">QAT: arrows use the STE surrogate on master rows. Probe freezes the embedding scale.</p>}
-                {mode === "forces" && <div className="mt-2 text-[10px] text-fuchsia-300">Magenta arrows = {qatActive ? "STE surrogate tangent force" : "actual tied-row CE tangent force"}</div>}
-                {mode === "optimizer" && <div className="mt-2 text-[10px] text-emerald-300">Green arrows = observed projected move from the previous iteration</div>}
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{activeMode.description} Displayed gradient is evaluated at iteration {snapshot.step}{freeRadius ? " (no projection)" : " after projection"} and before the next update.</p>
+                {viewMode === "decomposition" && <div className="mt-2 flex gap-3 text-[10px]"><span className="text-cyan-300">● ambient −∇L</span><span className="text-fuchsia-300">● tangent −P∇L</span><span className="text-amber-300">● radial {freeRadius ? "retained" : "component"}</span></div>}
+                {qatActive && <p className="mt-1 text-[11px] text-fuchsia-200">QAT: arrows use the STE surrogate on master rows.{!freeRadius && " Probe freezes the embedding scale."}</p>}
+                {viewMode === "forces" && <div className="mt-2 text-[10px] text-fuchsia-300">Magenta arrows = {qatActive ? (freeRadius ? "STE surrogate ambient force" : "STE surrogate tangent force") : (freeRadius ? "actual tied-row CE ambient force" : "actual tied-row CE tangent force")}</div>}
+                {viewMode === "optimizer" && <div className="mt-2 text-[10px] text-emerald-300">Green arrows = observed {freeRadius ? "full" : "projected"} move from the previous iteration</div>}
               </div>
-              {mode === "probe" && snapshot.modelDim >= 3 && snapshot.includedTargetCount > 0 && (
+              {viewMode === "probe" && snapshot.modelDim >= 3 && snapshot.includedTargetCount > 0 && (
                 <div className="w-[220px] rounded-xl border border-white/10 bg-[#07101e]/88 p-3 backdrop-blur-md">
                   <div className="flex justify-between text-[10px] text-slate-400"><span>{activeProbeMode.label}</span><span>{frameAutoscale ? "frame" : "fixed"}</span></div>
                   <div className="heatbar mt-2 h-2.5 rounded-full" />
@@ -749,9 +751,10 @@ export function SphereForceLab() {
             </div>
           </div>
 
+          {freeRadius && <p className="mt-2 rounded-lg border border-cyan-300/15 bg-cyan-300/5 p-3 text-sm leading-relaxed text-cyan-100">Free-radius LM head: rows are shown at their actual coordinates. The sphere at √{snapshot.modelDim} is an initialization and insertion reference only. The view expands to fit rows and visible trails. CE arrows exclude optimizer momentum and weight decay; observed moves include them. The spherical probe is disabled.</p>}
           {snapshot.hiddenMeans.length < snapshot.includedTargetCount && <p className="mt-2 rounded-lg border border-amber-300/20 bg-amber-300/5 p-3 text-sm text-amber-100">Batch coverage: {snapshot.hiddenMeans.length}/{snapshot.includedTargetCount} included targets appear as prediction labels. Observed IDs: {snapshot.hiddenMeans.map(item => item.target).join(", ")}. {snapshot.dataset.mode === "cycle" ? "Increase context length or batch size for full coverage. The direct batch does not rotate between steps." : "Markov probabilities and finite sampling determine exposure; included does not guarantee observed in this batch."}</p>}
-          {snapshot.modelDim !== 3 && <p className="mt-2 rounded-lg border border-cyan-300/15 bg-cyan-300/5 p-3 text-sm leading-relaxed text-cyan-100">{snapshot.modelDim > 3 ? "Rows, arrows, and hidden means show coordinates 1–3 without rescaling. Sphere projection is computed in the full model space before display. The probe samples the slice x₄…=0 and shows only forces within that slice. Numeric diagnostics use all dimensions." : "Two-dimensional model: rows and hidden means lie in the XY plane. The spherical probe surface is unavailable; row forces and diagnostics remain exact."}</p>}
-          {(showHiddenOnSphere || showHiddenInSpace) && <p className="mt-2 px-2 text-sm text-cyan-100">Hidden means: {showHiddenInSpace && "◆ μ = free space"}{showHiddenInSpace && showHiddenOnSphere && " · "}{showHiddenOnSphere && "◇ μˢ = sphere"}. Colors match targets; dashed lines connect both views.</p>}
+          {snapshot.modelDim !== 3 && <p className="mt-2 rounded-lg border border-cyan-300/15 bg-cyan-300/5 p-3 text-sm leading-relaxed text-cyan-100">{snapshot.modelDim > 3 ? "Rows, arrows, and hidden means show coordinates 1–3 without rescaling. Hidden-mean projection uses the full model space before display. Numeric diagnostics use all dimensions. When enabled, the spherical probe samples the slice x₄…=0." : "Two-dimensional model: rows and hidden means lie in the XY plane. The spherical probe surface is unavailable; row forces and diagnostics remain exact."}</p>}
+          {(showHiddenOnSphere || showHiddenInSpace) && <p className="mt-2 px-2 text-sm text-cyan-100">Hidden means: {showHiddenInSpace && "◆ μ = free space"}{showHiddenInSpace && showHiddenOnSphere && " · "}{showHiddenOnSphere && "◇ μˢ = reference sphere"}. Colors match targets; dashed lines connect both views.</p>}
 
           <div className="lab-timeline panel mt-4 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -777,7 +780,10 @@ export function SphereForceLab() {
               </div>
             </div>
             <div className="relative mt-4 px-1">
-              <Slider aria-label="Training iteration" min={0} max={Math.max(1, liveFrame)} disabled={liveFrame === 0 || working} step={1} value={[frame]} onValueChange={(value) => { setRunning(false); setReplaying(false); setPlacingLetter(false); setFrame(value[0]); }} />
+              <Slider aria-label="Training iteration" aria-valuetext={`Iteration ${snapshot.step}, frame ${frame} of ${liveFrame}`} min={0} max={Math.max(1, liveFrame)} disabled={!ready || liveFrame === 0 || working} step={1} value={[frame]}
+                onPointerDownCapture={() => seekFrame(frame)}
+                onKeyDownCapture={event => { if (["Home", "End", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown"].includes(event.key)) seekFrame(frame); }}
+                onValueChange={([next]) => seekFrame(next)} />
               <div className="timeline-events pointer-events-none absolute inset-x-1 top-[5px] h-1.5">
                 {events.map((event, index) => <span key={`${event.token}-${event.step}-${index}`} className="absolute top-0 size-1.5 -translate-x-1/2 rounded-full bg-amber-300 ring-2 ring-[#07101e]" style={{ left: `${liveFrame ? event.frame / liveFrame * 100 : 0}%` }} title={`${event.token} inserted at step ${event.step}`} />)}
                 {history.map((item, index) => item.qatChanged ? <span key={`qat-${index}`} className="absolute top-0 size-1.5 -translate-x-1/2 rounded-full bg-fuchsia-300 ring-2 ring-[#07101e]" style={{ left: `${liveFrame ? index / liveFrame * 100 : 0}%` }} title={`${item.qat.format} applied at step ${item.step}`} /> : null)}
@@ -802,13 +808,14 @@ export function SphereForceLab() {
               <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${isLive ? "bg-emerald-300/10 text-emerald-300" : "bg-amber-300/10 text-amber-300"}`}>{isLive ? "LIVE EDGE" : "HISTORY"}</span>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <Metric label="Loss" value={format(snapshot.loss)} accent="cyan" />
+              <Metric label="Train CE loss" value={format(snapshot.loss)} accent="cyan" />
               <Metric label="Next-token acc." value={Number.isFinite(snapshot.accuracy) ? `${(snapshot.accuracy * 100).toFixed(1)}%` : "—"} accent="green" />
-              <Metric label="Mean tangent force" value={format(snapshot.meanTangentForce)} accent="pink" />
+              <Metric label={freeRadius ? "Mean ambient force" : "Mean tangent force"} value={format(snapshot.meanForce)} accent="pink" />
               <Metric label="Unused prob. mass" value={format(snapshot.unusedMass)} accent="gold" />
-              <Metric label="Unused pair distance" value={activeUntargeted > 1 ? format(snapshot.meanLetterDistance) : "—"} detail="mean chord" />
-              <Metric label="Max norm error" value={format(snapshot.maxNormError)} detail={`from √${snapshot.modelDim}`} />
+              <Metric label="Unused pair distance" value={activeUntargeted > 1 ? format(snapshot.meanLetterDistance) : "—"} detail="mean Euclidean distance" />
+              {freeRadius ? <Metric label="Mean row norm" value={format(snapshot.meanRowNorm)} detail={`min ${format(snapshot.minRowNorm, 3)} · max ${format(snapshot.maxRowNorm, 3)}`} /> : <Metric label="Max norm error" value={format(snapshot.maxNormError)} detail={`from √${snapshot.modelDim}`} />}
             </div>
+            <p className="mt-3 text-sm text-slate-300" aria-label="Applied optimizer settings">{snapshot.optimizer === "adamw" ? "AdamW" : "RMSProp"} · learning rate {snapshot.learningRate} · weight decay {snapshot.weightDecay} · {freeRadius ? "free radius" : "fixed radius"}</p>
             <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.04] p-3 text-sm" aria-label="Dataset at selected iteration">
               <div className="font-medium text-cyan-200">{snapshot.includedTargetCount} included · {activeUntargeted} untargeted</div>
               {snapshot.dataset.mode === "cycle" ? <p className="mt-1 break-words text-slate-300">Cycle: {Array.from(snapshot.targetMask).flatMap((included, index) => included ? [String(index)] : []).join(" → ") || "empty"}{snapshot.includedTargetCount > 0 ? " → repeat" : ""}</p> : <>
@@ -826,10 +833,7 @@ export function SphereForceLab() {
               <div className="mt-1 text-slate-400">Row quantization RMSE: <span className="font-mono">{format(snapshot.quantizationRmse)}</span></div>
               {snapshot.qatChanged && <p className="mt-1 text-fuchsia-200">QAT configuration applied at this frame.</p>}
             </div>
-            <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 pt-2">
-              <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500"><span>Cross-entropy loss</span><span>0 → {snapshot.step}</span></div>
-              <TinyLossChart history={history} frame={frame} />
-            </div>
+            <TrainingCurves history={history} frame={frame} revision={timeline.revision} disabled={!ready || working} onSeek={seekFrame} />
           </section>
 
           <section className="border-t border-white/[0.07] pt-4">
@@ -841,7 +845,7 @@ export function SphereForceLab() {
               {nextUntargeted ? (
                 <>
                   <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-lg border border-amber-300/30 bg-amber-300/10 font-mono text-sm font-bold text-amber-200">{nextUntargeted}</span><div><div className="text-sm font-medium">{compact ? `Choose “Place ${nextUntargeted}”, then tap the sphere` : "Click any sphere point"}</div><div className="text-[10px] text-slate-500">{compact ? "Drag to rotate without inserting." : "Short click inserts; drag only rotates."}</div></div></div>
-                  <p className="mt-2 text-[11px] leading-relaxed text-slate-400">The new row is normalized to √{snapshot.modelDim}, receives zero optimizer moments, joins the softmax denominator, and never appears in inputs or targets. {snapshot.modelDim > 3 && "Coordinates beyond the third start at zero."}</p>
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-400">The new row starts at √{snapshot.modelDim}{freeRadius ? " and then evolves freely" : " and is reprojected after updates"}, receives zero optimizer moments, joins the softmax denominator, and never appears in inputs or targets. {snapshot.modelDim > 3 && "Coordinates beyond the third start at zero."}</p>
                   {!isLive && <p className="mt-2 text-[10px] font-medium text-amber-300">Return to the live edge before inserting.</p>}
                 </>
               ) : <p className="text-[11px] text-slate-400">All {MAX_UNTARGETED_TOKENS} untargeted rows are active. Further sphere clicks do not mutate the model.</p>}
@@ -861,26 +865,37 @@ export function SphereForceLab() {
               </Select>
             </div>
             <p className="mt-2 text-xs text-slate-400">Vector components shown: coordinates 1–3{snapshot.modelDim === 2 ? " (z = 0)" : ""}.</p>
+            {snapshot.rowNorms[selected] === 0 && <p className="mt-2 text-sm text-amber-200">At the origin the radial direction is undefined. The decomposition view shows the ambient force only.</p>}
             <table className="mt-3 w-full table-fixed" aria-label={`Coordinates and forces for token ${tokenLabel(selected, snapshot.targetCount)}`}>
               <thead><tr className="text-[10px] uppercase tracking-wider text-slate-600"><th className="pb-1 text-left">vector</th><th className="pb-1 text-right">x</th><th className="pb-1 text-right">y</th><th className="pb-1 text-right">z</th></tr></thead>
               <tbody>
                 <VectorRow label="master w" values={vector(snapshot.positions)} color="#67e8f9" />
                 <VectorRow label="forward w" values={vector(snapshot.effectivePositions)} color="#f0abfc" />
                 <VectorRow label="ambient −∇L" values={rawForce} color="#67e8f9" />
-                <VectorRow label="tangent −P∇L" values={tangentForce} color="#f0abfc" />
-                <VectorRow label="radial removed" values={radialForce} color="#fcd34d" />
+                <VectorRow label="tangent −P∇L" values={snapshot.rowNorms[selected] > 0 ? tangentForce : [NaN, NaN, NaN]} color="#f0abfc" />
+                <VectorRow label={freeRadius ? "radial retained" : "radial component"} values={snapshot.rowNorms[selected] > 0 ? radialForce : [NaN, NaN, NaN]} color="#fcd34d" />
                 <VectorRow label="observed Δw" values={vector(snapshot.optimizerMoves)} color="#6ee7b7" />
               </tbody>
             </table>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <Metric label="Projection correction" value={format(snapshot.projectionCorrection)} />
+              <Metric label={freeRadius ? "Selected row norm" : "Projection correction"} value={format(freeRadius ? snapshot.rowNorms[selected] : snapshot.projectionCorrection)} detail={freeRadius ? "full-D ‖w‖; no projection" : undefined} />
               <Metric label="Move · force cosine" value={format(snapshot.optimizerForceCosine)} detail="prior move vs current force; full-D" />
-              <Metric label="Tangency residual" value={format(snapshot.maxTangencyError)} detail="full-D normalized |w·F|" />
+              <Metric label="Tangency residual" value={format(snapshot.maxTangencyError)} detail="full-D |w·F_tan| / (‖w‖ ‖F_tan‖)" />
               <Metric label="Unused-gradient check" value={activeUntargeted > 0 ? format(snapshot.unusedGradientError) : "—"} detail={qatActive ? "STE − analytic surrogate" : "autodiff − analytic"} />
             </div>
           </section>
 
           <section className="border-t border-white/[0.07] pt-4">
+            {freeRadius ? <>
+              <div className="section-label"><Braces className="size-3.5" /> Free-radius forces</div>
+              <div className="mt-3 rounded-xl border border-cyan-300/10 bg-cyan-300/[0.04] p-3 font-mono text-sm leading-relaxed text-cyan-100/80">
+                <div>g = ∇w L · F = −g</div>
+                <div>F_rad = −w(wᵀg) / ‖w‖²</div>
+                <div>F_tan = F − F_rad</div>
+                <div>Δw_decay = −ηλw</div>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-slate-400">w is a tied row, L is batch cross entropy, η is the learning rate, and λ is weight decay. The split is defined for nonzero w and uses its current full-dimensional norm. Both components remain in free-radius training. AdamW preconditions the gradient using its moments; the green arrow records the resulting total step, including decoupled decay. {qatActive && "Under QAT, g is the identity-STE surrogate."}</p>
+            </> : <>
             <div className="section-label"><Braces className="size-3.5" /> {qatActive ? "QAT surrogate field" : "Exact field being shown"}</div>
             <div className="mt-3 rounded-xl border border-cyan-300/10 bg-cyan-300/[0.04] p-3 font-mono text-[11px] leading-relaxed text-cyan-100/80">
               <div>pᵤ(s) = σ({qatActive ? "u_eff" : "u"}ᵀhₛ − log Zₛ)</div>
@@ -888,6 +903,7 @@ export function SphereForceLab() {
               <div className="text-fuchsia-200">F(u) = −(I − uuᵀ/R²)g(u)</div>
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-slate-400">The surface freezes the selected iteration’s {snapshot.logPartition.length} hidden states and active-vocabulary partition. {snapshot.includedTargetCount === 0 ? "No probe field is defined for an empty dataset." : qatActive ? "The candidate row uses the saved blend and embedding scale. Arrows show its STE surrogate; actual insertion may recalibrate the scale and change existing logits." : "It gives the instantaneous counterfactual for one newly inserted untargeted row."}</p>
+            </>}
           </section>
         </aside>
         </TabsContent>

@@ -19,6 +19,15 @@ jobs:
           python3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           python3 -m pip install numpy transformers datasets tiktoken wandb tqdm tensorboard
           python3 -m pip install -r requirements_cpu.txt
+          python3 -m pip install pytest
+      - name: Test per-token reporting and checkpoint resume on CPU
+        env:
+          OMP_NUM_THREADS: '1'
+          MPLBACKEND: Agg
+        run: |
+          source venv/bin/activate
+          node --version
+          python3 -m pytest -q tests/test_per_token_metrics.py tests/test_per_token_training.py
       - name: Run Small Network on CPU
         run: |
           source venv/bin/activate

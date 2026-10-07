@@ -14,6 +14,9 @@ METRICS = (
     ("train_loss", "Sampled training loss"),
     ("vector_magnitude", "Token vector L2 magnitude"),
     ("min_pairwise_angle_deg", "Minimum pairwise angle (degrees)"),
+    ("avg_target_probability", "Average target probability"),
+    ("avg_target_rank", "Average target rank"),
+    ("avg_left_probability", "Average left probability"),
 )
 ORDERINGS = (
     ("frequency", "training_seen_count"),
@@ -21,6 +24,9 @@ ORDERINGS = (
     ("training_loss", "train_loss"),
     ("vector_magnitude", "vector_magnitude"),
     ("minimum_pairwise_angle", "min_pairwise_angle_deg"),
+    ("target_probability", "avg_target_probability"),
+    ("target_rank", "avg_target_rank"),
+    ("left_probability", "avg_left_probability"),
 )
 
 
@@ -52,7 +58,7 @@ def write_static_dashboards(output_dir, rows):
                     ),
                     reverse=True,
                 )
-                fig, axes = plt.subplots(len(METRICS), 1, figsize=(18, 18), sharex=True)
+                fig, axes = plt.subplots(len(METRICS), 1, figsize=(18, 26), sharex=True)
                 x = np.arange(len(ordered))
                 for axis, (metric, metric_label) in zip(axes, METRICS):
                     axis.scatter(x, [row[metric] for row in ordered], s=7, alpha=0.8)

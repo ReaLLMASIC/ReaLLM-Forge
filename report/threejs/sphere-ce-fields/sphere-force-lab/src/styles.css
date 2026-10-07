@@ -208,8 +208,8 @@ button, input { font: inherit; }
   .sphere-lab .toggle-row { min-height: 44px; }
   .sphere-lab [data-slot="switch"] { min-height: 28px; width: 48px; }
   .sphere-lab [data-slot="switch-thumb"] { width: 24px; height: 24px; }
-  .sphere-lab .lab-timeline [data-slot="slider"] { min-height: 44px; }
-  .sphere-lab .lab-timeline [data-slot="slider-thumb"] { width: 26px; height: 26px; }
+  .sphere-lab .lab-timeline [data-slot="slider"], .sphere-lab .training-curves [data-slot="slider"] { min-height: 44px; }
+  .sphere-lab .lab-timeline [data-slot="slider-thumb"], .sphere-lab .training-curves [data-slot="slider-thumb"] { width: 26px; height: 26px; }
   .sphere-lab .timeline-events { top: calc(50% - 3px); }
   .sphere-lab .lab-timeline { margin-top: 12px; }
   .sphere-lab .lab-timeline > div:first-child p { display: none; }

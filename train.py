@@ -8,7 +8,9 @@ import random
 import pickle
 import shutil
 import sys
+import tempfile
 import time
+import warnings
 from collections import deque
 from datetime import datetime, timedelta
 from typing import Any
@@ -116,6 +118,8 @@ class Trainer:
         self.model_group = model_group
         self.training_group = training_group
         self.logging_group = logging_group
+        self.ddp = int(os.environ.get('RANK', -1)) != -1
+        self._validate_per_token_metrics_mode()
 
         # GNS and batch schedule
         self.gns = None
@@ -249,7 +253,7 @@ class Trainer:
 
     def setup(self):
         # Setup DDP
-        self.ddp = int(os.environ.get('RANK', -1)) != -1
+        per_token_state = None
         if self.ddp:
             init_process_group(backend=self.args.backend)
             self.ddp_rank = int(os.environ['RANK'])
@@ -373,6 +377,7 @@ class Trainer:
                 ckpt_path = os.path.join(self.args.out_dir, self.args.init_from_ckpt)
                 checkpoint = torch.load(ckpt_path, map_location=self.device)
                 self.iter_num = checkpoint['iter_num']
+                per_token_state = checkpoint.get('per_token_metrics')
             else:
                 ckpt_path = os.path.join(self.args.prev_run_ckpt, self.args.init_from_ckpt)
                 checkpoint = torch.load(ckpt_path, map_location=self.device)
@@ -387,6 +392,8 @@ class Trainer:
             for k in altered_model_args:
                 self.model_args[k] = altered_model_args[k]
 
+            # Numerical mode may have come from the checkpoint, not the CLI.
+            self._validate_per_token_metrics_mode()
             self.load_data()
             gptconf = GPTConfig(**self.model_args)
             self.model = GPT(gptconf)
@@ -525,10 +532,31 @@ class Trainer:
             self.args.csv_name = wandb_run_name
             wandb.init(project=self.args.wandb_project, name=self.args.wandb_run_name, config=self.args)
         self.load_tokenizer()
+        self._setup_per_token_metrics(per_token_state)
+
+    def _validate_per_token_metrics_mode(self):
+        if not self.args.log_per_token_metrics:
+            return
+        if self.ddp:
+            raise ValueError(
+                '--log_per_token_metrics currently requires single-process training; '
+                'DDP token counts and report writes are not synchronized. '
+                'Use --no-log_per_token_metrics for DDP.'
+            )
+        if (self.args.numerical_multicontext
+                or getattr(self, 'model_args', {}).get('numerical_multicontext', False)):
+            raise ValueError(
+                '--log_per_token_metrics requires categorical token logits; '
+                'numerical_multicontext uses regression outputs. '
+                'Use --no-log_per_token_metrics for numerical training.'
+            )
+
+    def _setup_per_token_metrics(self, checkpoint_state=None):
         self.per_token_metrics = None
         if self.args.log_per_token_metrics:
             if self.args.training_mode == 'multicontext':
-                sizes = dict(zip(self.args.multicontext_datasets, self.vocab_sizes))
+                sizes = {dataset: int(self.vocab_sizes[dataset])
+                         for dataset in self.args.multicontext_datasets}
             elif self.args.dataset_list:
                 sizes = dict(zip(self.args.dataset_list, self.vocab_sizes))
             else:
@@ -537,8 +565,14 @@ class Trainer:
                           or os.path.join(self.args.out_dir, 'per_token_metrics'))
             token_texts = {}
             for dataset, vocab_size in sizes.items():
-                decode = (self.decode_dict.get(dataset, self.decode)
-                          if hasattr(self, 'decode_dict') else self.decode)
+                decode = getattr(self, 'decode_dict', {}).get(dataset)
+                if decode is None:
+                    if dataset == self.args.dataset:
+                        decode = self.decode
+                    else:
+                        # Multicontext streams can have unrelated vocabularies.
+                        with open(os.path.join('data', dataset, 'meta.pkl'), 'rb') as f:
+                            _, decode = get_tokenizer_functions(pickle.load(f))
                 rendered = {}
                 for token_id in range(vocab_size):
                     try:
@@ -549,7 +583,32 @@ class Trainer:
                         token_text, ensure_ascii=False
                     )[1:-1]
                 token_texts[dataset] = rendered
-            self.per_token_metrics = PerTokenMetrics(report_dir, sizes, token_texts)
+            if self.args.init_from == 'resume':
+                # A checkpoint may predate the CSV's latest rows. Keep those
+                # reports intact and start a distinct history for this resume.
+                os.makedirs(report_dir, exist_ok=True)
+                report_dir = tempfile.mkdtemp(
+                    prefix=f'resume_{self.iter_num:08d}_', dir=report_dir
+                )
+                if checkpoint_state is None:
+                    warnings.warn(
+                        'Checkpoint has no per-token counters; training occurrence '
+                        f'counts restart at iteration {self.iter_num} in {report_dir}.',
+                        RuntimeWarning,
+                    )
+            self.per_token_metrics = PerTokenMetrics(
+                report_dir, sizes, token_texts, counting_started_at=self.iter_num
+            )
+            if checkpoint_state is not None:
+                self.per_token_metrics.load_state_dict(checkpoint_state)
+            with open(os.path.join(report_dir, 'per_token_metadata.json'), 'w', encoding='utf-8') as f:
+                json.dump({
+                    'counting_started_at_iteration': self.per_token_metrics.counting_started_at,
+                    'counts_restored_from_checkpoint': checkpoint_state is not None,
+                    'report_started_at_iteration': self.iter_num,
+                    'vocab_sizes': sizes,
+                }, f, indent=2)
+            print(f'Per-token reports: {report_dir}')
 
 
     def _initialize_teacher_if_needed(self):
@@ -2181,6 +2240,8 @@ class Trainer:
                 'config': vars(self.args),
                 'metrics': getattr(self, 'latest_checkpoint_metrics', None),
                 }
+        if self.per_token_metrics is not None:
+            checkpoint['per_token_metrics'] = self.per_token_metrics.state_dict()
         torch.save(checkpoint, os.path.join(self.args.out_dir, filename))
 
     def export_min_angle_graph(self, losses):

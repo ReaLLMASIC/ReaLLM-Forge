@@ -6,7 +6,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CanvasSphereFallback } from "@/components/canvas-sphere-fallback";
 import { D_MODEL, ProbeMode, probeAt, tokenLabel } from "@/lib/simulator";
 
-import { DisplaySnapshot } from "@/lib/view-projection";
+import { DisplaySnapshot, displayExtent, displayedRowForce, supportsSphericalProbe } from "@/lib/view-projection";
 
 export type ViewMode = "rows" | "forces" | "optimizer" | "probe" | "decomposition";
 
@@ -360,9 +360,12 @@ export function SphereScene(props: SphereSceneProps) {
     const state = stateRef.current;
     if (!state) return;
     clearGroup(state.dynamic);
-    const extent = showHiddenInSpace ? Math.max(RADIUS, ...snapshot.hiddenMeans.map(item => Math.hypot(...item.mean))) : RADIUS;
+    const extent = displayExtent(snapshot, history, frameIndex, showTrails, showHiddenInSpace);
+    const displayScale = Math.max(1, extent / RADIUS);
+    const freeRadius = snapshot.radiusMode === "free";
     state.fitExtent(extent);
-    const heatmapVisible = mode === "probe" && snapshot.modelDim >= 3 && snapshot.includedTargetCount > 0;
+    if (state.scene.fog instanceof THREE.FogExp2) state.scene.fog.density = 0.035 / displayScale;
+    const heatmapVisible = mode === "probe" && supportsSphericalProbe(snapshot) && snapshot.includedTargetCount > 0;
     state.sphere.material.opacity = heatmapVisible ? 0.58 : 0.075;
     const positions = state.sphere.geometry.attributes.position as THREE.BufferAttribute;
     const values: number[] = [];
@@ -401,7 +404,7 @@ export function SphereScene(props: SphereSceneProps) {
           const frame = history[h];
           if (!frame || frame.activeVocab <= token) continue;
           const o = token * D_MODEL;
-          points.push(new THREE.Vector3(frame.positions[o], frame.positions[o + 1], frame.positions[o + 2]).multiplyScalar(1.005));
+          points.push(new THREE.Vector3(frame.positions[o], frame.positions[o + 1], frame.positions[o + 2]).multiplyScalar(freeRadius ? 1 : 1.005));
         }
         if (points.length > 1) {
           const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -417,8 +420,8 @@ export function SphereScene(props: SphereSceneProps) {
     const addArrow = (origin: THREE.Vector3, vector: THREE.Vector3, color: number, rawScale = 1) => {
       const magnitude = vector.length();
       if (magnitude < 1e-10) return;
-      const length = normalizeArrows ? 0.48 : Math.min(0.8, Math.max(0.08, magnitude * rawScale));
-      const arrow = new THREE.ArrowHelper(vector.clone().normalize(), origin.clone().multiplyScalar(1.02), length, color, 0.13, 0.07);
+      const length = normalizeArrows ? 0.48 * displayScale : Math.min(0.8 * displayScale, Math.max(0.08 * displayScale, magnitude * rawScale));
+      const arrow = new THREE.ArrowHelper(vector.clone().normalize(), origin.clone().multiplyScalar(freeRadius ? 1 : 1.02), length, color, 0.13 * displayScale, 0.07 * displayScale);
       arrow.renderOrder = 8;
       state.dynamic.add(arrow);
     };
@@ -430,24 +433,25 @@ export function SphereScene(props: SphereSceneProps) {
       const color = isUntargeted ? 0xffc95d : targetColor(token, snapshot.targetCount);
       const crowdedScale = snapshot.activeVocab > 80 ? 0.72 : snapshot.activeVocab > 40 ? 0.84 : 1;
       const selectedScale = token === selectedToken ? 1.42 : 1;
-      const markerSize = 0.072 * crowdedScale * selectedScale;
+      const markerSize = 0.072 * crowdedScale * selectedScale * displayScale;
       const geometry = isUntargeted ? new THREE.OctahedronGeometry(markerSize * 1.04, 0) : new THREE.SphereGeometry(markerSize, 14, 10);
       const marker = new THREE.Mesh(
         geometry,
         new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.32, roughness: 0.35 }),
       );
-      marker.position.copy(p.clone().multiplyScalar(1.015));
+      marker.position.copy(p.clone().multiplyScalar(freeRadius ? 1 : 1.015));
       marker.renderOrder = 6;
       state.dynamic.add(marker);
       const labelStride = Math.max(1, Math.ceil(snapshot.activeVocab / 24));
       const showLabel = snapshot.activeVocab <= 32 || token === selectedToken || token % labelStride === 0;
       if (showLabel) {
         const label = labelSprite(tokenLabel(token, snapshot.targetCount), isUntargeted ? "#ffc95d" : "#68e7ff", isUntargeted);
-        label.position.copy(p.clone().multiplyScalar(1.16));
+        label.scale.multiplyScalar(displayScale);
+        label.position.copy(freeRadius ? p.clone().add(new THREE.Vector3(0, 0.18 * displayScale, 0)) : p.clone().multiplyScalar(1.16));
         state.dynamic.add(label);
       }
       if (mode === "forces") {
-        addArrow(p, new THREE.Vector3(snapshot.tangentForces[o], snapshot.tangentForces[o + 1], snapshot.tangentForces[o + 2]), 0xff5bd6, 8);
+        addArrow(p, new THREE.Vector3(...displayedRowForce(snapshot, token)), 0xff5bd6, 8);
       }
       if (mode === "optimizer") {
         addArrow(p, new THREE.Vector3(snapshot.optimizerMoves[o], snapshot.optimizerMoves[o + 1], snapshot.optimizerMoves[o + 2]), 0x73f7b5, 34);
@@ -455,7 +459,6 @@ export function SphereScene(props: SphereSceneProps) {
     }
 
     if (showHiddenInSpace || showHiddenOnSphere) {
-      const displayScale = Math.max(1, extent / RADIUS);
       for (const item of snapshot.hiddenMeans) {
         const color = targetColor(item.target, snapshot.targetCount);
         const raw = new THREE.Vector3(...item.mean);
@@ -488,11 +491,13 @@ export function SphereScene(props: SphereSceneProps) {
       const tangent = new THREE.Vector3(snapshot.tangentForces[o], snapshot.tangentForces[o + 1], snapshot.tangentForces[o + 2]);
       const radial = raw.clone().sub(tangent);
       addArrow(p, raw, 0x6bdcff, 8);
-      addArrow(p, tangent, 0xff5bd6, 8);
-      addArrow(p, radial, 0xffc95d, 8);
+      if (snapshot.rowNorms[selectedToken] > 0) {
+        addArrow(p, tangent, 0xff5bd6, 8);
+        addArrow(p, radial, 0xffc95d, 8);
+      }
     }
 
-    if (mode === "probe" && snapshot.modelDim >= 3 && snapshot.includedTargetCount > 0 && showFieldArrows) {
+    if (heatmapVisible && showFieldArrows) {
       for (const point of fibonacciSphere(54, RADIUS)) {
         const probe = probeAt(snapshot, point.toArray());
         addArrow(point, new THREE.Vector3(...probe.force), 0xf6fbff, 5.5);

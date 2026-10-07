@@ -315,10 +315,29 @@ per-token reporting if TensorBoard is not required, especially when its optional
 TensorFlow installation is incompatible with the active NumPy version.**
 Per-token metrics themselves are never sent to TensorBoard.
 
+Reporting supports single-process categorical training, including multicontext
+streams with different vocabularies. Each stream uses its own tokenizer for
+report labels. For multicontext training, set `--dataset` to the primary stream
+as well as supplying `--multicontext_datasets`. Numerical multicontext regression
+and DDP reporting are rejected with a clear error; use `--no-log_per_token_metrics`
+for those modes.
+
+New checkpoints save the cumulative per-token training counts. `--init_from resume`
+restores the counts from that exact checkpoint and writes reports in a new
+`resume_<iteration>_<unique suffix>` subdirectory of the report directory. Earlier
+reports stay intact, so resuming an older checkpoint never mixes future CSV rows
+into the resumed history. A checkpoint without counters emits a warning and starts
+counting at the resumed iteration. The report index and `per_token_metadata.json`
+record where counting began; these counts do not include earlier, unrecorded
+training. `--init_from prev_run` starts a new run with zero counters; use a new
+output/report directory for new runs. Validation samples do not increment training
+occurrence counts.
+
 * `per_token_metrics.csv`: one row per vocabulary token and evaluation, with
   its escaped decoded text (for example, `\\n`), sampled train/validation
   cross-entropy, output-token vector L2 magnitude, minimum non-self pairwise
-  token-vector angle in degrees, evaluation sample counts,
+  token-vector angle in degrees, average target probability, average target
+  rank, average probability mass to the left of the target, evaluation sample counts,
   and the cumulative number of times that target token was used by training;
 * `per_token_summary.csv`: mean, median, standard deviation, skew, excess
   kurtosis, percentiles, range, coefficient of variation, and vocabulary
@@ -339,13 +358,33 @@ Per-token metrics themselves are never sent to TensorBoard.
   instead of silently showing a blank plot if Plotly fails to load or render.
   The viewer also includes a vocabulary-wide token-vector magnitude graph and
   a selected-token vector-magnitude-versus-iteration history graph, plus
-  equivalent minimum-pairwise-angle overview and history graphs. Five static
+  equivalent minimum-pairwise-angle overview and history graphs. Eight static
   PNG dashboards stack all metrics vertically with a shared token order, sorted
   high-to-low by frequency, validation loss, training loss, vector magnitude,
-  and minimum pairwise angle respectively. Static dashboards are retained for
+  minimum pairwise angle, target probability, target rank, and left probability,
+  respectively. Static dashboards are retained for
   every validation snapshot and use consistent per-metric y-axis limits across
   iterations. Open `per_token_static_slideshow.html` to move through snapshots
   with Previous/Next buttons or the left/right arrow keys.
+  Average target probability, target rank, and left probability each have the
+  same per-vocabulary overview and selected-token iteration history views as
+  validation loss. They are also included as aligned panels and sort orders in
+  the static snapshot dashboards.
+
+The three `avg_` probability/rank columns are **validation-only**, averaged
+over positions whose target is that token (their denominator is `val_eval_count`).
+For logits `z` and target ID `y`, target probability is `softmax(z)[y]`, rank
+is `1 + count(z[j] > z[y])`, and left probability is
+`sum(softmax(z)[j] for j where z[j] > z[y])`. Thus rank is one-based, ties
+share the best rank in their tied group, and "left" means ahead in descending
+probability order, not a smaller token ID. Tied competitors and the target
+itself are excluded from left probability. Tokens absent from validation get
+`NaN`, not zero. Padding targets with ID `-1` are ignored, matching the standard
+training loss. The reporter processes at most 256 positions at a time to bound
+temporary softmax/ranking memory; the model's original logits still occupy memory.
+
+The three columns are added to older CSV reports without fabricating historical
+values. Historical probability/rank fields remain `NaN` until newly evaluated.
 
 Per-token loss is always ordinary next-token cross-entropy, making reports
 comparable even when a custom aggregate training loss is selected. Only tokens

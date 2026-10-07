@@ -47,7 +47,8 @@ def _write_static_slideshow(output_dir, rows):
                 "images": [
                     f"per_token_static_{safe_dataset}_iter_{iteration:08d}_by_{label}.png"
                     for label in ("frequency", "validation_loss", "training_loss",
-                                  "vector_magnitude", "minimum_pairwise_angle")
+                                  "vector_magnitude", "minimum_pairwise_angle",
+                                  "target_probability", "target_rank", "left_probability")
                 ],
             })
     html_page = f"""<!doctype html><meta charset='utf-8'><title>Per-token static snapshots</title>
@@ -84,15 +85,25 @@ ds.onchange=draw;left.onchange=draw;{'right.onchange=draw;' if dual_axis else ''
 def _history(output_dir, filename, title, rows, kind):
     payload = [[r["dataset"], r["token_id"], r["token_text_escaped"], r["iteration"],
                 r["train_loss"], r["val_loss"], r["training_seen_count"], r["vector_magnitude"],
-                r["min_pairwise_angle_deg"]]
+                r["min_pairwise_angle_deg"], r["avg_target_probability"],
+                r["avg_target_rank"], r["avg_left_probability"]]
                for r in rows]
     has_right = kind == "iteration"
     right = "<label><input id='right' type='checkbox'> right logarithmic</label>" if has_right else ""
-    if kind in ("vector", "angle"):
-        value_index = 7 if kind == "vector" else 8
+    if kind in ("vector", "angle", "target_probability", "target_rank", "left_probability"):
+        value_index = {
+            "vector": 7, "angle": 8, "target_probability": 9,
+            "target_rank": 10, "left_probability": 11,
+        }[kind]
         trace_code = f"traces.push({{x:d.map(r=>r[3]),y:d.map(r=>r[{value_index}]),name,mode:'lines+markers'}});"
         x_title = "training iteration"
-        y_title = "L2 vector magnitude" if kind == "vector" else "minimum pairwise angle (degrees)"
+        y_title = {
+            "vector": "L2 vector magnitude",
+            "angle": "minimum pairwise angle (degrees)",
+            "target_probability": "average target probability",
+            "target_rank": "average target rank",
+            "left_probability": "average left probability",
+        }[kind]
     else:
         x_index = 6 if kind == "appearances" else 3
         trace_code = (f"traces.push({{x:d.map(r=>r[{x_index}]),y:d.map(r=>r[5]),name:name+' validation',mode:'lines+markers'}},"
@@ -109,7 +120,7 @@ ds.onchange=fill;tokens.onchange=draw;left.onchange=draw;{'right.onchange=draw;'
     _write(os.path.join(output_dir, filename), _shell(title, payload, controls, script))
 
 
-def write_per_token_pages(output_dir, rows, summaries, iteration):
+def write_per_token_pages(output_dir, rows, summaries, iteration, counting_started_at=0):
     """Write an index plus isolated pages with only the data each graph needs."""
     # Import the static renderer only when the explicitly enabled reporter
     # reaches an export step, keeping report-only code off the startup path.
@@ -122,6 +133,9 @@ def write_per_token_pages(output_dir, rows, summaries, iteration):
         ("per_token_training_occurrences.html", "Training occurrences", "training_seen_count", False, True),
         ("per_token_vector_magnitude.html", "Token vector magnitude", "vector_magnitude", True, False),
         ("per_token_min_pairwise_angle.html", "Minimum pairwise angle (degrees)", "min_pairwise_angle_deg", True, False),
+        ("per_token_target_probability.html", "Average target probability", "avg_target_probability", True, True),
+        ("per_token_target_rank.html", "Average target rank", "avg_target_rank", True, True),
+        ("per_token_left_probability.html", "Average left probability", "avg_left_probability", True, True),
     ]
     for filename, title, metric, descending, dual in pages:
         _overview(output_dir, filename, f"{title} at iteration {iteration}", latest, metric, descending, dual)
@@ -130,6 +144,9 @@ def write_per_token_pages(output_dir, rows, summaries, iteration):
         ("per_token_loss_by_appearances.html", "Selected-token loss vs cumulative appearances", "appearances"),
         ("per_token_vector_magnitude_by_iteration.html", "Selected-token vector magnitude vs iteration", "vector"),
         ("per_token_min_pairwise_angle_by_iteration.html", "Selected-token minimum pairwise angle vs iteration", "angle"),
+        ("per_token_target_probability_by_iteration.html", "Selected-token average target probability vs iteration", "target_probability"),
+        ("per_token_target_rank_by_iteration.html", "Selected-token average target rank vs iteration", "target_rank"),
+        ("per_token_left_probability_by_iteration.html", "Selected-token average left probability vs iteration", "left_probability"),
     ]
     for filename, title, kind in histories:
         _history(output_dir, filename, title, rows, kind)
@@ -139,5 +156,7 @@ def write_per_token_pages(output_dir, rows, summaries, iteration):
     links = "".join(f"<li><a href='{name}'>{html.escape(name)}</a></li>" for name in filenames)
     png_links = "".join(f"<li><a href='{os.path.basename(path)}'>{html.escape(os.path.basename(path))}</a></li>" for path in png_paths)
     fields = ("dataset", "metric", "populated_tokens", "vocab_size", "mean", "median", "std", "skew", "excess_kurtosis", "min", "max", "p10", "p90", "coefficient_of_variation")
-    table = "<table border='1'><tr>" + "".join(f"<th>{f}</th>" for f in fields) + "</tr>" + "".join("<tr>" + "".join(f"<td>{s.get(f, '')}</td>" for f in fields) + "</tr>" for s in summaries) + "</table>"
-    _write(os.path.join(output_dir, "per_token_metrics.html"), f"<!doctype html><meta charset='utf-8'><title>Per-token metrics</title><h1>Per-token metrics</h1><h2>Interactive graphs</h2><ul>{links}</ul><h2>Static PNG dashboards</h2><ul>{png_links}</ul><h2>Summary statistics</h2>{table}")
+    table = "<table border='1'><tr>" + "".join(f"<th>{f}</th>" for f in fields) + "</tr>" + "".join("<tr>" + "".join(f"<td>{html.escape(str(s.get(f, '')))}</td>" for f in fields) + "</tr>" for s in summaries) + "</table>"
+    count_note = (f"<p>Training occurrence counts start at iteration "
+                  f"{html.escape(str(counting_started_at))}.</p>")
+    _write(os.path.join(output_dir, "per_token_metrics.html"), f"<!doctype html><meta charset='utf-8'><title>Per-token metrics</title><h1>Per-token metrics</h1>{count_note}<h2>Interactive graphs</h2><ul>{links}</ul><h2>Static PNG dashboards</h2><ul>{png_links}</ul><h2>Summary statistics</h2>{table}")
