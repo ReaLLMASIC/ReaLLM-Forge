@@ -31,6 +31,14 @@ This folder is a copy of **[$SOURCE_REPO](https://github.com/$SOURCE_REPO)**, re
 so edit Bio-dash itself, not this copy -- changes made here are overwritten on the next sync.
 MD
 
+# un-ignore what the host repo's .gitignore would hide (it ignores *.txt), so requirements.txt
+# files are tracked like any other file -- by this script and by plain git commands alike
+cat >> "$DEST_DIR/.gitignore" << 'IGN'
+
+# added by sync-bio-dash.sh: keep these even though the parent repo ignores *.txt
+!requirements.txt
+!*.txt
+IGN
 # -f: the host repo's .gitignore (e.g. *.txt) must not drop files such as requirements.txt
 git add -A -f -- "$DEST_DIR"
 if git diff --cached --quiet -- "$DEST_DIR"; then
