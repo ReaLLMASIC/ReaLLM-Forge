@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atmos Air Quality Lab</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <script src="/static/vendor/chart.min.js"></script>
+    <script src="/static/vendor/luxon.min.js"></script>
+    <script src="/static/vendor/chartjs-adapter-luxon.min.js"></script>
+    <script src="/static/vendor/chartjs-plugin-streaming.min.js"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col">
+
+    <header class="p-4 bg-slate-800 border-b border-slate-700 shadow-md">
+        <div class="container mx-auto flex justify-between items-center max-w-7xl">
+            <div>
+                <h1 class="text-xl font-bold text-emerald-400 tracking-wide">Atmos Air Quality Lab</h1>
+                <p id="subtitle" class="text-xs text-slate-400 mt-1">Atmos-Mini · Atmos-Sphere S4 / S5 · any CSV / key=value / JSON device</p>
+                <nav id="dash-nav" class="flex flex-wrap gap-1.5 mt-2" aria-label="Dashboards"></nav>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="debug-btn" class="px-3 py-1 rounded-full text-xs font-semibold border bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white transition-colors" title="Debug panel (D)">🐞 Debug</button>
+                <span id="status" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    Awaiting Data...
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6 flex-grow max-w-7xl flex flex-col gap-6">
+
+        <!-- Debug panel (toggle: 🐞 button or "D") -->
+        <div id="debug-panel" class="hidden bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl w-full">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider">🐞 Debug</h2>
+                <span class="text-xs text-slate-500">updated <span id="debug-updated" class="font-mono">—</span> · press <kbd class="font-mono px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">D</kbd> to close</span>
+            </div>
+            <div id="debug-body" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 text-sm"></div>
+        </div>
+
+        <div id="scanner-panel" class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl w-full transition-all duration-500">
+            <h2 class="text-lg font-bold text-slate-200 mb-4 flex items-center gap-3">
+                <span class="relative flex h-3 w-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
+                Scanning for Air Monitors...
+            </h2>
+            <div id="device-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div class="text-slate-500 text-sm animate-pulse col-span-3">Initializing Bluetooth Radar...</div>
+            </div>
+            <!-- Wi-Fi: devices that stream CSV over TCP (the S4 uses port 8080) -->
+            <form id="tcp-form" class="mt-5 pt-4 border-t border-slate-700 flex flex-wrap items-end gap-3">
+                <div class="flex-grow min-w-[12rem]">
+                    <label for="tcp-host" class="block text-xs text-slate-400 mb-1">Connect over Wi-Fi <span class="text-slate-500">(device IP or hostname)</span></label>
+                    <input id="tcp-host" type="text" placeholder="192.168.0.50" autocomplete="off"
+                           class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm font-mono text-slate-200 placeholder-slate-600 focus:border-emerald-500 focus:outline-none">
+                </div>
+                <div class="w-24">
+                    <label for="tcp-port" class="block text-xs text-slate-400 mb-1">Port</label>
+                    <input id="tcp-port" type="number" min="1" max="65535" value="8080"
+                           class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm font-mono text-slate-200 focus:border-emerald-500 focus:outline-none">
+                </div>
+                <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-2 px-4 rounded transition-colors">Connect Wi-Fi</button>
+            </form>
+        </div>
+
+        <!-- Headline tiles -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Carbon Dioxide</h2>
+                <div class="text-6xl font-extrabold text-amber-400 my-2 tracking-tight">
+                    <span id="co2-val">--</span><span class="text-2xl font-light text-slate-500 ml-2">ppm</span>
+                </div>
+                <div id="co2-band" class="text-xs font-bold mt-1 h-4 text-slate-500"></div>
+            </div>
+
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Fine Particles (PM2.5)</h2>
+                <div class="text-6xl font-extrabold text-cyan-400 my-2 tracking-tight">
+                    <span id="pm25-val">--</span><span class="text-2xl font-light text-slate-500 ml-2">µg/m³</span>
+                </div>
+                <div id="pm25-band" class="text-xs font-bold mt-1 h-4 text-slate-500"></div>
+            </div>
+
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Climate</h2>
+                <div class="flex items-baseline justify-center gap-5 my-2">
+                    <div class="text-5xl font-extrabold text-rose-400 tracking-tight"><span id="temp-val">--</span><span class="text-xl font-light text-slate-500 ml-1">°C</span></div>
+                    <div class="text-5xl font-extrabold text-sky-400 tracking-tight"><span id="rh-val">--</span><span class="text-xl font-light text-slate-500 ml-1">% RH</span></div>
+                </div>
+                <div class="text-xs mt-1 h-4 text-slate-500">Temperature · Relative humidity</div>
+            </div>
+        </div>
+
+        <!-- Secondary tiles -->
+        <div id="tile-row-2" class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl text-center">
+                <h2 class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">VOC Index</h2>
+                <div id="voc-val" class="text-4xl font-extrabold text-violet-400 my-1">--</div>
+                <div id="voc-note" class="text-xs text-slate-500 h-4">baseline 100</div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl text-center">
+                <h2 class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1"><span class="normal-case">NOx</span> Index</h2>
+                <div id="nox-val" class="text-4xl font-extrabold text-indigo-400 my-1">--</div>
+                <div id="nox-note" class="text-xs text-slate-500 h-4">baseline 1</div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl text-center">
+                <h2 class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Formaldehyde</h2>
+                <div class="text-4xl font-extrabold text-red-400 my-1"><span id="hcho-val">--</span><span class="text-base font-light text-slate-500 ml-1">ppb</span></div>
+                <div class="text-xs text-slate-500 h-4">HCHO</div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl text-center">
+                <h2 class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Particulates (<span class="normal-case">µg/m³</span>)</h2>
+                <div class="grid grid-cols-3 gap-2">
+                    <div><div class="text-[10px] text-slate-500">PM1.0</div><div id="pm1-val" class="text-xl font-bold text-lime-400">--</div></div>
+                    <div><div class="text-[10px] text-slate-500">PM4.0</div><div id="pm4-val" class="text-xl font-bold text-fuchsia-400">--</div></div>
+                    <div><div class="text-[10px] text-slate-500">PM10</div><div id="pm10-val" class="text-xl font-bold text-orange-400">--</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fields this dashboard doesn't recognise (any device works) -->
+        <div id="other-section" class="hidden flex flex-col gap-3">
+            <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider">Other Readings</h2>
+            <div id="other-row" class="grid grid-cols-2 lg:grid-cols-4 gap-6"></div>
+        </div>
+
+        <!-- Trend charts -->
+        <div class="flex items-center justify-between">
+            <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider">Trends</h2>
+            <div id="window-btns" class="flex gap-2">
+                <button data-min="5" class="px-3 py-1 rounded-full text-xs font-semibold border bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white transition-colors">5 min</button>
+                <button data-min="15" class="px-3 py-1 rounded-full text-xs font-semibold border bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white transition-colors">15 min</button>
+                <button data-min="60" class="px-3 py-1 rounded-full text-xs font-semibold border bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white transition-colors">1 hour</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl w-full">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">CO₂ (<span class="normal-case">ppm</span>)</h2>
+                <div class="relative h-56 w-full"><canvas id="co2Chart"></canvas></div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl w-full">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Particulate Matter (<span class="normal-case">µg/m³</span>)</h2>
+                <div class="relative h-56 w-full"><canvas id="pmChart"></canvas></div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl w-full">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Temperature &amp; Humidity</h2>
+                <div class="relative h-56 w-full"><canvas id="climateChart"></canvas></div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl w-full">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Gas Indices &amp; HCHO</h2>
+                <div class="relative h-56 w-full"><canvas id="gasChart"></canvas></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/tile_trends.js"></script>
+    <script src="/static/js/debug_panel.js"></script>
+    <script src="/static/js/power.js"></script>
+    <script src="/static/js/nav.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/reconnect.js"></script>
+</body>
+</html>

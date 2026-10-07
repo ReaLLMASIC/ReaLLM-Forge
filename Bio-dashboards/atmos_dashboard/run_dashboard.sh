@@ -1,14 +1,17 @@
 #!/bin/bash
 
+# Use the repo's .venv automatically if ./setup_env.sh has been run (no need to activate)
+_VENV="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.venv"
+[ -x "$_VENV/bin/python3" ] && export PATH="$_VENV/bin:$PATH"
+
 cd "$(dirname "$0")"
 
 echo "============================================="
-echo "   Starting SEN69C Air Quality Lab           "
+echo "   Starting Atmos Air Quality Lab            "
 echo "============================================="
 
-echo "📦 Archiving previous telemetry logs..."
-mkdir -p logs_air/archive
-mv logs_air/*.csv logs_air/archive/ 2>/dev/null
+# Recordings go to <Documents>/Bio-dash/Atmos/<device>/<date>/ (one session per connection)
+echo "💾 Recordings: $(python3 -c 'import bt_debug; print(bt_debug.dashboard_dir("Atmos"))' 2>/dev/null || echo '~/Documents/Bio-dash/Atmos')"
 
 echo "[BLE] Launching hardware engine (sensor_worker.py)..."
 python3 sensor_worker.py &

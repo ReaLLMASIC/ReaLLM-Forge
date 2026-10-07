@@ -1,8 +1,10 @@
+# Usage: python3 test_scanner.py [band-address]   (address optional; bands are matched by name / service too)
 import asyncio
+import sys
 from bleak import BleakScanner
 
 # Known Viatom/Wellue indicators
-VIATOM_MAC = "F3:A0:A8:E3:F5:63".upper()
+VIATOM_MAC = (sys.argv[1] if len(sys.argv) > 1 else "").upper()
 VIATOM_SVC_UUID = "14839ac4-7d7e-415c-9a42-167340cf2339".lower()
 VIATOM_KEYWORDS = ["O2", "CHECKME", "VIATOM", "RING", "PC-60", "BABY", "SLEEP", "WEAR", "FS20", "POD", "BODI", "OXYGEN"]
 
@@ -24,7 +26,7 @@ async def run_deep_scan():
         # print(f"[RAW DUMP] MAC: {addr} | RSSI: {rssi} | Name: {name} | UUIDs: {uuids}")
 
         is_match = False
-        if addr == VIATOM_MAC:
+        if (VIATOM_MAC and addr == VIATOM_MAC):
             is_match = True
         elif VIATOM_SVC_UUID in uuids:
             is_match = True

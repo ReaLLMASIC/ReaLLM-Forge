@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Use the repo's .venv automatically if ./setup_env.sh has been run (no need to activate)
+_VENV="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.venv"
+[ -x "$_VENV/bin/python3" ] && export PATH="$_VENV/bin:$PATH"
+
 # Navigate to the script's directory to ensure relative paths stay intact
 cd "$(dirname "$0")"
 
@@ -8,9 +12,8 @@ echo "   Starting Polar H10 Biometric Lab          "
 echo "============================================="
 
 # 1. The Archive System: Move old logs to prevent UI ghosting, but keep the data!
-echo "📦 Archiving previous telemetry logs..."
-mkdir -p logs_advanced/archive
-mv logs_advanced/*.csv logs_advanced/archive/ 2>/dev/null
+# Recordings go to <Documents>/Bio-dash/Polar H10/<device>/<date>/ (one session per connection)
+echo "💾 Recordings: $(python3 -c 'import bt_debug; print(bt_debug.dashboard_dir("Polar H10"))' 2>/dev/null || echo '~/Documents/Bio-dash/Polar H10')"
 
 # 2. Start the Hardware Engine in the background
 echo "[BLE] Launching hardware engine (advanced_worker.py)..."

@@ -1,14 +1,7 @@
-# --- Bluetooth Low Energy ---
-bleak>=0.22.0
-dbus-fast>=1.83.0; sys_platform == 'linux'
-
-# --- Polar H10 driver (polar_dashboard, Omni-dashboard) ---
-# 1.x exposes HRData.heartrate/rr_intervals and ECG/ACC .timestamp/.data; needs Python >= 3.10
-polar-python>=1.1.0
-
-# --- Web layers ---
-# polar_dashboard + nrf-sen_dashboard run on FastAPI/uvicorn (websockets)
-fastapi>=0.110.0
-uvicorn[standard]>=0.29.0
-# viatom_dashboard + Omni-dashboard run on Flask (SSE)
-Flask>=3.0.0
+# Everything needed to run all four dashboards.
+# Each dashboard folder also has its own requirements.txt if you only need one.
+-r polar_dashboard/requirements.txt
+-r atmos_dashboard/requirements.txt
+-r viatom_dashboard/requirements.txt
+-r Omni-dashboard/requirements.txt
+-r hydro_dashboard/requirements.txt
