@@ -37,10 +37,9 @@ cat >> "$DEST_DIR/.gitignore" << 'IGN'
 
 # added by sync-bio-dash.sh: keep these even though the parent repo ignores *.txt
 !requirements.txt
-!*.txt
 IGN
-# -f: the host repo's .gitignore (e.g. *.txt) must not drop files such as requirements.txt
-git add -A -f -- "$DEST_DIR"
+# stage everything in the folder (requirements.txt is un-ignored just above)
+git add -A -- "$DEST_DIR"
 if git diff --cached --quiet -- "$DEST_DIR"; then
     echo "Bio-dashboards already matches $SOURCE_REPO $version ($sha) -- nothing to do."
     echo "changed=false" >> "${GITHUB_OUTPUT:-/dev/null}"
