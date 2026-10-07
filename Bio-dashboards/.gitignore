@@ -1,0 +1,3 @@
+
+# added by sync-bio-dash.sh: keep these even though the parent repo ignores *.txt
+!requirements.txt
