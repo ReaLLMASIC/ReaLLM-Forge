@@ -741,6 +741,16 @@ def system_power():
     code, out = bt_debug.system_power(action, host, request.headers.get(bt_debug.POWER_HEADER))
     return jsonify(out), code
 
+# ---------- updates (sidebar "Updates" section; the work is done by ../updater.py) ----------
+@app.route("/api/system/update", methods=["GET", "POST"])
+def system_update():
+    host = request.remote_addr or ""
+    if request.method == "GET":
+        return jsonify(bt_debug.update_info(host, fetch=request.args.get("check") == "1"))
+    action = (request.get_json(silent=True) or {}).get("action")
+    code, out = bt_debug.system_update(action, host, request.headers.get(bt_debug.POWER_HEADER))
+    return jsonify(out), code
+
 
 if __name__ == "__main__":
     ble_thread = threading.Thread(target=start_ble_engine, daemon=True)

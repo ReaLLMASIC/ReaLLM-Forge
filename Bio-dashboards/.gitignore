@@ -1,3 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# files the dashboards write while running (state and saved settings, not source)
+data.json
+devices.json
+command.json
+debug.json
+status*.json
+last_device*.json
+radio_config.json
+*_profile.json
+*_settings.json
+logs/
+atmos_tcp.json
 
 # added by sync-bio-dash.sh: keep these even though the parent repo ignores *.txt
 !requirements.txt

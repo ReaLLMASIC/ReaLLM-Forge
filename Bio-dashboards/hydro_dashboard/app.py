@@ -1,6 +1,7 @@
 """Hydro-dash web app (port 5004). Totals, charts and history are computed from the
 recorded sip log (the single source of truth), so they survive restarts and include
 sips the bottle replayed after being out of range."""
+from starlette.concurrency import run_in_threadpool
 import datetime
 import json
 import os
@@ -316,6 +317,21 @@ async def power(request: Request):
         action = None
     code, out = bt_debug.system_power(action, request.client.host if request.client else "",
                                       request.headers.get(bt_debug.POWER_HEADER))
+    return JSONResponse(out, status_code=code)
+
+@app.get("/api/system/update")
+def update_info(request: Request, check: int = 0):
+    return bt_debug.update_info(request.client.host if request.client else "", fetch=bool(check))
+
+
+@app.post("/api/system/update")
+async def update(request: Request):
+    try:
+        action = (await request.json()).get("action")
+    except Exception:
+        action = None
+    code, out = await run_in_threadpool(bt_debug.system_update, action, request.client.host if request.client else "",
+                                        request.headers.get(bt_debug.POWER_HEADER))
     return JSONResponse(out, status_code=code)
 
 

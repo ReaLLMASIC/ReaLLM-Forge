@@ -149,7 +149,7 @@ flowchart TB
 - **History:** tile trends and Hydro-dash's totals are read back from the CSV recordings, so they
   survive restarts.
 - **Shared code** (identical copies in every dashboard): `bt_debug.py` (radios, auto-reconnect,
-  recordings, shutdown/reboot) and the page scripts `nav.js`, `tile_trends.js`, `reconnect.js`, `power.js`.
+  recordings, shutdown/reboot, updates) and the page scripts `sidebar.js`, `tile_trends.js`, `reconnect.js`.
 
 ---
 

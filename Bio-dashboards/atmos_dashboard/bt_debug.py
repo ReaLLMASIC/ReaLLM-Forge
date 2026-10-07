@@ -10,6 +10,8 @@ Bluetooth address is the stable identity; treat hciN as a label.
 - adapter_of(dev):   which radio a scanned BLEDevice was seen on (hci0, hci1, ...).
 - RateMeter:         measured samples/sec over a sliding window, per stream.
 """
+import json
+import sys
 import os
 import re
 import shutil
@@ -473,3 +475,57 @@ def system_power(action, client_host, header_value):
     subprocess.Popen(["sh", "-c", f"sleep 2; {prefix}systemctl {POWER_ACTIONS[action]}"],
                      start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return 200, {"ok": True, "action": action, "method": method}
+
+# ---------------------------------------------------------------------------
+# Updates (sidebar "Updates" section) -- the work is done by ../updater.py
+# ---------------------------------------------------------------------------
+# Same access rule as shutdown / reboot: this computer only, unless BIODASH_ALLOW_POWER=1.
+UPDATER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "updater.py")
+UPDATE_ACTIONS = ("patch", "upgrade")
+
+
+def _updater(*args, timeout=110):
+    try:
+        p = subprocess.run([sys.executable, UPDATER, *args, "--json"], capture_output=True, text=True, timeout=timeout)
+        return json.loads(p.stdout)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "GitHub didn't answer in time. Is this computer online?"}
+    except Exception as e:
+        return {"ok": False, "error": f"updater unavailable: {e}"}
+
+
+def update_info(client_host, fetch=False):
+    """What the sidebar shows: version, available patch / upgrade, blockers, last run."""
+    allowed, reason = _power_allowed(client_host)
+    info = _updater("check") if fetch else _updater("check", "--no-fetch", timeout=20)
+    info.update(allowed=allowed, reason=reason, checked=fetch, status=_updater("status", timeout=10))
+    return info
+
+
+def system_update(action, client_host, header_value):
+    """(http_status, json): start a patch or an upgrade in the background."""
+    if action not in UPDATE_ACTIONS:
+        return 400, {"error": "action must be patch or upgrade"}
+    if header_value != "1":
+        return 403, {"error": "missing confirmation header"}
+    allowed, reason = _power_allowed(client_host)
+    if not allowed:
+        return 403, {"error": reason}
+    info = _updater("check")
+    if info.get("error"):
+        return 409, {"error": info["error"]}
+    if info.get("blockers"):
+        return 409, {"error": " ".join(info["blockers"])}
+    if not info.get(action):
+        return 409, {"error": "nothing to " + action + " -- check again"}
+    if (_updater("status", timeout=10) or {}).get("state") == "running":
+        return 409, {"error": "an update is already running"}
+    cmd = [sys.executable, UPDATER, action]
+    started = int(time.time())
+    # As a service, the updater must run outside this service's control group, or the
+    # restart it triggers would kill it half-way: hand it to systemd as its own unit.
+    if os.environ.get("BIODASH_SERVICE") == "1" and shutil.which("systemd-run"):
+        cmd = ["systemd-run", "--user", "--collect", "--quiet", f"--unit=biodash-update-{started}", *cmd]
+    subprocess.Popen(cmd, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     cwd=os.path.dirname(UPDATER))
+    return 200, {"ok": True, "action": action, "started": started}

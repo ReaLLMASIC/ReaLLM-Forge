@@ -221,7 +221,7 @@ def cmd_status(_args):
     o = read_opts_from_units()
     print(f"\nkeep computer awake: {'on' if o['keep_awake'] else 'off'}{' (incl. lid close)' if o['lid'] else ''}"
           f" · auto-reconnect: {'on' if o['reconnect'] else 'off'} · start at boot: {'on' if linger_enabled() else 'off'}"
-          f" · shutdown/reboot from other devices: {'on' if o.get('allow_power') else 'off'}")
+          f" · shutdown/reboot/updates from other devices: {'on' if o.get('allow_power') else 'off'}")
 
 
 def names_from(args_names):
@@ -327,7 +327,7 @@ class Tui:
                     "keep_awake": ("Keep this computer awake while a dashboard runs", self.opts["keep_awake"]),
                     "lid":        ("   …even with the laptop lid closed", self.opts["lid"]),
                     "reconnect":  ("Auto-reconnect to the last device", self.opts["reconnect"]),
-                    "allow_power": ("Allow shutdown / reboot from other devices (e.g. a phone)", self.opts.get("allow_power", False)),
+                    "allow_power": ("Allow shutdown / reboot / updates from other devices (e.g. a phone)", self.opts.get("allow_power", False)),
                     "boot":       ("Start at boot, before anyone logs in (linger)", self.boot),
                 }[key]
                 put(y, 2, f"{'[x]' if on else '[ ]'} {label}", attr); y += 1
@@ -440,7 +440,7 @@ def main():
     p = sub.add_parser("install"); p.add_argument("names", nargs="+")
     p.add_argument("--no-keep-awake", action="store_true"); p.add_argument("--lid", action="store_true")
     p.add_argument("--no-reconnect", action="store_true")
-    p.add_argument("--allow-power", action="store_true", help="allow the debug panel's shutdown / reboot from other devices")
+    p.add_argument("--allow-power", action="store_true", help="allow the sidebar's shutdown / reboot / updates from other devices")
     g = p.add_mutually_exclusive_group(); g.add_argument("--boot", action="store_true"); g.add_argument("--no-boot", action="store_true")
     p = sub.add_parser("stop"); p.add_argument("names", nargs="*")
     p = sub.add_parser("uninstall"); p.add_argument("names", nargs="*")

@@ -44,7 +44,7 @@ Or install system-wide instead: `pip3 install -r requirements.txt`.
 polar_dashboard/run_dashboard.sh    # or one dashboard on its own
 ```
 
-Every dashboard has its own port (**Omni 5000 · Polar 5001 · Atmos 5002 · Viatom 5003 · Hydro 5004**), and its header has links to the others, with a green dot for each one that's running.
+Every dashboard has its own port (**Omni 5000 · Polar 5001 · Atmos 5002 · Viatom 5003 · Hydro 5004**), and the sidebar links to the others, with a green dot for each one that's running.
 
 1. Wake the device. The H10 needs wet electrodes. The O2 Ultra only advertises while it's powered on and measuring.
 2. Pick it from the scanner panel and click **Connect**.
@@ -73,6 +73,7 @@ polar_dashboard/
     ├── js/ecg_view.js      # (Polar, Omni) 🩺 Monitor / 📈 Classic ECG toggle
     ├── js/tile_trends.js   # tap-a-tile trend graphs (all dashboards; shared module)
     ├── js/debug_panel.js   # 🐞 debug panel (Polar, Viatom, Atmos)
+    ├── js/sidebar.js       # sidebar: dashboard links, debug, keep-awake, updates, power (all dashboards)
     ├── css/tailwind.css    # compiled Tailwind (all dashboards)
     └── vendor/             # Chart.js, Luxon, adapter, streaming plugin
 ```
@@ -296,18 +297,57 @@ Run dashboards in the background, optionally from boot, without keeping a termin
 - **Picker options:**
   - Keep the computer awake (on by default), optionally even with the lid closed.
   - Auto-reconnect to the last device (on).
-  - Allow shutdown / reboot from other devices, e.g. a phone (off; `--allow-power`). See below.
+  - Allow shutdown / reboot and updates from other devices, e.g. a phone (off; `--allow-power`). See below.
   - Start at boot before anyone logs in (`loginctl enable-linger`).
 - **Omni** can't be combined with the standalone Polar/Viatom dashboards (same devices); the picker unticks the other side for you. Under a service, Omni skips its `sudo` Bluetooth restart, since there's no terminal to ask for a password.
 
 ### Keeping things awake
 
 - **The computer:** services and `./launch.sh` run under `systemd-inhibit`, which blocks suspend and idle sleep while dashboards run. `BIODASH_INHIBIT_LID=1` also blocks lid-close; `BIODASH_INHIBIT=0` turns it off. If the system doesn't allow it, the dashboards still start, with a warning.
-- **The screen:** **☀ Keep screen on** in each dashboard's header uses the browser's Wake Lock API. Browsers only allow this on `https://` or `http://localhost`, so on a LAN / Tailscale address the button is disabled and explains why.
+- **The screen:** **☀ Keep screen on** in the sidebar uses the browser's Wake Lock API. Browsers only allow this on `https://` or `http://localhost`, so on a LAN / Tailscale address the button is disabled and explains why.
 
-### Shutdown and reboot (debug panel)
+### Sidebar (all dashboards)
 
-Every dashboard's debug panel ends with a **System** card: **⟳ Reboot** and **⏻ Shut down** for the
+![Sidebar with the Updates section](docs/sidebar_updates.png)
+
+Everything that used to sit in the top bar lives in a sidebar, the same in every dashboard:
+
+- **Dashboards:** links to the other four in port order, with a green dot for each one that's running.
+- **View:** the 🐞 debug panel (still **D**) and **☀ Keep screen on**.
+- **Updates** and **Power:** see the next two sections.
+
+It's closed when a page opens: **☰** in the header opens it (beside the page on wide screens,
+as a slide-over drawer on phones and narrow windows) and **«** hides it again. The header keeps only the
+dashboard's title and its connection status.
+
+### Updates (sidebar)
+
+**Check for updates** asks GitHub what's new and offers up to two separate actions:
+
+| | What it is | What it does |
+|---|---|---|
+| **Apply patch** | New commits for the version you're running (same folder) | `git pull`, refresh `.venv` if the requirements changed, restart the services |
+| **Upgrade to Vx.y** | A newer `V*_Dashboard` folder exists | Pull, build the new folder's `.venv`, copy your saved settings across, re-point the services at it and restart. The old folder stays on disk, so you can go back with its `./biodash.py` |
+
+A patch never moves you to a new version, and each action needs a second tap to confirm.
+
+- **Needs a git clone**, not an unzipped copy: `git clone https://github.com/Meapy011/Bio-dash`
+  and run the dashboards from `Bio-dash/V3.0_Dashboard`.
+- **Only fast-forwards from the clone's own remote.** It refuses if tracked files were edited
+  locally or the branch has diverged, and says which files; nothing of yours is overwritten.
+- **Recordings and settings are safe.** Recordings live in `Documents/Bio-dash`; saved settings
+  (`*_settings.json`, `radio_config.json`, …) are git-ignored and are carried to a new version.
+- **Recording pauses** while the dashboards restart; a new session file starts on reconnect.
+- **Restarting needs the services** (`./biodash.py`). Without them the update is downloaded and
+  you restart the dashboards yourself.
+- **Who may press it:** same rule as shutdown / reboot: this computer only, unless
+  `BIODASH_ALLOW_POWER=1` / *Allow shutdown / reboot and updates from other devices*.
+- **From a terminal:** `./updater.py check`, `./updater.py patch`, `./updater.py upgrade`,
+  `./updater.py status`.
+
+### Shutdown and reboot (sidebar)
+
+Every dashboard's sidebar ends with a **Power** section: **⟳ Reboot** and **⏻ Shut down** for the
 computer the dashboards run on — handy for a headless Pi / Jetson. Each button takes **two taps**
 (the first arms it, red, for 4 s).
 
