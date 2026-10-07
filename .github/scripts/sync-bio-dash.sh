@@ -31,12 +31,13 @@ This folder is a copy of **[$SOURCE_REPO](https://github.com/$SOURCE_REPO)**, re
 so edit Bio-dash itself, not this copy -- changes made here are overwritten on the next sync.
 MD
 
-if [ -z "$(git status --porcelain -- "$DEST_DIR")" ]; then
+# -f: the host repo's .gitignore (e.g. *.txt) must not drop files such as requirements.txt
+git add -A -f -- "$DEST_DIR"
+if git diff --cached --quiet -- "$DEST_DIR"; then
     echo "Bio-dashboards already matches $SOURCE_REPO $version ($sha) -- nothing to do."
     echo "changed=false" >> "${GITHUB_OUTPUT:-/dev/null}"
     exit 0
 fi
-git add -A -- "$DEST_DIR"
 echo "Changes:"; git diff --cached --stat -- "$DEST_DIR" | tail -3
 echo "changed=true" >> "${GITHUB_OUTPUT:-/dev/null}"
 echo "message=Sync Bio-dashboards from Bio-dash $version ($sha)" >> "${GITHUB_OUTPUT:-/dev/null}"
