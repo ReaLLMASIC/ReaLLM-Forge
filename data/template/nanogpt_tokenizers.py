@@ -305,6 +305,11 @@ class HuggingFaceTokenizer(Tokenizer):
             self._explain_load_error(exc)
             raise
 
+        self.excluded_token_ids = sorted(set(
+            getattr(args, "hf_exclude_token_ids", None) or []
+        ))
+        self.input_tokenizer = self._build_input_tokenizer()
+
         # Try to resolve the actual commit SHA the tokenizer was loaded from,
         # for reproducibility. This is best-effort and never fatal.
         self.hf_resolved_commit = self._resolve_commit_hash()
@@ -314,7 +319,64 @@ class HuggingFaceTokenizer(Tokenizer):
         meta_output_path = getattr(args, "meta_output_path", "meta.pkl")
         output_dir = os.path.dirname(meta_output_path) or "."
         self.hf_local_dir = os.path.join(output_dir, "hf_tokenizer")
+        self.hf_input_local_dir = os.path.join(output_dir, "hf_input_tokenizer")
         self.last_token_count = 0
+
+    def _build_input_tokenizer(self):
+        """Return an encoder whose BPE graph cannot emit excluded IDs.
+
+        Merely filtering IDs after encoding corrupts the text stream. Instead we
+        remove the corresponding vocabulary nodes and every merge touching (or
+        creating) them, allowing BPE to fall back to smaller pieces. The decoder
+        intentionally remains the unmodified tokenizer, so model output retains
+        the complete vocabulary.
+        """
+        if not self.excluded_token_ids:
+            return self.tokenizer
+        if not getattr(self.tokenizer, "is_fast", False):
+            raise ValueError("--hf_exclude_token_ids requires a fast HuggingFace tokenizer")
+
+        from tokenizers import Tokenizer as BackendTokenizer
+
+        backend = getattr(self.tokenizer, "backend_tokenizer", None)
+        config = json.loads(backend.to_str())
+        model = config.get("model", {})
+        if model.get("type") != "BPE":
+            raise ValueError(
+                "--hf_exclude_token_ids currently supports BPE tokenizers only; "
+                f"loaded backend model is {model.get('type')!r}"
+            )
+
+        vocab = model.get("vocab", {})
+        id_to_piece = {int(token_id): piece for piece, token_id in vocab.items()}
+        invalid = [token_id for token_id in self.excluded_token_ids if token_id not in id_to_piece]
+        if invalid:
+            raise ValueError(f"excluded token IDs are outside the tokenizer vocabulary: {invalid}")
+        removed_pieces = {id_to_piece[token_id] for token_id in self.excluded_token_ids}
+        model["vocab"] = {
+            piece: token_id for piece, token_id in vocab.items()
+            if int(token_id) not in self.excluded_token_ids
+        }
+
+        def keep_merge(merge):
+            left, right = merge if isinstance(merge, list) else merge.split(" ", 1)
+            return left not in removed_pieces and right not in removed_pieces \
+                and left + right not in removed_pieces
+
+        model["merges"] = [merge for merge in model.get("merges", []) if keep_merge(merge)]
+        config["added_tokens"] = [
+            token for token in config.get("added_tokens", [])
+            if int(token["id"]) not in self.excluded_token_ids
+        ]
+        backend = BackendTokenizer.from_str(json.dumps(config))
+
+        # Clone the Transformers wrapper so normalizers, pre-tokenizers and
+        # return types remain identical, replacing only its Rust backend.
+        input_tokenizer = self.tokenizer.__class__(
+            tokenizer_object=backend,
+            **getattr(self.tokenizer, "init_kwargs", {}),
+        )
+        return input_tokenizer
 
     def _explain_load_error(self, exc):
         """Print a friendly hint when from_pretrained fails on a Hub repo."""
@@ -378,7 +440,10 @@ class HuggingFaceTokenizer(Tokenizer):
         # Encode without special tokens to match the behavior of our other
         # subword tokenizers (tiktoken/sentencepiece) so that text resumes
         # cleanly across chunks.
-        ids = self.tokenizer.encode(data, add_special_tokens=False)
+        ids = self.input_tokenizer.encode(data, add_special_tokens=False)
+        reached = sorted(set(ids).intersection(self.excluded_token_ids))
+        if reached:  # Structural invariant and guard against backend changes.
+            raise RuntimeError(f"excluded token IDs were produced by input tokenization: {reached}")
 
         for token_id in ids:
             self.record_token(token_id)
@@ -390,10 +455,15 @@ class HuggingFaceTokenizer(Tokenizer):
         # gated models like Gemma "just work" downstream: prepare-time is the
         # only step that has to authenticate against the Hub.
         hf_saved_path = None
+        hf_input_saved_path = None
         try:
             os.makedirs(self.hf_local_dir, exist_ok=True)
             self.tokenizer.save_pretrained(self.hf_local_dir)
             hf_saved_path = self.hf_local_dir
+            if self.excluded_token_ids:
+                os.makedirs(self.hf_input_local_dir, exist_ok=True)
+                self.input_tokenizer.save_pretrained(self.hf_input_local_dir)
+                hf_input_saved_path = self.hf_input_local_dir
         except Exception as exc:  # pragma: no cover - best effort
             print(f"[huggingface] Warning: could not save tokenizer snapshot to "
                   f"{self.hf_local_dir}: {exc}")
@@ -403,6 +473,8 @@ class HuggingFaceTokenizer(Tokenizer):
             "tokenizer": "huggingface",
             "hf_tokenizer_name": self.hf_tokenizer_name,
             "hf_tokenizer_path": hf_saved_path,
+            "hf_input_tokenizer_path": hf_input_saved_path,
+            "hf_excluded_token_ids": self.excluded_token_ids,
             "hf_use_fast": bool(getattr(self.args, "hf_use_fast", True)),
             "hf_trust_remote_code": bool(getattr(self.args, "hf_trust_remote_code", False)),
             "hf_revision": self.hf_revision,

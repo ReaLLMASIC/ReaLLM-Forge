@@ -1313,6 +1313,8 @@ def get_tokenizer_functions(meta):
 
         hf_name = meta.get('hf_tokenizer_name')
         hf_local_path = meta.get('hf_tokenizer_path')
+        hf_input_local_path = meta.get('hf_input_tokenizer_path')
+        excluded_token_ids = set(meta.get('hf_excluded_token_ids', []))
         trust_remote_code = bool(meta.get('hf_trust_remote_code', False))
         use_fast = meta.get('hf_use_fast', True)
         hf_revision = meta.get('hf_resolved_commit') or meta.get('hf_revision')
@@ -1345,9 +1347,23 @@ def get_tokenizer_functions(meta):
                 from_pretrained_kwargs["subfolder"] = hf_subfolder
 
         hf_tok = AutoTokenizer.from_pretrained(load_target, **from_pretrained_kwargs)
+        hf_input_tok = hf_tok
+        if excluded_token_ids:
+            if not hf_input_local_path or not os.path.isdir(hf_input_local_path):
+                raise ValueError(
+                    "meta.pkl excludes HuggingFace token IDs but its input-only "
+                    "tokenizer snapshot is missing"
+                )
+            hf_input_tok = AutoTokenizer.from_pretrained(
+                hf_input_local_path, trust_remote_code=trust_remote_code, use_fast=True
+            )
 
         def encode(s):
-            return hf_tok.encode(s, add_special_tokens=False)
+            ids = hf_input_tok.encode(s, add_special_tokens=False)
+            reached = excluded_token_ids.intersection(ids)
+            if reached:
+                raise RuntimeError(f"excluded token IDs reached by user input: {sorted(reached)}")
+            return ids
 
         def decode(ids):
             return hf_tok.decode(list(ids), skip_special_tokens=False)

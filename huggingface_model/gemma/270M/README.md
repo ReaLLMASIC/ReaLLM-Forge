@@ -18,6 +18,34 @@ The scripts rely on `AutoModelForCausalLM.from_pretrained(...)`, so you can poin
 `--model_name` at any local checkpoint path created by `train_from_scratch.py` or
 `finetune.py`.
 
+## Making token IDs unreachable from user text
+
+Gemma 3's fast tokenizer uses a BPE graph. Deleting an ID from the encoded
+result is unsafe because it silently deletes the text represented by that
+token. The dataset tokenizer instead supports pruning IDs from an **input-only**
+copy of the BPE graph. It removes each selected vocabulary node and all merges
+that use or create that node, so the same text falls back to smaller pieces.
+The original tokenizer is retained for decoding, meaning the model may still
+generate and correctly decode those IDs; only user-supplied text cannot reach
+them.
+
+Exclude one ID or any space-separated list with `--hf_exclude_token_ids`:
+
+```bash
+python data/template/prepare.py \
+  --method huggingface \
+  --hf_tokenizer_name google/gemma-3-270m \
+  --hf_exclude_token_ids 1234 5678 9012 \
+  --train_input input.txt
+```
+
+Preparation saves both tokenizer snapshots next to `meta.pkl`. Inference uses
+the pruned snapshot for prompts and the complete snapshot for generated-output
+decoding. The implementation validates IDs up front and checks every encoded
+result as a defensive invariant. This option requires the fast BPE tokenizer
+(`--hf_use_fast`, which is the default); unsupported model types fail clearly
+rather than falling back to lossy post-processing.
+
 ## JL-projected LM head evaluation
 
 `jl_head_eval.py` runs a two-stage LM head evaluation:
