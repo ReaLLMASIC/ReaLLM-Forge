@@ -360,6 +360,7 @@ def parse_args():
             "dact",
             "cappedhyperspherenorm",
             "identity",
+            "ste_norm",
         ],
         help="Optional post-mapping normalization applied to numerical embedding channels.",
     )
@@ -842,9 +843,45 @@ def parse_args():
             "dact",
             "identity",
             "cappedhyperspherenorm",
+            "ste_norm",
             ]
 
     model_group.add_argument("--norm_variant_attn", type=str, default="rmsnorm", choices=norm_variations)
+    model_group.add_argument(
+        "--norm_variant_mlp",
+        type=str,
+        default=None,
+        choices=norm_variations,
+        help="Default MLP block norm variant. Defaults to --norm_variant_attn for backward compatibility.",
+    )
+    model_group.add_argument(
+        "--norm_variant_attn_input",
+        type=str,
+        default=None,
+        choices=norm_variations,
+        help="Attention pre-norm variant. Defaults to --norm_variant_attn.",
+    )
+    model_group.add_argument(
+        "--norm_variant_attn_output",
+        type=str,
+        default=None,
+        choices=norm_variations,
+        help="Attention peri/post norm variant. Defaults to --norm_variant_attn.",
+    )
+    model_group.add_argument(
+        "--norm_variant_mlp_input",
+        type=str,
+        default=None,
+        choices=norm_variations,
+        help="MLP pre-norm variant. Defaults to --norm_variant_mlp, then --norm_variant_attn.",
+    )
+    model_group.add_argument(
+        "--norm_variant_mlp_output",
+        type=str,
+        default=None,
+        choices=norm_variations,
+        help="MLP peri/post norm variant. Defaults to --norm_variant_mlp, then --norm_variant_attn.",
+    )
     model_group.add_argument("--norm_variant_output", type=str, default="rmsnorm", choices=norm_variations)
     model_group.add_argument("--use_flash_norm", type=bool, default=None, action=argparse.BooleanOptionalAction)
 
@@ -916,6 +953,22 @@ def parse_args():
             "tanh",
             "identity",
         ]
+
+    ## Straight-through norm
+    model_group.add_argument(
+        "--ste_norm_forward_variant",
+        type=str,
+        default="rmsnorm",
+        choices=[variant for variant in norm_variations if variant != "ste_norm"],
+        help="Norm used in the forward pass when a norm_variant is ste_norm.",
+    )
+    model_group.add_argument(
+        "--ste_norm_backward_activation",
+        type=str,
+        default="identity",
+        choices=activation_variations,
+        help="Activation whose gradient ste_norm uses in the backward pass (default: identity).",
+    )
 
     ## DynamicActivations
     model_group.add_argument("--dact_activation", type=str, default="tanh", choices=activation_variations)
