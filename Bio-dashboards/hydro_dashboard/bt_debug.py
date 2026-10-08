@@ -334,6 +334,60 @@ def dashboard_dir(dashboard):
     return os.path.join(data_root(), safe_name(dashboard))
 
 
+# ---- protection against power cuts --------------------------------------------------------
+# A recording only reaches the disk when the system gets round to it; if the power goes first,
+# the end of the file can be lost or left as a run of zero (NUL) bytes. So recordings are pushed
+# to the disk every FSYNC_EVERY_S seconds (a power cut costs at most that much), and when a
+# dashboard starts, recent recordings left with zero bytes by an earlier cut are cleaned up.
+FSYNC_EVERY_S = float(os.environ.get("BIODASH_FSYNC_S", "10"))
+
+
+def repair_recordings(dashboard, days=3, log=None):
+    """Remove NUL bytes from this dashboard's recordings of the last `days` days.
+    Only files not written to in the last 2 minutes are touched, each is checked at its end
+    (where a power cut leaves them) and rewritten safely: new copy, then swapped in."""
+    import glob as _glob
+    fixed = []
+    now = time.time()
+    for path in _glob.glob(os.path.join(dashboard_dir(dashboard), "*", "*", "*.csv")):
+        try:
+            st = os.stat(path)
+            if now - st.st_mtime > days * 86400 or now - st.st_mtime < 120 or st.st_size == 0:
+                continue
+            with open(path, "rb") as f:
+                f.seek(max(0, st.st_size - (1 << 20)))
+                if b"\0" not in f.read():
+                    continue
+            if st.st_size > 512 << 20:
+                continue                                  # too big to rewrite here; readers skip the zeros anyway
+            with open(path, "rb") as f:
+                data = f.read()
+            clean = data.replace(b"\0", b"")
+            if clean and not clean.endswith(b"\n"):
+                clean += b"\n"
+            tmp = path + ".repair"
+            with open(tmp, "wb") as f:
+                f.write(clean)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
+            fixed.append((path, len(data) - len(clean)))
+        except OSError:
+            continue
+    for path, n in fixed:
+        msg = f"Repaired {path}: removed {n} zero bytes left by an interrupted write (power cut?)"
+        (log or print)(msg)
+    return fixed
+
+
+def repair_in_background(dashboard):
+    import threading as _threading
+    _threading.Thread(target=repair_recordings, args=(dashboard,), daemon=True, name="repair-recordings").start()
+
+
+_repaired = set()
+
+
 class SessionFiles:
     """CSV files for one device session, opened when the device connects.
 
@@ -342,13 +396,17 @@ class SessionFiles:
         s.writerows("ecg", rows); s.flush(); s.close()
     """
 
-    def __init__(self, dashboard):
+    def __init__(self, dashboard, repair=True):
         self.dashboard = dashboard
         self.dir = None
         self.stamp = None
         self.files = {}
         self.writers = {}
         self.paths = {}
+        self._synced = time.time()
+        if repair and dashboard not in _repaired:
+            _repaired.add(dashboard)
+            repair_in_background(dashboard)
 
     @property
     def active(self):
@@ -376,13 +434,28 @@ class SessionFiles:
         w = self.writers.get(stream)
         if w is not None and rows:
             w.writerows(rows)
+            if time.time() - self._synced >= FSYNC_EVERY_S:
+                self.sync()
 
     def flush(self, stream=None):
         for k, f in self.files.items():
             if stream is None or k == stream:
                 f.flush()
+        if time.time() - self._synced >= FSYNC_EVERY_S:
+            self.sync()
+
+    def sync(self):
+        """Push everything written so far onto the disk (survives a power cut from here on)."""
+        self._synced = time.time()
+        for f in self.files.values():
+            try:
+                f.flush()
+                os.fsync(f.fileno())
+            except (OSError, ValueError):
+                pass
 
     def close(self):
+        self.sync()
         for f in self.files.values():
             try:
                 f.close()

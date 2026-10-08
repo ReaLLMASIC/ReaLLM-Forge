@@ -13,6 +13,7 @@
         { name: 'Atmos',     port: 5002, color: '#34d399' },
         { name: 'Viatom O2', port: 5003, color: '#38bdf8' },
         { name: 'Hydro',     port: 5004, color: '#22d3ee' },
+        { name: 'Analysis',  port: 5005, color: '#a78bfa' },
     ];
     const here = parseInt(location.port || (location.protocol === 'https:' ? '443' : '80'));
     const urlFor = (d) => `${location.protocol}//${location.hostname}:${d.port}/`;

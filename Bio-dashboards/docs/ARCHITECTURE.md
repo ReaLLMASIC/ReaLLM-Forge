@@ -10,6 +10,7 @@ diagrams below; elsewhere, paste a block into <https://mermaid.live>.
 5. [Atmos: from any sensor format to tiles](#5-atmos-from-any-sensor-format-to-tiles)
 6. [Starting and running everything](#6-starting-and-running-everything)
 7. [Hydro-dash: which Bluetooth radio](#7-hydro-dash-which-bluetooth-radio) — the old-dongle catch
+8. [Analysis: from recordings to one clock](#8-analysis-from-recordings-to-one-clock) — the sixth dashboard
 
 **Colour key** (same in every diagram):
 
@@ -409,3 +410,56 @@ flowchart TB
 - **Choosing the radio:** debug panel (D) → Bluetooth Radio. Hydro-dash defaults to the built-in
   one, like the other dashboards.
 - Step by step, with the commands: `hydro_dashboard/TROUBLESHOOTING.md`, sections 11 and 12.
+
+---
+
+## 8. Analysis: from recordings to one clock
+
+The analysis dashboard (port 5005) has no worker and no radio: it reads the CSV recordings the other
+dashboards wrote, so it runs anywhere those files are.
+
+```mermaid
+flowchart LR
+    R[("Documents/Bio-dash/<br/>&lt;dashboard&gt;/&lt;device&gt;/&lt;date&gt;/*.csv")] --> L["biodata.py<br/>read · clean · merge"]
+
+    L --> SIG["Named signals<br/>heart.hr · oxygen.spo2 · air.co2@… ·<br/>water.fill · water.sips · water.total · raw.*"]
+    L --> SUM["Summaries<br/>recording strips · device cards · day by day"]
+
+    SIG --> K{"What kind<br/>of signal?"}
+    K -->|"readings<br/>HR, SpO₂, CO₂"| M["mean · min · max per step<br/>straight line across short gaps"]
+    K -->|"state<br/>fill level"| H["last value<br/>carried forward"]
+    K -->|"events<br/>sips"| E["mL per step<br/>+ running daily total"]
+
+    M & H & E --> G["One clock<br/>each value + n real readings"]
+    G --> P["Charts<br/>one per signal, shared time axis"]
+    G --> C[/"CSV export<br/>page button or tools/interpolate.py"/]
+    SUM --> P2["Page<br/>port 5005"]
+    P --> P2
+    R --> N["tools/night_report.py"] --> NR[/"Overnight report<br/>linked from the Oxygen card"/]
+
+    classDef device fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:2px
+    classDef radio fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:2px
+    classDef worker fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
+    classDef app fill:#CCFBF1,stroke:#0D9488,color:#134E4A,stroke-width:2px
+    classDef file fill:#F1F5F9,stroke:#64748B,color:#1E293B,stroke-width:2px
+    classDef store fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:2px
+    classDef ui fill:#FCE7F3,stroke:#DB2777,color:#831843,stroke-width:2px
+    classDef decision fill:#FFEDD5,stroke:#EA580C,color:#7C2D12,stroke-width:2px
+    classDef warn fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px
+    classDef start fill:#1E293B,stroke:#94A3B8,color:#F8FAFC,stroke-width:2px
+    class R store
+    class L,SIG worker
+    class K decision
+    class M,H,E worker
+    class G app
+    class P,P2,SUM ui
+    class C,NR file
+    class N worker
+```
+
+- **Nothing is changed on disk:** the dashboard and the tool only read the recordings (exports and
+  reports are written to their own `Exports/` and `Reports/` folders).
+- **Signals are merged across dashboards:** heart rate recorded by Polar-dash in the day and by
+  Omni at night is one signal.
+- **Estimates are marked:** every value carries `n`, the number of real readings behind it;
+  0 means interpolated, carried forward, or "no sip in this step". Charts draw those dashed.

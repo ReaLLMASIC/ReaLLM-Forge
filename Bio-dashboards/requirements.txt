@@ -1,7 +1,8 @@
-# Everything needed to run all five dashboards.
+# Everything needed to run all six dashboards.
 # Each dashboard folder also has its own requirements.txt if you only need one.
 -r polar_dashboard/requirements.txt
 -r atmos_dashboard/requirements.txt
 -r viatom_dashboard/requirements.txt
 -r Omni-dashboard/requirements.txt
 -r hydro_dashboard/requirements.txt
+-r analysis_dashboard/requirements.txt

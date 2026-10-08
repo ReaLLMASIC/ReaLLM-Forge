@@ -18,7 +18,7 @@ LIBS=(
   "chartjs-adapter-luxon@1.2.0/dist/chartjs-adapter-luxon.min.js|chartjs-adapter-luxon.min.js|32bebde2ad9a4f051c0cbba522d3d3ad08c83230e25be2dec5009d153fe2b9b6"
   "chartjs-plugin-streaming@2.0.0/dist/chartjs-plugin-streaming.min.js|chartjs-plugin-streaming.min.js|4e591702ead92f73f79ee126598cabcc65757213f6a4945b99ac14ba8d227563"
 )
-CHART_DASHBOARDS=(polar_dashboard atmos_dashboard viatom_dashboard Omni-dashboard hydro_dashboard)
+CHART_DASHBOARDS=(polar_dashboard atmos_dashboard viatom_dashboard Omni-dashboard hydro_dashboard analysis_dashboard)
 TAILWIND_DASHBOARDS=(polar_dashboard atmos_dashboard viatom_dashboard Omni-dashboard hydro_dashboard)
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

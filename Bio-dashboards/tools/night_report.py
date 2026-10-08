@@ -68,8 +68,9 @@ def all_vitals_files(root, device=None):
 
 def read_rows(path):
     rows = []
-    with open(path, newline="") as f:
-        r = csv.reader(f)
+    with open(path, newline="", errors="replace") as f:
+        # NUL bytes (a power cut while the file was being written) would stop the csv module
+        r = csv.reader(line.replace("\0", "") for line in f)
         header = next(r, None) or []
         try:
             it, isp, ihr = header.index("Timestamp_Epoch_ms"), header.index("SpO2_pct"), header.index("HR_BPM")

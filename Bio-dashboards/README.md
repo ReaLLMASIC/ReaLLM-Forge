@@ -9,6 +9,7 @@ Live browser dashboards for BLE biometric and environmental sensors, built for L
 | `atmos_dashboard/` | Any Atmos device: **Atmos-Mini** (SEN69C), **Atmos-Sphere S4** (SCD30 + SEN44 + SFA3X), **S5** (SCD30 + SEN55 + SFA3X), or anything sending CSV / key=value / JSON over Nordic UART | Whatever the device reports: CO₂, PM1–10, temp / RH, VOC, NOx, HCHO, plus any unrecognised fields | 5002 | `./run_dashboard.sh` |
 | `Omni-dashboard/` | Polar H10 + Viatom O2 at the same time | Both of the above in one view, each on its own radio when two are available | 5000 | `./run_dashboard.sh` |
 | `hydro_dashboard/` | **HidrateSpark** smart bottle (PRO / PRO 2) | Sips with timestamps, intake vs. goal, fill level, refills, battery | 5004 | `./run_dashboard.sh` |
+| `analysis_dashboard/` | *No device:* reads what the others recorded | Summaries per day or range, every signal on one clock, CSV export, overnight reports | 5005 | `./run_dashboard.sh` |
 
 ![Polar H10 dashboard with bedside-monitor ECG](docs/polar_dashboard.png)
 
@@ -25,7 +26,7 @@ Live browser dashboards for BLE biometric and environmental sensors, built for L
 The easiest setup is an isolated virtual environment, which keeps these packages separate from anything else installed on the machine:
 
 ```bash
-./setup_env.sh                     # creates .venv/ with all five dashboards' packages
+./setup_env.sh                     # creates .venv/ with all six dashboards' packages
 ./setup_env.sh polar_dashboard     # or just one dashboard
 ./setup_env.sh --fresh             # wipe and rebuild
 ```
@@ -44,7 +45,7 @@ Or install system-wide instead: `pip3 install -r requirements.txt`.
 polar_dashboard/run_dashboard.sh    # or one dashboard on its own
 ```
 
-Every dashboard has its own port (**Omni 5000 · Polar 5001 · Atmos 5002 · Viatom 5003 · Hydro 5004**), and the sidebar links to the others that are running (a dashboard that isn't running isn't listed; it appears within about 10 seconds of starting).
+Every dashboard has its own port (**Omni 5000 · Polar 5001 · Atmos 5002 · Viatom 5003 · Hydro 5004 · Analysis 5005**), and the sidebar links to the others that are running (a dashboard that isn't running isn't listed; it appears within about 10 seconds of starting).
 
 1. Wake the device. The H10 needs wet electrodes. The O2 Ultra only advertises while it's powered on and measuring.
 2. Pick it from the scanner panel and click **Connect**.
@@ -78,6 +79,10 @@ polar_dashboard/
     └── vendor/             # Chart.js, Luxon, adapter, streaming plugin
 ```
 
+The analysis dashboard has no worker: `analysis_dashboard/biodata.py` reads the recordings
+(also used by `tools/interpolate.py`), `app.py` serves the page, `sample_data.py` writes made-up
+recordings to try it with, and `test_biodata.py` checks the numbers.
+
 `templates/index.html` is served as a plain file, not rendered through Jinja, so you can edit the HTML, JS and CSS directly and just refresh the browser. Only changes to the `.py` files need a restart.
 
 ## Offline use
@@ -86,10 +91,10 @@ The dashboards don't need internet access. Every library is included under each 
 
 | Library | Version | Used by |
 |---|---|---|
-| Chart.js | 3.9.1 | All five |
-| Luxon + chartjs-adapter-luxon | 3.0.1 / 1.2.0 | All five |
-| chartjs-plugin-streaming | 2.0.0 | All five |
-| Tailwind CSS (compiled, not the play CDN) | 3.4 | All five |
+| Chart.js | 3.9.1 | All six |
+| Luxon + chartjs-adapter-luxon | 3.0.1 / 1.2.0 | All six |
+| chartjs-plugin-streaming | 2.0.0 | The five live dashboards |
+| Tailwind CSS (compiled, not the play CDN) | 3.4 | The five live dashboards (Analysis has its own small stylesheet) |
 
 To re-download them, or after changing a version in the script:
 
@@ -222,6 +227,40 @@ sensor, refills and battery, with hour and 7-day charts and day-scale tile trend
   Details: `hydro_dashboard/README.md`, `hydro_dashboard/PROTOCOL.md` and
   `hydro_dashboard/TROUBLESHOOTING.md`.
 
+### Analysis (all devices, from the recordings)
+
+![Analysis dashboard](docs/analysis_dashboard.png)
+
+A dashboard that talks to no device: it reads the recordings the other five have saved, so it
+works on any computer that has them (copy the `Bio-dash` folder over with `rsync`, say). Port **5005**.
+
+- **Pick a range:** today, yesterday, the last 7 or 30 days, or any dates; ‹ › step through.
+- **What was recorded:** a strip per device showing when it was recording and when it wasn't.
+- **A card per device:** heart rate (average, range, a resting estimate, HRV), SpO₂ (average,
+  lowest, time below 95 / 90 / 88 %, with a link to each night's overnight report), air (CO₂ and
+  every other metric your Atmos reports), water (drunk against your Hydro-dash goal, sips, refills).
+- **Day by day:** for a range, one row per day.
+- **Signals on one clock:** pick any signals; each gets its own chart on a shared time axis, and
+  hovering reads them all at the same moment. **Download CSV** saves exactly what's shown.
+
+How the signals are put on one clock (the same rules as `tools/interpolate.py`):
+
+| Signal | Example | Each step holds |
+|---|---|---|
+| Readings | heart rate, SpO₂, CO₂ | the **mean** of the real readings in it (the band shows their min and max); a step with none gets a straight line between the readings either side, but never across a pause of more than a minute |
+| State | the bottle's fill level | the **last value**, carried forward (a straight line would invent a slow drain that never happened) |
+| Events | sips | the **mL drunk** in that step, and "drunk so far today" as a running total |
+
+Estimates are drawn dashed, and the CSV has a `.n` column per signal: how many real readings went
+into that row (0 = estimate). Your recordings are only read, never changed.
+
+No recordings yet? Try it with made-up ones:
+
+```bash
+python3 analysis_dashboard/sample_data.py /tmp/biodash-demo --days 7
+BIODASH_DATA_DIR=/tmp/biodash-demo analysis_dashboard/run_dashboard.sh
+```
+
 ### ECG view (Polar, Omni)
 
 The ECG card has a **🩺 Monitor / 📈 Classic** switch. **Monitor** is the bedside-style sweep display; **Classic** is the original scrolling line. Each dashboard remembers your choice. Beat detection and the QRS beep keep working in both views; the gain control only applies to Monitor.
@@ -297,6 +336,11 @@ Every dashboard saves its data to your **Documents** folder, organised by dashbo
   - Each debug panel (**D**) shows **Saving to**, the folder the current session is recording into.
   - Trend history and chart pre-fill read from the newest recording of the connected device.
 - **Nothing is written inside the repo any more**, so recordings (including health data) can't be committed by accident. Logs from before this change stay in the old `logs_*` folders.
+- **Power cuts:**
+  - Recordings are pushed onto the disk every 10 seconds, so pulling the plug costs at most the last 10 seconds (`BIODASH_FSYNC_S` changes the interval).
+  - A cut while a file is being written can leave a run of zero bytes at its end. When a dashboard starts, it removes those from its recordings of the last three days (a file still being written is left alone), and prints which files it repaired.
+  - The analysis dashboard and the overnight report read past such zeros anyway.
+  - Shutting down from the sidebar, or stopping the dashboards first, avoids it altogether.
 
 ### Running as a service (`biodash.py`)
 
@@ -349,7 +393,7 @@ dashboard's title and its connection status.
 A patch never moves you to a new version, and each action needs a second tap to confirm.
 
 - **Needs a git clone**, not an unzipped copy: `git clone https://github.com/Meapy011/Bio-dash`
-  and run the dashboards from the newest release folder (`Bio-dash/V3.1_Dashboard`).
+  and run the dashboards from the newest release folder (`Bio-dash/V5.0_Dashboard`).
 - **Only fast-forwards from the clone's own remote.** It refuses if tracked files were edited
   locally or the branch has diverged, and says which files; nothing of yours is overwritten.
 - **Recordings and settings are safe.** Recordings live in `Documents/Bio-dash`; saved settings
@@ -432,4 +476,31 @@ It reads the `_vitals.csv` files from `Documents/Bio-dash/Viatom O2/` (and Omni)
 between 18:00 and noon the next day, and writes `Documents/Bio-dash/Reports/night_<date>.html`:
 SpO₂ and pulse through the night, time below 95 / 92 / 90 / 88 %, dips of 3 % and 4 % per hour,
 the deepest dips, plus gaps and frozen (sensor not reading) stretches, which are left out of the numbers.
-Not a medical device or a sleep study.
+Not a medical device or a sleep study. The analysis dashboard links to each night's report from its Oxygen card.
+
+## One table from every device
+
+Each device records at its own pace: heart rate about once a second, the O2 ring every second or
+so, the air monitor and the bottle every few seconds, sips whenever you drink. `tools/interpolate.py`
+puts them on one clock, one row per time step and one column per signal (no extra packages
+needed). It's the command-line version of the analysis dashboard's **Download CSV**, with the same rules:
+
+```bash
+python3 tools/interpolate.py                      # the most recent day with recordings, 1 s steps
+python3 tools/interpolate.py 2026-10-07 --step 1min --minmax
+python3 tools/interpolate.py --from "2026-10-07 09:00" --to "2026-10-07 12:30" --only hr,spo2
+python3 tools/interpolate.py --list               # show what would go in, and stop
+```
+
+It writes `Documents/Bio-dash/Exports/bio-dash_<day>_<step>.csv`. Columns are the signal names
+(`heart.hr`, `oxygen.spo2`, `air.co2@scd30`, `water.fill`, `water.sips`, `water.total`, and
+`raw.<dashboard>.<stream>.<column>` for everything else), each followed by `.n`, the number of real
+readings in that row.
+
+- **Readings** get the mean of each step (`--minmax` adds `.min` / `.max`), **state** is carried
+  forward, **sips** are mL per step plus a running daily total. See the table in *Analysis* above.
+- **Nothing is invented where there's no data:** empty before a signal's first reading, after its
+  last, and across any pause longer than `--max-gap` (60 s by default).
+- **Left out unless you `--include` them:** the fast waveforms (`ecg`, `acc`; use a matching step
+  such as `--step 8ms`).
+- `--curated` keeps only the named signals; `--complete` keeps only rows where every signal has a value.

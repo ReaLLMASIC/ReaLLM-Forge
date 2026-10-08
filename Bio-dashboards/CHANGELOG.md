@@ -1,5 +1,42 @@
 # Changelog
 
+## V5.0
+
+A new dashboard that looks back instead of live: **Analysis** (port 5005). It reads the recordings
+the other dashboards save and talks to no device. (No V4: four is an unlucky number.)
+
+- **Summaries for a day or any range:** a strip per device showing when it was recording; cards for
+  heart (average, range, resting estimate, HRV as median RMSSD), SpO₂ (average, lowest, time below
+  95 / 90 / 88 %), air (CO₂ with time above 1000 ppm, and every other metric the Atmos reports) and
+  water (drunk against the Hydro-dash goal, sips, refills, largest sip); for a range, a row per day.
+- **Overnight reports from the dashboard:** each night with SpO₂ readings gets a link that builds
+  and opens `tools/night_report.py`'s report.
+- **Signals on one clock:** pick any signals; each gets its own chart on a shared time axis
+  (never two scales on one chart), a crosshair across all of them, and a readout of every signal
+  at the hovered moment. Step: auto, 1 s ... 1 h.
+- **Better resampling, shared by the dashboard and `tools/interpolate.py`** (`analysis_dashboard/biodata.py`):
+  readings get the mean of each step with its min / max (nothing between two ticks is dropped any
+  more), state such as the bottle's fill level is carried forward, sips become mL per step plus a
+  running daily total. Estimates are drawn dashed, and every exported value has a `.n` column with
+  the number of real readings behind it (0 = estimate).
+- **Signals merged across dashboards:** the same Polar strap recorded by Polar-dash in the day and
+  by Omni at night is one heart-rate signal; heart rate is derived from the R-R intervals where a
+  recording has no heart-rate column (Omni); sips replayed by the bottle are counted once.
+- **CSV export** of exactly what's on screen, from the page.
+- `tools/interpolate.py` now uses the same code: named signals (`heart.hr`, `oxygen.spo2`,
+  `air.co2@scd30`, `water.fill` ...), `.n` columns, `--minmax`, `--curated`. Output file names start
+  with `bio-dash_` instead of `interpolated_`.
+- `analysis_dashboard/sample_data.py` writes made-up recordings to try it with; `test_biodata.py`
+  checks the resampling against values worked out by hand.
+- Sidebar, services menu (`./biodash.py`), `./launch.sh analysis` and the root requirements know
+  the sixth dashboard.
+- **Power-cut protection for recordings** (all dashboards): recordings are pushed onto the disk
+  every 10 s (`BIODASH_FSYNC_S`), so a cut costs at most that much; on start, each dashboard removes
+  the zero (NUL) bytes a cut can leave at the end of a recent recording; the analysis dashboard and
+  `tools/night_report.py` read past them. (Found on a real night's SpO₂ recording, where they
+  stopped the analysis page from loading.)
+- The analysis page shows the actual error when something goes wrong, instead of "request failed (500)".
+
 ## V3.1
 
 Hydro-dash tuning, from reading how the official app talks to the bottle (no app code included).
@@ -21,6 +58,7 @@ Run on one PRO 2: connecting, sips, fill level, bottle size and glow work; **rem
 - **Services say so when they can't start.** If a dashboard's process stops on its own (most often: a new release folder with no `.venv` yet, so "No module named …"), the launcher now exits with an error instead of printing "System is LIVE" and ending quietly, so the service shows as failing and is retried. `./biodash.py` checks for the packages before installing services and tells you to run `./setup_env.sh` first.
 - **The sidebar lists only the dashboards that are running.** Links to dashboards that aren't running are hidden, and appear within about 10 seconds of one starting.
 - **Fill level on a second machine.** If no calibration is saved yet (a new computer with the recordings copied over), the bottle's empty / full weights are taken from the newest sip record in the log, so the fill level shows on connect instead of after the next sip.
+- **`tools/interpolate.py`:** one evenly spaced CSV from every device's recordings, by linear interpolation (one row per time step, one column per signal). Cells stay empty outside a signal's readings and across pauses longer than `--max-gap`; waveforms and event logs are left out unless included. Standard library only.
 - `hydro_test.py watch`: one mark per second showing when the bottle was heard; `listen` retries the connection while the bottle keeps advertising.
 - `hydro_test.py listen` prints the firmware family, capacity, each sip's source and the level left, and reports requests / acks / skipped records; `--drain auto|ack|fast`.
 - `PROTOCOL.md`: the full record layout, drain commands by firmware, bottle size and calibration commands.

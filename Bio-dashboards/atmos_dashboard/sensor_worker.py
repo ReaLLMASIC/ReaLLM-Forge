@@ -58,6 +58,8 @@ class SchemaLog:
         self.path = None
         self.dir = None
         self.stamp = None
+        self._synced = time.time()
+        bt_debug.repair_in_background("Atmos")      # zero bytes left in recent recordings by a power cut
 
     def start(self, device_name, address):
         self.close()
@@ -93,9 +95,20 @@ class SchemaLog:
             self.writer.writerow([ts] + [("" if vals.get(c) is None else round(vals[c], 3)) for c in self.columns])
         if self.file:
             self.file.flush()
+            if time.time() - self._synced >= bt_debug.FSYNC_EVERY_S:   # onto the disk: survives a power cut
+                self._synced = time.time()
+                try:
+                    os.fsync(self.file.fileno())
+                except OSError:
+                    pass
 
     def close(self):
         if self.file:
+            try:
+                self.file.flush()
+                os.fsync(self.file.fileno())
+            except (OSError, ValueError):
+                pass
             self.file.close()
         self.file = self.writer = None
         self.columns, self.part, self.dir = [], 0, None

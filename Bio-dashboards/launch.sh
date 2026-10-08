@@ -5,7 +5,7 @@
 #   ./launch.sh polar atmos        just these
 #   ./launch.sh omni atmos         Omni (Polar + O2 together) plus Atmos
 #
-# Dashboards and ports:  omni 5000 · polar 5001 · atmos 5002 · viatom 5003 · hydro 5004
+# Dashboards and ports:  omni 5000 · polar 5001 · atmos 5002 · viatom 5003 · hydro 5004 · analysis 5005
 # Each dashboard's header links to the others, with a dot showing which are running.
 set -u
 cd "$(dirname "$0")"
@@ -23,14 +23,14 @@ if [ -z "${BIODASH_INHIBITED:-}" ] && [ "${BIODASH_INHIBIT:-1}" != "0" ] && comm
     echo "⚠ Couldn't take a sleep inhibitor; the computer may sleep while the dashboards run."
 fi
 
-declare -A DIR=( [polar]=polar_dashboard [viatom]=viatom_dashboard [atmos]=atmos_dashboard [omni]=Omni-dashboard [hydro]=hydro_dashboard )
-declare -A PORT=( [polar]=5001 [viatom]=5003 [atmos]=5002 [omni]=5000 [hydro]=5004 )
+declare -A DIR=( [polar]=polar_dashboard [viatom]=viatom_dashboard [atmos]=atmos_dashboard [omni]=Omni-dashboard [hydro]=hydro_dashboard [analysis]=analysis_dashboard )
+declare -A PORT=( [polar]=5001 [viatom]=5003 [atmos]=5002 [omni]=5000 [hydro]=5004 [analysis]=5005 )
 
 wanted=("$@")
 [ ${#wanted[@]} -eq 0 ] && wanted=(polar viatom atmos)
 
 for d in "${wanted[@]}"; do
-    [ -n "${DIR[$d]:-}" ] || { echo "Unknown dashboard '$d'. Choose from: polar viatom atmos omni hydro"; exit 1; }
+    [ -n "${DIR[$d]:-}" ] || { echo "Unknown dashboard '$d'. Choose from: polar viatom atmos omni hydro analysis"; exit 1; }
 done
 
 # Omni drives the Polar and the O2 itself -- running the standalone dashboards too would
