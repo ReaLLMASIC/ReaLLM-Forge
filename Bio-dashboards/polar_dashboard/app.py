@@ -1,11 +1,18 @@
+from starlette.concurrency import run_in_threadpool
 import asyncio
 import os
 import glob
 import json
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+import bt_debug
+
+WEB_DIR = os.path.dirname(os.path.abspath(__file__))
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGS_DIR = os.path.join(BASE_DIR, "logs_advanced")
@@ -16,294 +23,6 @@ STATUS_FILE = os.path.join(LOGS_DIR, "status.json")
 class ConnectRequest(BaseModel):
     address: str
 
-HTML_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Polar H10 Advanced Research Lab</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/luxon@3.0.1/build/global/luxon.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.2.0/dist/chartjs-adapter-luxon.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0/dist/chartjs-plugin-streaming.min.js"></script>
-</head>
-<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col">
-
-    <header class="p-4 bg-slate-800 border-b border-slate-700 shadow-md">
-        <div class="container mx-auto flex justify-between items-center max-w-7xl">
-            <div>
-                <h1 class="text-xl font-bold text-rose-500 tracking-wide">Polar H10 Biometric Lab</h1>
-                <p class="text-xs text-slate-400 mt-1">ECG (130Hz) | ACC (200Hz) | Live HRV</p>
-            </div>
-            <span id="status" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                Awaiting Data...
-            </span>
-        </div>
-    </header>
-
-    <main class="container mx-auto px-4 py-6 flex-grow max-w-7xl flex flex-col gap-6">
-        
-        <div id="scanner-panel" class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl w-full transition-all duration-500">
-            <h2 class="text-lg font-bold text-slate-200 mb-4 flex items-center gap-3">
-                <span class="relative flex h-3 w-3">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-3 w-3 bg-sky-500"></span>
-                </span>
-                Scanning for Polar Units...
-            </h2>
-            <div id="device-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                <div class="text-slate-500 text-sm animate-pulse">Initializing Bluetooth Radar...</div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center">
-                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Heart Rate</h2>
-                <div class="text-6xl font-extrabold text-rose-500 my-2 tracking-tight">
-                    <span id="hr-val">--</span><span class="text-2xl font-light text-slate-500 ml-2">BPM</span>
-                </div>
-            </div>
-            
-            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center">
-                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">ECG Potential</h2>
-                <div class="text-6xl font-extrabold text-teal-400 my-2 tracking-tight">
-                    <span id="ecg-val">0.00</span><span class="text-2xl font-light text-slate-500 ml-2">mV</span>
-                </div>
-            </div>
-
-            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center">
-                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Autonomic Stress (RMSSD)</h2>
-                <div class="text-6xl font-extrabold text-indigo-400 my-2 tracking-tight">
-                    <span id="rmssd-val">--</span><span class="text-2xl font-light text-slate-500 ml-2">ms</span>
-                </div>
-                <div id="stress-label" class="text-xs font-bold mt-1 text-slate-500 animate-pulse">GATHERING BEATS...</div>
-            </div>
-        </div>
-
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl w-full">
-            <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Live PQRST Waveform</h2>
-            <div class="relative h-48 w-full"><canvas id="ecgChart"></canvas></div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl w-full">
-                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Chest Kinematics (mg)</h2>
-                <div class="relative h-48 w-full"><canvas id="accChart"></canvas></div>
-            </div>
-
-            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl w-full">
-                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Heart Rate Variability (R-R)</h2>
-                <div class="relative h-48 w-full"><canvas id="ppiChart"></canvas></div>
-            </div>
-        </div>
-    </main>
-
-    <script>
-        const chartOptions = (delayTime) => ({
-            responsive: true, maintainAspectRatio: false, animation: false,
-            scales: {
-                // PMD frames arrive ~every 0.5 s, so the delay must exceed that for a smooth scroll
-                x: { type: 'realtime', realtime: { duration: 5000, refresh: 40, delay: delayTime } },
-                y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
-            },
-            plugins: { legend: { display: false } }
-        });
-
-        const ecgChart = new Chart(document.getElementById('ecgChart').getContext('2d'), {
-            type: 'line', data: { datasets: [{ borderColor: '#f43f5e', borderWidth: 2, pointRadius: 0, data: [] }] },
-            options: chartOptions(1000)
-        });
-
-        const accChart = new Chart(document.getElementById('accChart').getContext('2d'), {
-            type: 'line', data: { datasets: [
-                { label: 'X', borderColor: '#38bdf8', borderWidth: 1.5, pointRadius: 0, data: [] },
-                { label: 'Y', borderColor: '#a78bfa', borderWidth: 1.5, pointRadius: 0, data: [] },
-                { label: 'Z', borderColor: '#fbbf24', borderWidth: 1.5, pointRadius: 0, data: [] }
-            ]},
-            options: { ...chartOptions(1000), plugins: { legend: { display: true, labels: { color: '#94a3b8' } } } }
-        });
-
-        const ppiChart = new Chart(document.getElementById('ppiChart').getContext('2d'), {
-            type: 'line', data: { datasets: [{ borderColor: '#818cf8', backgroundColor: '#818cf8', borderWidth: 0, pointRadius: 4, data: [] }] },
-            options: chartOptions(1500)
-        });
-
-        const $ = (id) => document.getElementById(id);
-        const statusEl = $('status');
-        const scannerPanel = $('scanner-panel');
-        const hrEl = $('hr-val'), ecgEl = $('ecg-val'), rmssdEl = $('rmssd-val'), labelEl = $('stress-label');
-
-        const BADGE = 'px-3 py-1 rounded-full text-xs font-semibold border ';
-        function setStatus(text, tone) {
-            statusEl.textContent = text;
-            statusEl.className = BADGE + {
-                ok: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-                bad: 'bg-red-500/20 text-red-400 border-red-500/30',
-                wait: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-            }[tone];
-        }
-
-        // "Streaming" is driven by data freshness, not by the socket, so the scanner
-        // comes back on its own when the strap drops and the worker returns to scanning.
-        const STALE_MS = 5000;
-        let uiIsConnected = false;
-        let lastPacketAt = 0;
-
-        function markLive() {
-            lastPacketAt = Date.now();
-            if (!uiIsConnected) {
-                uiIsConnected = true;
-                scannerPanel.style.display = 'none';
-                setStatus('Telemetry Active 🟢', 'ok');
-            }
-        }
-        function markIdle(text, tone) {
-            uiIsConnected = false;
-            scannerPanel.style.display = 'block';
-            setStatus(text, tone);
-            updateScannerList();
-        }
-        setInterval(() => {
-            if (uiIsConnected && Date.now() - lastPacketAt > STALE_MS) markIdle('Signal Lost — Rescanning', 'wait');
-        }, 1000);
-
-        const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-        const deviceList = $('device-list');
-        const note = (html, cls) => { deviceList.innerHTML = `<div class="${cls} col-span-3">${html}</div>`; };
-        let lastListKey = '';
-
-        // The worker reports scanning / connecting / streaming; the panel follows it,
-        // so a poll mid-handshake can't redraw stale device cards over the progress message.
-        async function updateScannerList() {
-            if (uiIsConnected) return;
-            try {
-                const st = await (await fetch('/api/status')).json();
-                if (st.state === 'connecting') {
-                    lastListKey = '';
-                    const tries = st.attempt > 1 ? ` (attempt ${st.attempt}/${st.max_attempts})` : '';
-                    return note(`Handshaking with ${esc(st.address)}${tries}...`, 'text-emerald-400 font-bold py-4 animate-pulse');
-                }
-                if (st.state === 'streaming') {
-                    lastListKey = '';
-                    return note('Connected — starting ECG / ACC streams...', 'text-emerald-400 font-bold py-4 animate-pulse');
-                }
-
-                const devices = await (await fetch('/api/scan-results')).json();
-                const key = JSON.stringify(devices.map(d => d.address));
-                if (key === lastListKey) {
-                    // same devices: just refresh RSSI in place, no DOM rebuild
-                    devices.forEach(d => {
-                        const el = deviceList.querySelector(`[data-rssi="${CSS.escape(d.address)}"]`);
-                        if (el) el.textContent = `${d.rssi} dBm`;
-                    });
-                    return;
-                }
-                lastListKey = key;
-                if (devices.length === 0) {
-                    return note('No active straps detected... ensure pads are wet.', 'text-slate-500 text-sm animate-pulse');
-                }
-                deviceList.innerHTML = devices.map(d => `
-                    <div class="bg-slate-700/50 p-4 rounded-xl border border-slate-600 flex flex-col gap-3 justify-between">
-                        <div>
-                            <div class="font-bold text-slate-200">${esc(d.name)}</div>
-                            <div class="text-xs text-slate-400 font-mono">${esc(d.address)} · <span data-rssi="${esc(d.address)}">${esc(d.rssi)} dBm</span></div>
-                        </div>
-                        <button data-mac="${esc(d.address)}" class="bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold py-2 px-4 rounded w-full transition-colors">
-                            Connect Signal
-                        </button>
-                    </div>`).join('');
-            } catch (err) {}
-        }
-
-        deviceList.addEventListener('click', async (e) => {
-            const mac = e.target.closest('button[data-mac]')?.dataset.mac;
-            if (!mac) return;
-            lastListKey = '';
-            note(`Handshaking with ${esc(mac)}...`, 'text-emerald-400 font-bold py-4 animate-pulse');
-            await fetch('/api/connect', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({address: mac})
-            });
-        });
-
-        setInterval(updateScannerList, 1000);
-        updateScannerList();
-
-        // --- HRV ---
-        const ppiHistory = [];
-        function pushPpi(ppi) {
-            ppiHistory.push(ppi);
-            if (ppiHistory.length > 20) ppiHistory.shift();
-            if (ppiHistory.length <= 2) return;
-
-            let sum = 0;
-            for (let i = 1; i < ppiHistory.length; i++) {
-                const d = ppiHistory[i] - ppiHistory[i - 1];
-                sum += d * d;
-            }
-            const rmssd = Math.sqrt(sum / (ppiHistory.length - 1));
-            rmssdEl.textContent = rmssd.toFixed(1);
-
-            const [text, color] = rmssd < 20 ? ['HIGH STRESS (SYMPATHETIC)', 'text-rose-500']
-                                : rmssd < 50 ? ['MODERATE (BALANCED)', 'text-amber-400']
-                                : ['RELAXED (PARASYMPATHETIC)', 'text-emerald-400'];
-            labelEl.textContent = text;
-            labelEl.className = 'text-xs font-bold mt-1 ' + color;
-        }
-
-        // --- Stream handling: each message is a batch {type, rows: [[...], ...]} ---
-        const ecgData = ecgChart.data.datasets[0].data;
-        const [accX, accY, accZ] = accChart.data.datasets.map(d => d.data);
-        const ppiData = ppiChart.data.datasets[0].data;
-
-        const handlers = {
-            ecg(rows) {
-                for (const [ts, mv] of rows) ecgData.push({ x: ts, y: mv });
-                const [, mv, hr] = rows[rows.length - 1];
-                ecgEl.textContent = mv.toFixed(2);
-                if (hr > 0) hrEl.textContent = hr;
-            },
-            acc(rows) {
-                for (const [ts, x, y, z] of rows) {
-                    accX.push({ x: ts, y: x });
-                    accY.push({ x: ts, y: y });
-                    accZ.push({ x: ts, y: z });
-                }
-            },
-            ppi(rows) {
-                for (const [ts, ppi, hr] of rows) {
-                    ppiData.push({ x: ts, y: ppi });
-                    pushPpi(ppi);
-                    if (hr > 0) hrEl.textContent = hr;
-                }
-            },
-        };
-
-        function connectWs() {
-            const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
-            ws.onopen = () => { if (!uiIsConnected) setStatus('System Online', 'wait'); };
-            ws.onclose = () => {
-                markIdle('Disconnected 🔴 — retrying', 'bad');
-                setTimeout(connectWs, 2000);
-            };
-            ws.onmessage = (event) => {
-                const packet = JSON.parse(event.data);
-                const h = handlers[packet.type];
-                if (h && packet.rows && packet.rows.length) {
-                    markLive();
-                    h(packet.rows);
-                }
-            };
-        }
-        connectWs();
-    </script>
-</body>
-</html>
-"""
 
 class ConnectionManager:
     def __init__(self):
@@ -335,9 +54,13 @@ ROW_SCHEMAS = {
 POLL_S = 0.02          # how often to check the file for new bytes
 ROTATE_CHECK_S = 2.0   # how often to look for a newer log file (worker restart)
 
+# Recordings live in <Documents>/Bio-dash/Polar H10/<device>/<date>/<time>_<stream>.csv
+# (bt_debug.SessionFiles); the newest session is the one being recorded now.
+_STREAM_OF = {"polar_ecg": "ecg", "polar_acc": "acc", "polar_ppi": "rr"}
+
 def get_latest_file(prefix):
-    files = glob.glob(os.path.join(LOGS_DIR, f"{prefix}_*.csv"))
-    return max(files, key=os.path.getmtime) if files else None
+    files = bt_debug.latest_session_files("Polar H10", _STREAM_OF[prefix], limit=1)
+    return files[0] if files else None
 
 def parse_rows(lines, stream_type):
     ncols, conv = ROW_SCHEMAS[stream_type]
@@ -415,6 +138,7 @@ async def lifespan(app: FastAPI):
 
 # --- APP INITIALIZATION ---
 app = FastAPI(lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=os.path.join(WEB_DIR, "static")), name="static")
 
 # --- ENDPOINTS ---
 @app.get("/api/scan-results")
@@ -425,6 +149,116 @@ def get_scan_results():
                 return json.load(f)
         except Exception: pass
     return []
+
+HISTORY_MAX_POINTS = 1500
+ECG_PP_BUCKET_MS = 1000
+
+def _tail_lines(path, max_bytes):
+    """Last lines of a CSV without reading the whole file."""
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        size = f.tell()
+        f.seek(max(0, size - max_bytes))
+        lines = f.read().decode("utf-8", errors="replace").splitlines()
+    return lines[1:] if size > max_bytes else lines      # first line may be cut
+
+def _thin(points):
+    step = max(1, len(points) // HISTORY_MAX_POINTS)
+    return points[::step]
+
+@app.get("/api/history")
+def get_history(metric: str, minutes: int = 15):
+    """Trend history for a tile, from this session's CSV logs.
+    metric: hr | rmssd (from the R-R log) or ecg_pp (ECG peak-to-peak per second)."""
+    minutes = max(1, min(minutes, 60))
+    cutoff = time.time() * 1000 - minutes * 60_000
+
+    if metric in ("hr", "rmssd"):
+        path = get_latest_file("polar_ppi")
+        if not path:
+            return {metric: []}
+        beats = []
+        for line in _tail_lines(path, minutes * 60 * 4 * 32 + 8192):   # <= ~4 beats/s, ~30 B/row
+            p = line.split(",")
+            try:
+                beats.append((int(p[0]), int(p[1]), int(p[2])))
+            except (ValueError, IndexError):
+                continue
+        if metric == "hr":
+            return {"hr": _thin([{"x": ts, "y": hr} for ts, _, hr in beats if hr > 0 and ts >= cutoff])}
+        # same RMSSD as the page: last 20 R-R intervals
+        out, window = [], []
+        for ts, ppi, _ in beats:
+            window.append(ppi)
+            window = window[-20:]
+            if len(window) > 2 and ts >= cutoff:
+                sq = sum((window[i] - window[i - 1]) ** 2 for i in range(1, len(window)))
+                out.append({"x": ts, "y": round((sq / (len(window) - 1)) ** 0.5, 1)})
+        return {"rmssd": _thin(out)}
+
+    if metric == "ecg_pp":
+        path = get_latest_file("polar_ecg")
+        if not path:
+            return {"ecg_pp": []}
+        buckets = {}
+        for line in _tail_lines(path, minutes * 60 * 130 * 28 + 8192):    # 130 Hz, ~25 B/row
+            p = line.split(",")
+            try:
+                ts, mv = int(p[0]), float(p[1])
+            except (ValueError, IndexError):
+                continue
+            if ts < cutoff:
+                continue
+            b = buckets.setdefault(ts // ECG_PP_BUCKET_MS, [mv, mv])
+            if mv < b[0]: b[0] = mv
+            if mv > b[1]: b[1] = mv
+        pts = [{"x": k * ECG_PP_BUCKET_MS + ECG_PP_BUCKET_MS // 2, "y": round(hi - lo, 3)}
+               for k, (lo, hi) in sorted(buckets.items())]
+        return {"ecg_pp": _thin(pts)}
+
+    return {}
+
+# ---------- auto-reconnect to the last device (see bt_debug.LastDevice) ----------
+LAST_DEVICES = {"device": bt_debug.LastDevice(os.path.join(BASE_DIR, "last_device.json"))}
+
+class LastDeviceRequest(BaseModel):
+    role: str = "device"
+    auto: bool | None = None
+    forget: bool = False
+
+@app.get("/api/last-device")
+def get_last_device():
+    return {"devices": {role: ld.load() for role, ld in LAST_DEVICES.items()}}
+
+@app.post("/api/last-device")
+def set_last_device(req: LastDeviceRequest):
+    """Toggle auto-reconnect ({"auto": true|false}) or forget ({"forget": true}).
+    The worker reads the file on its next scan, so this applies within a few seconds."""
+    ld = LAST_DEVICES.get(req.role)
+    if ld is None:
+        return {"error": f"unknown role {req.role}"}
+    if req.forget:
+        ld.forget()
+    elif req.auto is not None:
+        ld.set_auto(req.auto)
+    return get_last_device()
+
+
+class RadioRequest(BaseModel):
+    address: str = "auto"
+
+radio_pin = bt_debug.RadioPin(os.path.join(WEB_DIR, "radio_config.json"))
+
+@app.get("/api/radio")
+def get_radio():
+    return {"radio": radio_pin.config()}
+
+@app.post("/api/radio")
+def set_radio(req: RadioRequest):
+    """Pin the Polar to a radio by adapter address ("auto" to unpin). The worker
+    applies it on its next scan sweep (a live connection isn't dropped)."""
+    radio_pin.save(req.address)
+    return {"radio": radio_pin.config()}
 
 @app.get("/api/status")
 def get_status():
@@ -444,7 +278,7 @@ def connect_device(req: ConnectRequest):
     return {"status": "command_sent"}
 
 @app.get("/")
-async def get(): return HTMLResponse(HTML_TEMPLATE)
+async def index(): return FileResponse(os.path.join(WEB_DIR, "templates", "index.html"))
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -455,6 +289,42 @@ async def websocket_endpoint(websocket: WebSocket):
         pass
     finally:
         manager.disconnect(websocket)
+
+# ---------- shutdown / reboot (debug panel "System" card) ----------
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+
+@app.get("/api/system/power")
+def power_info(request: Request):
+    return bt_debug.power_info(request.client.host if request.client else "")
+
+
+@app.post("/api/system/power")
+async def power(request: Request):
+    try:
+        action = (await request.json()).get("action")
+    except Exception:
+        action = None
+    code, out = bt_debug.system_power(action, request.client.host if request.client else "",
+                                      request.headers.get(bt_debug.POWER_HEADER))
+    return JSONResponse(out, status_code=code)
+
+@app.get("/api/system/update")
+def update_info(request: Request, check: int = 0):
+    return bt_debug.update_info(request.client.host if request.client else "", fetch=bool(check))
+
+
+@app.post("/api/system/update")
+async def update(request: Request):
+    try:
+        action = (await request.json()).get("action")
+    except Exception:
+        action = None
+    code, out = await run_in_threadpool(bt_debug.system_update, action, request.client.host if request.client else "",
+                                        request.headers.get(bt_debug.POWER_HEADER))
+    return JSONResponse(out, status_code=code)
+
 
 if __name__ == "__main__":
     import uvicorn

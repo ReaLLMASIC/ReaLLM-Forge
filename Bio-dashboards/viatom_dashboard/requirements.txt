@@ -1,0 +1,7 @@
+# Viatom Checkme O2 Ultra dashboard
+# Bluetooth Low Energy (BlueZ backend on Linux)
+bleak>=0.22.0,<4
+dbus-fast>=1.83.0; sys_platform == "linux"
+
+# Web layer: Flask (Server-Sent Events, static files)
+Flask>=3.0.0

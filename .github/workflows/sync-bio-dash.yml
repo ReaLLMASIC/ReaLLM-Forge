@@ -1,0 +1,34 @@
+# Keeps Bio-dashboards/ identical to the newest release in Meapy011/Bio-dash.
+name: Sync Bio-dash
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"          # every 6 hours
+  workflow_dispatch:                 # "Run workflow" button in the Actions tab
+  repository_dispatch:
+    types: [bio-dash-updated]        # instant trigger from Bio-dash (optional, see README)
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-bio-dash
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mirror the newest Bio-dash release into Bio-dashboards/
+        id: sync
+        run: bash .github/scripts/sync-bio-dash.sh
+
+      - name: Commit and push
+        if: steps.sync.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "${{ steps.sync.outputs.message }}"
+          git push

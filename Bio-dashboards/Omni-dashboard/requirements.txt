@@ -1,0 +1,10 @@
+# Omni dashboard (Polar H10 + Viatom O2)
+# Bluetooth Low Energy (BlueZ backend on Linux)
+bleak>=0.22.0,<4
+dbus-fast>=1.83.0; sys_platform == "linux"
+
+# Polar H10 driver -- 1.x API (HRData.heartrate/rr_intervals, ECG/ACC .timestamp/.data); needs Python >= 3.10
+polar-python>=1.1.0,<2
+
+# Web layer: Flask (Server-Sent Events, static files)
+Flask>=3.0.0

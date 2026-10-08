@@ -1,0 +1,11 @@
+# Polar H10 dashboard
+# Bluetooth Low Energy (BlueZ backend on Linux)
+bleak>=0.22.0,<4
+dbus-fast>=1.83.0; sys_platform == "linux"
+
+# Polar H10 driver -- 1.x API (HRData.heartrate/rr_intervals, ECG/ACC .timestamp/.data); needs Python >= 3.10
+polar-python>=1.1.0,<2
+
+# Web layer: FastAPI + uvicorn (WebSockets, static files)
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0

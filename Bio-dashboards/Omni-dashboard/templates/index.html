@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bio-Dash Advanced Lab</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <script src="/static/vendor/chart.min.js"></script>
+    <script src="/static/vendor/luxon.min.js"></script>
+    <script src="/static/vendor/chartjs-adapter-luxon.min.js"></script>
+    <script src="/static/vendor/chartjs-plugin-streaming.min.js"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col">
+
+    <header class="p-4 bg-slate-800 border-b border-slate-700 shadow-md">
+        <div class="container mx-auto flex justify-between items-center max-w-7xl">
+            <div>
+                <h1 class="text-xl font-bold text-sky-400 tracking-wide flex items-center gap-3">
+                    <span class="relative flex h-3 w-3">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-sky-500"></span>
+                    </span>
+                    Bio-Dash Omni-System
+                </h1>
+                <p class="text-xs text-slate-400 mt-1">Dual-Threaded Hardware Telemetry</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="debug-btn" class="px-3 py-1 rounded-full text-xs font-semibold border bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white transition-colors" title="Debug panel (D)">🐞 Debug</button>
+                <span id="stat-polar" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">POLAR: AWAITING</span>
+                <span id="stat-viatom" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">O2: AWAITING</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6 flex-grow max-w-7xl flex flex-col gap-6">
+
+        <!-- Debug panel (toggle: 🐞 button or "D") -->
+        <div id="debug-panel" class="hidden bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl w-full">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider">🐞 Debug</h2>
+                <span class="text-xs text-slate-500">updated <span id="debug-updated" class="font-mono">—</span> · press <kbd class="font-mono px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">D</kbd> to close</span>
+            </div>
+            <div id="debug-body" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 text-sm"></div>
+        </div>
+
+        <div id="scanner-panel" class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl w-full transition-all duration-500">
+            <h2 class="text-lg font-bold text-slate-200 mb-4">Radar Active: Scanning Airspace...</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div id="wrapper-polar">
+                    <h3 class="text-sm font-bold text-rose-400 mb-2 uppercase tracking-wider">Polar H10</h3>
+                    <div id="list-polar" class="flex flex-col gap-3">
+                        <div class="text-slate-500 text-sm animate-pulse">Initializing Bluetooth Radar...</div>
+                    </div>
+                </div>
+                <div id="wrapper-viatom">
+                    <h3 class="text-sm font-bold text-indigo-400 mb-2 uppercase tracking-wider">Checkme O2</h3>
+                    <div id="list-viatom" class="flex flex-col gap-3">
+                        <div class="text-slate-500 text-sm animate-pulse">Initializing Bluetooth Radar...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tile-row" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-6 lg:gap-8">
+            
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 lg:p-5 shadow-xl flex flex-col justify-between items-center border-b-4 border-indigo-500 min-h-[140px]">
+                <h2 class="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest text-center w-full">O2 Saturation</h2>
+                <div class="flex items-baseline justify-center w-full mt-2">
+                    <div class="text-right"><span id="val-spo2" class="text-4xl lg:text-5xl font-extrabold text-indigo-400 tabular-nums tracking-tight">--</span></div>
+                    <div class="text-left pl-1.5"><span class="text-sm lg:text-base font-medium text-slate-500">%</span></div>
+                </div>
+                <div class="h-4 mt-2 w-full"></div>
+            </div>
+            
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 lg:p-5 shadow-xl flex flex-col justify-between items-center border-b-4 border-cyan-500 min-h-[140px]">
+                <h2 class="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest text-center w-full">Ring HR</h2>
+                <div class="flex items-baseline justify-center w-full mt-2">
+                    <div class="text-right"><span id="val-viatom-hr" class="text-4xl lg:text-5xl font-extrabold text-cyan-400 tabular-nums tracking-tight">--</span></div>
+                    <div class="text-left pl-1.5"><span class="text-sm lg:text-base font-medium text-slate-500">BPM</span></div>
+                </div>
+                <div class="h-4 mt-2 w-full"></div>
+            </div>
+
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 lg:p-5 shadow-xl flex flex-col justify-between items-center border-b-4 border-rose-500 min-h-[140px]">
+                <h2 class="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest text-center w-full">ECG HR</h2>
+                <div class="flex items-baseline justify-center w-full mt-2">
+                    <div class="text-right"><span id="val-polar-hr" class="text-4xl lg:text-5xl font-extrabold text-rose-500 tabular-nums tracking-tight">--</span></div>
+                    <div class="text-left pl-1.5"><span class="text-sm lg:text-base font-medium text-slate-500">BPM</span></div>
+                </div>
+                <div class="h-4 mt-2 w-full"></div>
+            </div>
+
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 lg:p-5 shadow-xl flex flex-col justify-between items-center border-b-4 border-emerald-500 min-h-[140px]">
+                <h2 class="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest text-center w-full">RR Interval</h2>
+                <div class="flex items-baseline justify-center w-full mt-2">
+                    <div class="text-right"><span id="val-rr" class="text-4xl lg:text-5xl font-extrabold text-emerald-400 tabular-nums tracking-tight">--</span></div>
+                    <div class="text-left pl-1.5"><span class="text-sm lg:text-base font-medium text-slate-500">ms</span></div>
+                </div>
+                <div class="h-4 mt-2 w-full"></div>
+            </div>
+
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 lg:p-5 shadow-xl flex flex-col justify-between items-center border-b-4 border-purple-500 min-h-[140px]">
+                <h2 class="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest text-center w-full">HRV (RMSSD)</h2>
+                <div class="flex items-baseline justify-center w-full mt-2">
+                    <div class="text-right"><span id="val-rmssd" class="text-4xl lg:text-5xl font-extrabold text-purple-400 tabular-nums tracking-tight">--</span></div>
+                    <div class="text-left pl-1.5"><span class="text-sm lg:text-base font-medium text-slate-500">ms</span></div>
+                </div>
+                <div id="stress-label" class="text-[9px] sm:text-[10px] font-bold mt-2 text-slate-500 text-center w-full animate-pulse h-4 whitespace-nowrap">AWAITING BEATS...</div>
+            </div>
+
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 lg:p-5 shadow-xl flex flex-col justify-between items-center border-b-4 border-violet-500 min-h-[140px]">
+                <h2 class="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest text-center w-full">Stress (SDNN)</h2>
+                <div class="flex items-baseline justify-center w-full mt-2">
+                    <div class="text-right"><span id="val-sdnn" class="text-4xl lg:text-5xl font-extrabold text-violet-400 tabular-nums tracking-tight">--</span></div>
+                    <div class="text-left pl-1.5"><span class="text-sm lg:text-base font-medium text-slate-500">ms</span></div>
+                </div>
+                <div class="h-4 mt-2 w-full"></div>
+            </div>
+        </div>
+
+        <!-- Bedside-monitor ECG (sweep renderer in ecg_monitor.js) -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl shadow-xl w-full overflow-hidden">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-b border-slate-700">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mr-2">Live PQRST Waveform</h2>
+                <span id="ecg-specs" class="flex gap-2">
+                    <span class="text-xs font-mono text-slate-500">25 mm/s</span>
+                    <span class="text-xs font-mono text-slate-600">· 0.5 Hz HPF</span>
+                </span>
+                <div class="ml-auto flex flex-wrap gap-2">
+                    <div id="ecg-view-toggle" class="flex rounded-full border border-slate-600 overflow-hidden" role="group" title="ECG display style">
+                        <button data-view="monitor" class="text-xs font-semibold px-3 py-1 bg-slate-700/50 text-slate-300 border-slate-600 hover:text-white transition-colors">🩺 Monitor</button>
+                        <button data-view="classic" class="text-xs font-semibold px-3 py-1 border-l bg-slate-700/50 text-slate-300 border-slate-600 hover:text-white transition-colors">📈 Classic</button>
+                    </div>
+                    <button id="gain-btn" class="text-xs font-semibold font-mono px-3 py-1 rounded-full border bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white transition-colors" title="Cycle gain">GAIN AUTO</button>
+                    <button id="beep-btn" class="text-xs font-semibold px-3 py-1 rounded-full border bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white transition-colors" title="QRS beep">🔇 Beep off</button>
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row">
+                <div id="ecg-sweep" class="relative flex-grow h-56 sm:h-64">
+                    <canvas id="ecgGrid" class="absolute inset-0 w-full h-full"></canvas>
+                    <canvas id="ecgTrace" class="absolute inset-0 w-full h-full"></canvas>
+                    <div id="ecg-nosignal" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse">No Signal</span>
+                    </div>
+                </div>
+                <!-- Classic view: the original scrolling Chart.js line -->
+                <div id="ecg-classic" class="hidden flex-grow p-4">
+                    <div class="relative h-48 sm:h-56 w-full"><canvas id="ecgClassicChart"></canvas></div>
+                </div>
+                <div id="ecg-hr-panel" class="sm:w-44 flex sm:flex-col items-center justify-center gap-3 sm:gap-1 py-4 border-t sm:border-t-0 sm:border-l border-slate-700 select-none">
+                    <div class="text-sm font-medium text-slate-400 uppercase tracking-wider">HR</div>
+                    <div class="flex items-baseline">
+                        <span id="mon-hr" class="text-6xl sm:text-7xl font-extrabold text-rose-500 leading-none tracking-tight">--</span>
+                    </div>
+                    <div class="text-xs text-slate-500">BPM</div>
+                    <div id="mon-heart" class="text-3xl text-rose-500 transition-all duration-100 mt-1" style="opacity:.25">♥</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl w-full">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Chest Kinematics (X,Y,Z)</h2>
+                <div class="relative h-48 w-full"><canvas id="accChart"></canvas></div>
+            </div>
+
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl w-full">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Heart Rate Variability (R-R)</h2>
+                <div class="relative h-48 w-full"><canvas id="ppiChart"></canvas></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/ecg_monitor.js"></script>
+    <script src="/static/js/ecg_view.js"></script>
+    <script src="/static/js/debug_panel.js"></script>
+    <script src="/static/js/tile_trends.js"></script>
+    <script src="/static/js/sidebar.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/reconnect.js"></script>
+</body>
+</html>

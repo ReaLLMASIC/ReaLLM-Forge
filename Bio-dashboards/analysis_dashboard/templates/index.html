@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bio-dash Analysis</title>
+    <link rel="stylesheet" href="/static/css/analysis.css">
+    <script src="/static/vendor/chart.min.js"></script>
+    <script src="/static/vendor/luxon.min.js"></script>
+    <script src="/static/vendor/chartjs-adapter-luxon.min.js"></script>
+</head>
+<body>
+    <header>
+        <div>
+            <div>
+                <h1>Analysis</h1>
+                <p>What every device recorded · summaries, signals on one clock, export</p>
+            </div>
+            <span class="badge" title="This dashboard reads the recordings folder; it doesn't connect to any device">Recordings only</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- range: scopes everything below -->
+        <div class="filters">
+            <div class="seg" id="presets" role="group" aria-label="Range">
+                <button data-preset="today">Today</button>
+                <button data-preset="yesterday">Yesterday</button>
+                <button data-preset="7">Last 7 days</button>
+                <button data-preset="30">Last 30 days</button>
+            </div>
+            <div class="dates">
+                <button class="nav" id="prev" title="Earlier" aria-label="Earlier">‹</button>
+                <input type="date" id="from" aria-label="From">
+                <span>to</span>
+                <input type="date" id="to" aria-label="To">
+                <button class="nav" id="next" title="Later" aria-label="Later">›</button>
+            </div>
+            <span class="where" id="where"></span>
+        </div>
+
+        <div id="notice" class="notice" hidden></div>
+
+        <!-- summary -->
+        <section class="card" id="summary">
+            <div class="section-title"><h2>What was recorded</h2><span id="range-label"></span></div>
+            <div id="timeline"></div>
+        </section>
+
+        <section class="cards" id="cards"></section>
+
+        <section class="card" id="perday" hidden>
+            <div class="section-title"><h2>Day by day</h2></div>
+            <div class="tablewrap"><table id="perday-table"></table></div>
+        </section>
+
+        <!-- signals -->
+        <section class="card" id="signals">
+            <div class="section-title"><h2>Signals on one clock</h2><span>pick any; each gets its own chart on the same time axis</span></div>
+            <div class="chips" id="chips"></div>
+            <div class="controls">
+                <label>Step
+                    <select id="step">
+                        <option value="auto">Auto</option>
+                        <option value="1s">1 s</option>
+                        <option value="10s">10 s</option>
+                        <option value="1min">1 min</option>
+                        <option value="5min">5 min</option>
+                        <option value="15min">15 min</option>
+                        <option value="1h">1 h</option>
+                    </select>
+                </label>
+                <label><input type="checkbox" id="band" checked> Show min–max inside each step</label>
+                <span style="flex:1"></span>
+                <a class="btn" id="export" href="#" download>Download CSV</a>
+            </div>
+            <div class="readout" id="readout"><span>Hover a chart to read every signal at that moment.</span></div>
+            <div id="plots"></div>
+            <p class="note">Solid lines are real readings (the average of each step, with the band showing its lowest and highest).
+                Dashed stretches are estimates: a straight line between readings, a level carried forward, or no sip in that step.
+                Nothing is drawn across a pause of more than a minute. The CSV has the same values, plus a <code>.n</code> column per signal:
+                how many real readings went into each row (0 = estimate).</p>
+        </section>
+    </main>
+
+    <div class="tip" id="tip"></div>
+    <script src="/static/js/sidebar.js"></script>
+    <script src="/static/js/analysis.js"></script>
+</body>
+</html>

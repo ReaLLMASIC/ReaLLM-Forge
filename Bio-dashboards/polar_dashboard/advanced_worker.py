@@ -7,8 +7,12 @@ import os
 import sys
 import time
 
+from importlib.metadata import version as _pkg_version
+
 from bleak import BleakScanner
 from polar_python import PolarDevice
+
+import bt_debug
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,26 +28,25 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 DEVICES_FILE = os.path.join(LOGS_DIR, "devices.json")
 COMMAND_FILE = os.path.join(LOGS_DIR, "command.json")
 STATUS_FILE = os.path.join(LOGS_DIR, "status.json")
+# Which Bluetooth radio to use (set from the debug panel). Stored by adapter address.
+# auto prefers an external radio: the H10 can monopolise the radio it streams on.
+radio_pin = bt_debug.RadioPin(os.path.join(BASE_DIR, "radio_config.json"), prefer="external")
+last_device = bt_debug.LastDevice(os.path.join(BASE_DIR, "last_device.json"))
+radio_hci = None
 CONNECT_ATTEMPTS = 3  # BlueZ often aborts the first connect to an H10; retry before rescanning
 
 ECG_HZ = 130
 ACC_HZ = 200
 WATCHDOG_S = 10.0
 
-date_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-
-def _open_log(kind, header):
-    f = open(os.path.join(LOGS_DIR, f"polar_{kind}_{date_str}.csv"), mode="a", newline="")
-    w = csv.writer(f)
-    w.writerow(header)
-    f.flush()
-    return f, w
-
-
-ecg_file, ecg_writer = _open_log("ecg", ["Timestamp_Epoch_ms", "ECG_mV", "HR_BPM"])
-acc_file, acc_writer = _open_log("acc", ["Timestamp_Epoch_ms", "X_mg", "Y_mg", "Z_mg"])
-ppi_file, ppi_writer = _open_log("ppi", ["Timestamp_Epoch_ms", "PPI_ms", "HR_BPM"])
+# Recordings: <Documents>/Bio-dash/Polar H10/<device>/<date>/<time>_{ecg,acc,rr}.csv
+# (see bt_debug.SessionFiles). Files open when a strap connects, one set per session.
+SESSION_STREAMS = {
+    "ecg": ["Timestamp_Epoch_ms", "ECG_mV", "HR_BPM"],
+    "acc": ["Timestamp_Epoch_ms", "X_mg", "Y_mg", "Z_mg"],
+    "rr":  ["Timestamp_Epoch_ms", "RR_ms", "HR_BPM"],
+}
+session = bt_debug.SessionFiles("Polar H10")
 
 current_hr = 0
 ecg_counter = 0
@@ -67,14 +70,26 @@ class StreamClock:
     def __init__(self, hz):
         self.period_ms = 1000.0 / hz
         self.offset_ms = None
+        self.prev_last_ms = None
+        self.dropped = 0          # samples missing between frames (from sensor timestamps)
+        self.last_frame_len = 0
 
     def reset(self):
         self.offset_ms = None
+        self.prev_last_ms = None
+        self.dropped = 0
 
     def stamps(self, sensor_ts_ns, n):
         now_ms = time.time() * 1000.0
+        self.last_frame_len = n
         if sensor_ts_ns:
             last_ms = sensor_ts_ns / 1e6
+            if self.prev_last_ms is not None:
+                # frames should abut exactly; anything beyond ~1.5 periods is lost samples
+                gap = (last_ms - self.prev_last_ms) - n * self.period_ms
+                if gap > 1.5 * self.period_ms:
+                    self.dropped += round(gap / self.period_ms)
+            self.prev_last_ms = last_ms
             if self.offset_ms is None or abs(last_ms + self.offset_ms - now_ms) > 1000.0:
                 self.offset_ms = now_ms - last_ms
             end_ms = last_ms + self.offset_ms
@@ -86,6 +101,47 @@ class StreamClock:
 
 ecg_clock = StreamClock(ECG_HZ)
 acc_clock = StreamClock(ACC_HZ)
+
+# --- Debug telemetry (shown in the dashboard's debug panel) ---
+meters = {k: bt_debug.RateMeter() for k in ("ecg", "acc", "ecg_frames", "acc_frames", "hr", "rr")}
+last_rssi = {}
+debug = {
+    "adapters": [],
+    "adapter": None,          # radio the Polar was found on / connected through
+    "device": None,           # {"name", "address", "rssi"}
+    "connected_at": None,
+    "nominal": {"ecg_hz": ECG_HZ, "acc_hz": ACC_HZ},
+    "rates": {},
+    "versions": {},
+    "radio": {"config": "auto", "hci": None, "reason": None},
+}
+for _pkg in ("bleak", "polar-python", "dbus-fast"):
+    try:
+        debug["versions"][_pkg] = _pkg_version(_pkg)
+    except Exception:
+        debug["versions"][_pkg] = None
+debug["versions"]["python"] = sys.version.split()[0]
+
+
+def refresh_rates():
+    debug["rates"] = {
+        "ecg_hz": round(meters["ecg"].rate(), 1),
+        "acc_hz": round(meters["acc"].rate(), 1),
+        "ecg_frames_per_s": round(meters["ecg_frames"].rate(), 2),
+        "acc_frames_per_s": round(meters["acc_frames"].rate(), 2),
+        "ecg_samples_per_frame": ecg_clock.last_frame_len,
+        "acc_samples_per_frame": acc_clock.last_frame_len,
+        "hr_notifications_per_s": round(meters["hr"].rate(), 2),
+        "rr_per_min": round(meters["rr"].rate() * 60, 1),
+        "ecg_dropped": ecg_clock.dropped,
+        "acc_dropped": acc_clock.dropped,
+    }
+
+
+def reset_meters():
+    for m in meters.values():
+        m.reset()
+    debug["rates"] = {}
 
 
 def _first_attr(obj, names, default=None):
@@ -100,6 +156,7 @@ def hr_callback(data):
     # polar_python HRData: heartrate (int BPM), rr_intervals (list[float] ms)
     global current_hr, last_heartbeat
     last_heartbeat = time.time()
+    meters["hr"].add()
 
     bpm = _first_attr(data, ("heartrate", "bpm", "heart_rate"))
     if bpm is not None:
@@ -117,8 +174,9 @@ def hr_callback(data):
             if 200 < rr_val < 2000:
                 rows.append([now_ms, rr_val, current_hr])
         if rows:
-            ppi_writer.writerows(rows)
-            ppi_file.flush()
+            meters["rr"].add(len(rows))
+            session.writerows("rr", rows)
+            session.flush("rr")
 
 
 def _acc_xyz(val):
@@ -142,8 +200,10 @@ def acc_callback(data):
             rows.append([ts, int(x), int(y), int(z)])
         except (ValueError, TypeError, IndexError):
             continue
-    acc_writer.writerows(rows)
-    acc_file.flush()
+    session.writerows("acc", rows)
+    session.flush("acc")
+    meters["acc"].add(len(rows))
+    meters["acc_frames"].add()
 
 
 def ecg_callback(data):
@@ -161,9 +221,11 @@ def ecg_callback(data):
         except (ValueError, TypeError):
             continue
         rows.append([ts, round(uv / 1000.0, 3), hr])
-    ecg_writer.writerows(rows)
-    ecg_file.flush()
+    session.writerows("ecg", rows)
+    session.flush("ecg")
     ecg_counter += len(rows)
+    meters["ecg"].add(len(rows))
+    meters["ecg_frames"].add()
 
     if rows:
         sys.stdout.write(f"\r[ ❤️ HR: {hr:3d} BPM ] [ ECG: {ecg_counter:6d} ] || ⚡ ECG: {rows[-1][1]:>6.3f} mV    ")
@@ -182,7 +244,9 @@ def _write_devices(targets):
 
 def set_status(state, address=None, attempt=None):
     """Tells the UI what the worker is doing: scanning | connecting | streaming."""
-    _write_json(STATUS_FILE, {"state": state, "address": address, "attempt": attempt, "max_attempts": CONNECT_ATTEMPTS})
+    _write_json(STATUS_FILE, {"state": state, "address": address, "attempt": attempt,
+                              "last_device": last_device.load(),
+                              "max_attempts": CONNECT_ATTEMPTS, "debug": debug})
 
 
 def _read_command():
@@ -201,9 +265,12 @@ def _read_command():
 
 
 async def scan_and_list_devices():
-    global selected_target_mac
+    global selected_target_mac, radio_hci
 
     logging.info("Radar active. Sweeping for Polar units...")
+    debug["adapters"] = await bt_debug.list_adapters()
+    radio_hci, reason = radio_pin.resolve(debug["adapters"])
+    debug["radio"] = {"config": radio_pin.config(), "hci": radio_hci, "reason": reason}
     set_status("scanning")
     found_devices = {}
     cut_short = False
@@ -212,6 +279,7 @@ async def scan_and_list_devices():
         name = device.name or adv_data.local_name or ""
         if "Polar" in name:
             ble_device_cache[device.address] = device
+            last_rssi[device.address] = adv_data.rssi
             found_devices[device.address] = {
                 "name": name,
                 "address": device.address,
@@ -219,7 +287,7 @@ async def scan_and_list_devices():
             }
 
     try:
-        async with BleakScanner(detection_callback, passive=False):
+        async with BleakScanner(detection_callback, **bt_debug.bluez_args(radio_hci)):
             # Sweep for up to 3 s, but bail early the moment the UI picks a device
             for _ in range(15):
                 await asyncio.sleep(0.2)
@@ -238,6 +306,12 @@ async def scan_and_list_devices():
     if mac:
         selected_target_mac = mac
         logging.info(f"UI Command received! Target locked: {selected_target_mac}")
+    else:
+        # Auto-reconnect: the last device we streamed from is back in range
+        last = last_device.target()
+        if last and last["address"] in found_devices:
+            selected_target_mac = last["address"]
+            logging.info(f"Auto-reconnecting to last device {last.get('name') or ''} [{selected_target_mac}]")
 
 
 async def stream_session(device):
@@ -246,6 +320,11 @@ async def stream_session(device):
     async with PolarDevice(device) as polar:
         ecg_clock.reset()
         acc_clock.reset()
+        reset_meters()
+        debug["connected_at"] = time.time()
+        session.start(getattr(device, "name", None), device.address, SESSION_STREAMS)
+        debug["recording"] = session.dir
+        logging.info(f"Recording to {session.dir}")
 
         logging.info("Connected! Starting standard Heart Rate + HRV engine...")
         await polar.start_hr_stream(hr_callback)
@@ -259,11 +338,14 @@ async def stream_session(device):
         await polar.start_ecg_stream(ecg_callback, ECG_HZ, 14)
 
         set_status("streaming", device.address)
-        logging.info(f"!!! TELEMETRY ACTIVE: Logging live to {LOGS_DIR} !!!\n")
+        last_device.remember(device.address, getattr(device, "name", None))
+        logging.info(f"!!! TELEMETRY ACTIVE: recording to {session.dir} !!!\n")
 
         last_heartbeat = time.time()
         while time.time() - last_heartbeat < WATCHDOG_S:
             await asyncio.sleep(1)
+            refresh_rates()
+            set_status("streaming", device.address)  # 1 Hz debug refresh
 
         logging.warning("\nConnection Dropped (Watchdog Timeout). Returning to Scanner...")
 
@@ -287,13 +369,21 @@ async def main():
             continue
 
         mac = selected_target_mac
-        set_status("connecting", mac, 1)
+        debug["connected_at"] = None
         device = ble_device_cache.get(mac)
         if not device:
             try:
-                device = await BleakScanner.find_device_by_address(mac, timeout=5.0)
+                device = await BleakScanner.find_device_by_address(mac, timeout=5.0, **bt_debug.bluez_args(radio_hci))
             except Exception as e:
                 logging.error(f"Lookup error: {e}")
+
+        if device:
+            debug["adapter"] = bt_debug.adapter_of(device)
+            debug["device"] = {"name": getattr(device, "name", None), "address": device.address,
+                               "rssi": last_rssi.get(device.address)}
+            if debug["adapter"]:
+                logging.info(f"Using Bluetooth radio {debug['adapter']}")
+        set_status("connecting", mac, 1)
 
         if not device:
             logging.warning("\n⚠️ Device not found. Returning to scanner...")
@@ -302,13 +392,19 @@ async def main():
                 set_status("connecting", mac, attempt)
                 logging.info(f"Connecting to {mac} (attempt {attempt}/{CONNECT_ATTEMPTS})...")
                 try:
-                    await stream_session(device)
+                    try:
+                        await stream_session(device)
+                    finally:
+                        session.close()          # a session's files end with its connection
+                        debug["recording"] = None
                     break  # session ran and then went quiet -> rescan
                 except Exception as e:
                     logging.warning(f"\n⚠️ Link error on attempt {attempt}/{CONNECT_ATTEMPTS}: {e!r}")
                     await asyncio.sleep(2)
 
         selected_target_mac = None
+        debug["connected_at"] = None
+        reset_meters()
 
 
 if __name__ == "__main__":
@@ -317,6 +413,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logging.info("\nHalting streaming contexts. Closing open file descriptors...")
     finally:
-        for f in (ecg_file, acc_file, ppi_file):
-            f.close()
+        session.close()
         logging.info("Logs closed cleanly. Safe to exit.")

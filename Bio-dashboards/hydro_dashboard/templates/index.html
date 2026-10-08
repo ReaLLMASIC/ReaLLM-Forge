@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hydro-dash</title>
+    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <script src="/static/vendor/chart.min.js"></script>
+    <script src="/static/vendor/luxon.min.js"></script>
+    <script src="/static/vendor/chartjs-adapter-luxon.min.js"></script>
+    <script src="/static/vendor/chartjs-plugin-streaming.min.js"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col">
+
+    <header class="p-4 bg-slate-800 border-b border-slate-700 shadow-md">
+        <div class="container mx-auto flex justify-between items-center max-w-7xl">
+            <div>
+                <h1 class="text-xl font-bold text-cyan-400 tracking-wide">Hydro-dash</h1>
+                <p id="subtitle" class="text-xs text-slate-400 mt-1">HidrateSpark smart bottle · sips, intake, fill level</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="debug-btn" class="px-3 py-1 rounded-full text-xs font-semibold border bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white transition-colors" title="Debug panel (D)">🐞 Debug</button>
+                <span id="status" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">Starting...</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6 flex-grow max-w-7xl flex flex-col gap-6">
+
+        <!-- Debug panel (toggle: 🐞 button or "D") -->
+        <div id="debug-panel" class="hidden bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl w-full">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider">🐞 Debug</h2>
+                <span class="text-xs text-slate-500">updated <span id="debug-updated" class="font-mono">—</span> · press <kbd class="font-mono px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">D</kbd> to close</span>
+            </div>
+            <div id="debug-body" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 text-sm"></div>
+        </div>
+
+        <div id="scanner-panel" class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl w-full">
+            <h2 class="text-lg font-bold text-slate-200 mb-1 flex items-center gap-3">
+                <span class="relative flex h-3 w-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+                </span>
+                Looking for your bottle...
+            </h2>
+            <p class="text-xs text-slate-500 mb-4">Shake or tip the bottle to wake it. It allows <b class="text-slate-400">one connection at a time</b> — force-quit the HidrateSpark phone app.</p>
+            <div id="device-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div class="text-slate-500 text-sm animate-pulse col-span-3">Starting Bluetooth...</div>
+            </div>
+            <label class="mt-4 inline-flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+                <input id="show-all" type="checkbox" class="accent-cyan-500"> Show all nearby devices
+                <span class="text-slate-500">(if your bottle advertises under another name)</span>
+            </label>
+        </div>
+
+        <!-- Headline tiles -->
+        <div id="tile-row" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl flex items-center gap-6">
+                <svg viewBox="0 0 120 120" class="w-28 h-28 shrink-0 -rotate-90">
+                    <circle cx="60" cy="60" r="50" fill="none" stroke="#334155" stroke-width="12"/>
+                    <circle id="goal-ring" cx="60" cy="60" r="50" fill="none" stroke="#22d3ee" stroke-width="12"
+                            stroke-linecap="round" stroke-dasharray="314.16" stroke-dashoffset="314.16" style="transition: stroke-dashoffset .6s"/>
+                </svg>
+                <div>
+                    <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider">Today</h2>
+                    <div class="text-5xl font-extrabold text-cyan-400 tracking-tight"><span id="today-val">--</span><span id="today-unit" class="text-xl font-light text-slate-500 ml-1 normal-case">mL</span></div>
+                    <div id="today-goal" class="text-xs text-slate-500 mt-1">goal --</div>
+                </div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">In the Bottle</h2>
+                <div class="text-5xl font-extrabold text-sky-400 tracking-tight"><span id="fill-val">--</span><span id="fill-unit" class="text-xl font-light text-slate-500 ml-1 normal-case">mL</span></div>
+                <div class="mt-3 h-2 rounded-full bg-slate-700 overflow-hidden"><div id="fill-bar" class="h-full bg-sky-400 transition-all duration-500" style="width:0%"></div></div>
+                <div id="fill-note" class="text-xs text-slate-500 mt-2 h-4"></div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl text-center flex flex-col justify-center">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Last Sip</h2>
+                <div class="text-5xl font-extrabold text-teal-300 tracking-tight"><span id="last-val">--</span><span id="last-unit" class="text-xl font-light text-slate-500 ml-1 normal-case">mL</span></div>
+                <div id="last-ago" class="text-xs text-slate-500 mt-2 h-4"></div>
+            </div>
+        </div>
+
+        <div id="tile-row-2" class="grid grid-cols-3 gap-6">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl text-center">
+                <h2 class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Sips Today</h2>
+                <div id="sips-val" class="text-4xl font-extrabold text-violet-400">--</div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl text-center">
+                <h2 class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Refills Today</h2>
+                <div id="refills-val" class="text-4xl font-extrabold text-indigo-400">--</div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl text-center">
+                <h2 class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Battery</h2>
+                <div class="text-4xl font-extrabold text-emerald-400"><span id="batt-val">--</span><span class="text-base font-light text-slate-500 ml-1">%</span></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Today by Hour</h2>
+                <div class="relative h-56"><canvas id="hourChart"></canvas></div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Last 7 Days</h2>
+                <div class="relative h-56"><canvas id="weekChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-2">Today's Sips</h2>
+                <div id="sip-list" class="text-sm divide-y divide-slate-700/60"><div class="text-slate-500 py-2">No sips yet today.</div></div>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider mb-3">Bottle Settings</h2>
+                <form id="settings-form" class="flex flex-col gap-3 text-sm">
+                    <label class="flex items-center justify-between gap-3">Bottle size
+                        <select id="set-capacity" class="w-44 bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 focus:border-cyan-500 focus:outline-none"></select></label>
+                    <div id="cap-note" class="text-xs text-slate-500 -mt-2 text-right"></div>
+                    <label class="flex items-center justify-between gap-3">Daily goal (mL)
+                        <input id="set-goal" type="number" min="250" max="8000" step="50" class="w-28 bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 font-mono text-right focus:border-cyan-500 focus:outline-none"></label>
+                    <label class="flex items-center justify-between gap-3">Show volumes in
+                        <select id="set-units" class="w-28 bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 focus:border-cyan-500 focus:outline-none">
+                            <option value="ml">mL</option><option value="oz">fl oz</option></select></label>
+                    <button type="submit" class="self-end px-4 py-1.5 rounded-full text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 transition-colors">Save</button>
+                </form>
+                <div class="mt-4 pt-3 border-t border-slate-700">
+                    <div class="text-xs text-slate-400 mb-2">The bottle keeps its own "empty" and "full" weights and the fill level uses them. Only redo this if the level is wrong: stand the bottle upright, cap on, completely full or completely empty, then:</div>
+                    <div class="flex flex-wrap gap-2">
+                        <button data-cal="full" class="px-3 py-1 rounded-full text-xs font-semibold border bg-slate-700/50 text-slate-300 border-slate-600 hover:text-white">It's full now</button>
+                        <button data-cal="empty" class="px-3 py-1 rounded-full text-xs font-semibold border bg-slate-700/50 text-slate-300 border-slate-600 hover:text-white">It's empty now</button>
+                    </div>
+                    <div id="settings-msg" class="text-xs text-cyan-300 mt-2 h-4"></div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wider">Glow &amp; Reminders</h2>
+                <div class="flex items-center gap-3">
+                    <span id="glow-note" class="text-xs text-slate-500"></span>
+                    <button id="glow-now" type="button" class="px-4 py-1.5 rounded-full text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 transition-colors">✨ Glow now</button>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 text-sm mb-3 pb-3 border-b border-slate-700">
+                <svg id="glow-preview" width="56" height="56" viewBox="0 0 56 56" aria-label="Glow preview"></svg>
+                <label class="flex items-center gap-2">Style
+                    <select id="glow-style" class="bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 focus:border-cyan-500 focus:outline-none">
+                        <option value="pulse">Pulse</option><option value="spin">Spin</option><option value="flash">Flash</option>
+                        <option value="solid">Solid</option><option value="rainbow">Rainbow</option></select></label>
+                <label class="flex items-center gap-2">Colours
+                    <input id="glow-c1" type="color" style="width:2.5rem;height:1.9rem;background:none;border:0;padding:0">
+                    <input id="glow-c2" type="color" style="width:2.5rem;height:1.9rem;background:none;border:0;padding:0"></label>
+                <button id="glow-send" type="button" class="px-4 py-1.5 rounded-full text-xs font-semibold border bg-slate-700/50 text-slate-300 border-slate-600 hover:text-white">Send glow to bottle</button>
+                <span id="glow-up" class="text-xs text-slate-500"></span>
+            </div>
+            <form id="glow-form" class="flex flex-col gap-3 text-sm">
+                <div class="flex flex-wrap items-center gap-3">
+                    <label class="flex items-center gap-2"><input id="rem-enabled" type="checkbox"> Remind me to drink</label>
+                    <label class="flex items-center gap-2">from <input id="rem-from" type="time" style="width:9.5rem" class="bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 font-mono text-right focus:border-cyan-500 focus:outline-none"></label>
+                    <label class="flex items-center gap-2">to <input id="rem-to" type="time" style="width:9.5rem" class="bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 font-mono text-right focus:border-cyan-500 focus:outline-none"></label>
+                    <label class="flex items-center gap-2">every <input id="rem-every" type="number" min="15" max="240" step="5" class="w-28 bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 font-mono text-right focus:border-cyan-500 focus:outline-none"> min</label>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <label class="flex items-center gap-2">Glow
+                        <select id="rem-always" class="bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 focus:border-cyan-500 focus:outline-none">
+                            <option value="behind">only when I'm behind on my goal</option><option value="always">at every reminder</option></select></label>
+                    <label class="flex items-center gap-2"><input id="rem-sound" type="checkbox"> with sound</label>
+                    <label class="flex items-center gap-2"><input id="goal-glow" type="checkbox"> Glow when I reach my goal</label>
+                    <label class="flex items-center gap-2">Glow on each sip
+                        <select id="sip-glow" class="bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 focus:border-cyan-500 focus:outline-none">
+                            <option value="leave">leave as it is</option><option value="on">on</option><option value="off">off</option></select></label>
+                </div>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <span id="glow-msg" class="text-xs text-slate-500">The schedule lives on the bottle, so reminders keep working when the dashboard is closed.</span>
+                    <button type="submit" class="px-4 py-1.5 rounded-full text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 transition-colors">Save &amp; send to bottle</button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <script src="/static/js/tile_trends.js"></script>
+    <script src="/static/js/debug_panel.js"></script>
+    <script src="/static/js/sidebar.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/reconnect.js"></script>
+</body>
+</html>
