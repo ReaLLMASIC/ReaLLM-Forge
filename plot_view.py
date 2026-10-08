@@ -430,6 +430,23 @@ def plot_multi_bars_trim(                     # NEW
     fig.write_image(f"{safe}.png", scale=2)
     fig.show()
 
+def plot_bars_trim(
+    rows: List[Dict[str, Any]],
+    *,
+    y: str,
+    label_cols: List[str],
+) -> None:
+    """
+    Backward-compatible single-metric Δ-bar helper used by monitor ``z`` hotkey.
+
+    This intentionally mirrors ``plot_bars`` args while delegating to the
+    multi-metric trimmed implementation.
+    """
+    if not label_cols:
+        raise ValueError("Need ≥1 label column for bar chart")
+    plot_multi_bars_trim(rows, y_cols=[y], label_cols=label_cols)
+
+
 # ───────────────────────────── CLI wrapper ──────────────────────────
 
 

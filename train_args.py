@@ -916,6 +916,10 @@ def parse_args():
             "tanh",
             "identity",
         ]
+    lsa_init_activation_variations = [
+            variation for variation in activation_variations
+            if variation != "learned_spline"
+        ]
 
     ## DynamicActivations
     model_group.add_argument("--dact_activation", type=str, default="tanh", choices=activation_variations)
@@ -954,6 +958,13 @@ def parse_args():
 
     ## LearnedSplineActivation - lsa
     model_group.add_argument("--lsa_num_knots", type=int, default=30)
+    model_group.add_argument(
+        "--lsa_init_activation",
+        type=str,
+        default="gelu",
+        choices=lsa_init_activation_variations,
+        help="Activation used to initialize learned_spline knot y-values.",
+    )
 
 
     # Attention Variations
