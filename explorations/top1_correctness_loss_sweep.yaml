@@ -1,0 +1,74 @@
+# explorations/top1_correctness_loss_sweep.yaml
+---
+# Compare the avg_top1_correct-inspired losses against a cross-entropy baseline.
+# This sweep keeps the architecture fixed and varies only the new top-1 loss
+# hyperparameters plus a warm-start schedule option for the differentiable gap
+# surrogate.
+
+common_group:
+  max_iters: [20000]
+  dataset: ["minipile"]
+  n_layer: [6]
+  n_head: [6]
+  n_embd: [384]
+  block_size: [256]
+  eval_interval: [500]
+  dtype: ["bfloat16"]
+  compile: [true]
+  never_save_checkpoint: [false]
+  compute_model_stats: [true]
+  tensorboard_run_name: ["top1_correctness_loss_sweep"]
+
+  # Position encoding configuration.
+  use_rotary_embeddings: [true]
+  use_abs_pos_embeddings: [false]
+  use_qk_norm: [true]
+  use_qk_norm_scale: [true]
+
+  # Match the top-1 comparison defaults used by nearby explorations.
+  use_peri_ln: [true]
+  norm_variant_wte: ["hyperspherenorm"]
+  norm_variant_attn: ["hyperspherenorm"]
+  norm_variant_output: ["hyperspherenorm"]
+  hsnorm_gain: [false]
+  hsnorm_scale: ["1.0"]
+  norm_wte_scale: ["1.0"]
+  optimizer: ["muon"]
+  weight_decay: [0]
+
+# print_model_stats: ["./print_stats/${RUN_NAME}"]
+# sample_file: ["./inference_samples/${RUN_NAME}"]
+
+# Loss variants under test. Track validation loss and avg_top1_correct to catch
+# cases where a top-1-oriented objective improves discrete accuracy while
+# worsening cross-entropy/calibration.
+parameter_groups:
+  # Baseline.
+  - loss_fn: ["cross_entropy"]
+
+  # Discrete top-1 routing: emphasize currently wrong argmax predictions.
+  - loss_fn: ["top1_corrective_ce"]
+    top1_corrective_boost: [0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,10.0, 50.0, 100.0, 1000.0]
+
+  # - loss_fn: ["cross_entropy"]
+  #   dataset: ["opus-100"]
+  #   training_limiters: ["max_epochs"]
+  #   max_epochs: [1.0]
+
+  # - loss_fn: ["top1_corrective_ce"]
+  #   top1_corrective_boost: [100.0]
+  #   dataset: ["opus-100"]
+  #   training_limiters: ["max_epochs"]
+  #   max_epochs: [1.0]
+
+  # Differentiable top-1 surrogate: penalize the best competitor beating target.
+  - loss_fn: ["top1_confidence_gap"]
+    top1_confidence_gap_beta: [0.1, 0.25, 0.5, 1.0, 2.0, 3.0, 10.0, 50.0, 100.0]
+
+  # Warm-start with normal CE, then switch to the top-1-oriented variants.
+  # - loss_schedule:
+  #     - "0:cross_entropy,5000:top1_corrective_ce"
+  #   top1_corrective_boost: [0.5, 1.0]
+  # - loss_schedule:
+  #     - "0:cross_entropy,5000:top1_confidence_gap"
+  #   top1_confidence_gap_beta: [0.25, 0.5]
