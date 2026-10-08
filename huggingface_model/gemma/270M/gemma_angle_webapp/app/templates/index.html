@@ -55,6 +55,86 @@
       </section>
     </header>
 
+    <section class="panel layernorm-lab" id="layernormLab">
+      <div class="panel-heading">
+        <div><p class="eyebrow">Per-channel microscope</p><h2>LayerNorm × embedding lab</h2></div>
+        <button id="runLayernorm" type="button" class="primary">Plot analysis</button>
+      </div>
+      <p class="lede">Choose any saved normalization layer and two vocabulary embeddings. Gains are sorted high→low once; every embedding chart uses that identical channel permutation.</p>
+      <div class="layernorm-controls">
+        <div><label for="layernormSelect">Normalization layer</label><select id="layernormSelect"><option>Load a model first</option></select></div>
+        <div><label for="lnSearch">Regex token search</label><div class="search-row"><input id="lnSearch" placeholder="^(cat|dog)$" /><button id="lnSearchButton" type="button">Search</button></div></div>
+      </div>
+      <p id="lnSearchMessage" class="selection">Search by regular expression, or enter token IDs directly below.</p>
+      <div class="picker-grid">
+        <article class="picker"><h3>Embedding A</h3><label for="lnTokenA">Regex matches</label><select id="lnTokenA" size="7"></select><label for="lnTokenAId">Token ID</label><input id="lnTokenAId" type="number" min="0" value="0" /></article>
+        <article class="picker"><h3>Embedding B</h3><label for="lnTokenB">Regex matches</label><select id="lnTokenB" size="7"></select><label for="lnTokenBId">Token ID</label><input id="lnTokenBId" type="number" min="0" value="1" /></article>
+      </div>
+      <div id="layernormOutput" class="output muted">Load a model to discover its LayerNorm and RMSNorm tensors.</div>
+      <div id="layernormMetrics" class="metric-grid hidden" aria-live="polite"></div>
+      <label class="scale-option" for="layernormScaleMode">Embedding y-axis scale
+        <select id="layernormScaleMode">
+          <option value="all">Use one shared scale for all four embedding graphs</option>
+          <option value="pairs">Share before A/B and after A/B scales separately</option>
+        </select>
+      </label>
+      <div class="layernorm-chart-options">
+        <label for="layernormSortMode">Sort channels by
+          <select id="layernormSortMode">
+            <option value="gain">Layer gain · high → low</option>
+            <option value="before_a">Embedding A before · high → low</option>
+            <option value="before_b">Embedding B before · high → low</option>
+            <option value="after_a">Embedding A after · high → low</option>
+            <option value="after_b">Embedding B after · high → low</option>
+          </select>
+        </label>
+        <label class="checkbox-row" for="applyAttentionOperator"><input id="applyAttentionOperator" type="checkbox" /> Apply an attention-head operator after the norm</label>
+        <label for="attentionOperatorType">Head operator<select id="attentionOperatorType" disabled><option value="qk">WqWkᵀ</option><option value="ov">WoWvᵀ + attention output norm</option></select></label>
+        <label for="attentionLayerSelect">Attention layer<select id="attentionLayerSelect" disabled><option value="">No compatible Q/K projections</option></select></label>
+        <label for="attentionHeadInput">Query head<input id="attentionHeadInput" type="number" min="0" value="0" disabled /></label>
+      </div>
+      <div class="histogram-grid">
+        <figure><figcaption>Sorted per-channel gain</figcaption><canvas id="gainHistogram"></canvas></figure>
+        <figure><figcaption id="embeddingBeforeACaption">Embedding A · before norm</figcaption><canvas id="embeddingBeforeAHistogram"></canvas></figure>
+        <figure><figcaption id="embeddingBeforeBCaption">Embedding B · before norm</figcaption><canvas id="embeddingBeforeBHistogram"></canvas></figure>
+        <figure><figcaption id="embeddingAfterACaption">Embedding A · after norm</figcaption><canvas id="embeddingAfterAHistogram"></canvas></figure>
+        <figure><figcaption id="embeddingAfterBCaption">Embedding B · after norm</figcaption><canvas id="embeddingAfterBHistogram"></canvas></figure>
+        <figure id="embeddingAttentionAFigure" class="hidden"><figcaption id="embeddingAttentionACaption">Embedding A · after norm + WqWkᵀ</figcaption><canvas id="embeddingAttentionAHistogram"></canvas></figure>
+        <figure id="embeddingAttentionBFigure" class="hidden"><figcaption id="embeddingAttentionBCaption">Embedding B · after norm + WqWkᵀ</figcaption><canvas id="embeddingAttentionBHistogram"></canvas></figure>
+        <figure id="embeddingAttentionOutputAFigure" class="hidden"><figcaption>Embedding A · attention output norm</figcaption><canvas id="embeddingAttentionOutputAHistogram"></canvas></figure>
+        <figure id="embeddingAttentionOutputBFigure" class="hidden"><figcaption>Embedding B · attention output norm</figcaption><canvas id="embeddingAttentionOutputBHistogram"></canvas></figure>
+      </div>
+      <p class="chart-legend"><span class="gain-key">■</span> gain &nbsp; <span class="before-key">■</span> before &nbsp; <span class="after-key">■</span> after. Every plot shows a labeled y-axis; hover for exact channel/value details.</p>
+      <section class="attention-sweep-panel">
+        <div class="subpanel-heading">
+          <div><p class="eyebrow">All-head sweep</p><h3>Compare A/B head-operator and output-norm dot products</h3></div>
+          <button id="runAttentionSweep" type="button">Run sweep</button>
+        </div>
+        <div class="attention-sweep-controls">
+          <label for="attentionSweepOperator">Head operator<select id="attentionSweepOperator"><option value="qk">WqWkᵀ</option><option value="ov">WoWvᵀ + attention output norm</option></select></label>
+          <label for="attentionSweepOrder">Entry ordering<select id="attentionSweepOrder"><option value="numeric">Natural numeric (layer 9 before 10)</option><option value="dot_a">Embedding A dot · high → low</option><option value="dot_b">Embedding B dot · high → low</option><option value="alphabetical">Alphabetical</option></select></label>
+        </div>
+        <div id="attentionSweepOutput" class="output muted">Run the sweep after choosing a model, norm, and input embedding.</div>
+        <figure id="attentionSweepFigure" class="hidden"><figcaption id="attentionSweepCaption">All attention heads · A/B paired bars</figcaption><canvas id="attentionSweepHistogram"></canvas></figure>
+        <figure id="attentionOutputSweepFigure" class="hidden"><figcaption>Attention output norm · A/B paired bars</figcaption><canvas id="attentionOutputSweepHistogram"></canvas></figure>
+      </section>
+      <section class="attention-sweep-panel">
+        <div class="subpanel-heading">
+          <div><p class="eyebrow">All norms × all heads</p><h3>Compare embeddings A and B across block input and output norms</h3></div>
+          <button id="runAllNormSweep" type="button">Run all-norm sweep</button>
+        </div>
+        <div class="attention-sweep-controls">
+          <label class="checkbox-row" for="allNormIncludeFinal"><input id="allNormIncludeFinal" type="checkbox" /> Include the final pre-LM-head norm in each graph</label>
+          <label for="allNormOrder">Entry ordering<select id="allNormOrder"><option value="numeric">Natural numeric (layer 9 before 10)</option><option value="alphabetical">Alphabetical</option></select></label>
+        </div>
+        <div id="allNormSweepOutput" class="output muted">Compare A/B dot products using every recognized input and output norm.</div>
+        <div class="all-norm-graphs">
+          <figure id="inputNormSweepFigure" class="hidden"><figcaption>Input norms · A/B paired bars</figcaption><canvas id="inputNormSweepHistogram"></canvas></figure>
+          <figure id="outputNormSweepFigure" class="hidden"><figcaption>Output norms · A/B paired bars</figcaption><canvas id="outputNormSweepHistogram"></canvas></figure>
+        </div>
+      </section>
+    </section>
+
     <section class="panel">
       <div class="panel-heading">
         <div>
