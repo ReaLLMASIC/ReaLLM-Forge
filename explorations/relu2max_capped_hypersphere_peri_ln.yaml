@@ -1,0 +1,135 @@
+# relu2max_capped_hypersphere_peri_ln.yaml
+# Sweep ReLU2Max attention with CappedHyperSphereNorm in peri-LN mode.
+---
+
+named_static_groups:
+  # Optimizer
+  - named_group: "muon"
+    optimizer: ["muon"]
+    weight_decay: [0.0]
+
+  - named_group: "adamw"
+    optimizer: ["adamw"]
+
+  # QK Norm
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type: peri-LN mode
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+
+  - named_group: "pre_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [false]
+    use_post_ln: [false]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    use_rotary_embeddings: [true]
+    use_abs_pos_embeddings: [false]
+
+  # Attention Softmax
+  - named_group: "relu2max"
+    softmax_variant_attn: ["relu2max"]
+
+  # Infinite Attention
+  - named_group: "infinite"
+    attention_variant: ["infinite"]
+    use_concat_heads: [true]
+    n_head: [3]
+
+  # MQA
+  - named_group: "mqa"
+    n_kv_group: [1]
+
+  # Head Dimension
+  - named_group: "hd_100"
+    n_qk_head_dim: [100]
+    n_v_head_dim: [100]
+
+  - named_group: "hd_150"
+    n_qk_head_dim: [150]
+    n_v_head_dim: [150]
+
+  - named_group: "hd_200"
+    n_qk_head_dim: [200]
+    n_v_head_dim: [200]
+
+  # Capped hypersphere norms for the residual-stream-facing projections.
+  - named_group: "capped_pair"
+    norm_variant_attn: ["cappedhyperspherenorm"]
+    norm_variant_output: ["cappedhyperspherenorm"]
+
+  - named_group: "capped_rmsnorm"
+    norm_variant_attn: ["cappedhyperspherenorm"]
+    norm_variant_output: ["rmsnorm"]
+
+  - named_group: "rmsnorm"
+    norm_variant_attn: ["rmsnorm"]
+    norm_variant_output: ["rmsnorm"]
+
+named_variation_groups:
+  - named_group: "wte_norm_var"
+    named_group_alternates: ["capped_rmsnorm", "capped_pair", "rmsnorm"]
+  - named_group: "optimizers"
+    named_group_alternates: ["muon", "adamw"]
+
+common_group:
+  dataset: ["minipile"]
+  eval_interval: [2500]
+  max_iters: [10000]
+  never_save_checkpoint: [true]
+  compile: [true]
+  log_rankme: [true]
+  log_areq: [true]
+
+parameter_groups:
+  # Peri ln
+  - named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "relu2max"
+      - "infinite"
+      - "hd_150"
+    hsnorm_scale: [1.0]
+    hsnorm_gain: [false, true]
+    hsnorm_radius_learning: [true]
+    named_group_variations:
+      - "wte_norm_var"
+      - "optimizers"
+  # Peri-LN WTE Norm
+  - named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "relu2max"
+      - "infinite"
+      - "hd_150"
+    norm_variant_wte: ["hyperspherenorm"]
+    norm_wte_gain: [false]
+    norm_wte_radius_learning: [true]
+    hsnorm_scale: [1.0]
+    hsnorm_gain: [false, true]
+    hsnorm_radius_learning: [true]
+    named_group_variations:
+      - "wte_norm_var"
+      - "optimizers"
+  # Pre ln Baseline
+  - named_group_static:
+      - "qk_norm"
+      - "pre_ln"
+      - "rotary"
+      - "relu2max"
+      - "infinite"
+      - "hd_150"
+    hsnorm_scale: [1.0]
+    hsnorm_gain: [false, true]
+    hsnorm_radius_learning: [true]
+    named_group_variations:
+      - "wte_norm_var"
+      - "optimizers"
