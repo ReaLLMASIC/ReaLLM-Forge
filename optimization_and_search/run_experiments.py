@@ -44,6 +44,16 @@ METRIC_KEYS = [
     "areq",
     "distillation_val_loss",
     "ntp_val_loss",
+    "lm_head_magnitude_max",
+    "lm_head_magnitude_avg",
+    "lm_head_magnitude_median",
+    "lm_head_magnitude_std",
+    "lm_head_magnitude_min",
+    "post_norm_lm_head_magnitude_max",
+    "post_norm_lm_head_magnitude_avg",
+    "post_norm_lm_head_magnitude_median",
+    "post_norm_lm_head_magnitude_std",
+    "post_norm_lm_head_magnitude_min",
     "zeus_total_energy_j",
     "zeus_total_time_s",
     "zeus_avg_power_w",
@@ -615,6 +625,26 @@ def read_metrics(out_dir: str) -> dict:
         "areq",
         "distillation_val_loss",
         "ntp_val_loss",
+        "overall_weight_stdev",
+        "overall_weight_kurtosis",
+        "overall_weight_max",
+        "overall_weight_min",
+        "overall_weight_abs_max",
+        "overall_activation_stdev",
+        "overall_activation_kurtosis",
+        "overall_activation_max",
+        "overall_activation_min",
+        "overall_activation_abs_max",
+        "lm_head_magnitude_max",
+        "lm_head_magnitude_avg",
+        "lm_head_magnitude_median",
+        "lm_head_magnitude_std",
+        "lm_head_magnitude_min",
+        "post_norm_lm_head_magnitude_max",
+        "post_norm_lm_head_magnitude_avg",
+        "post_norm_lm_head_magnitude_median",
+        "post_norm_lm_head_magnitude_std",
+        "post_norm_lm_head_magnitude_min",
     ]
     casts = [
         float,
@@ -642,19 +672,38 @@ def read_metrics(out_dir: str) -> dict:
         float,
         float,
         float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
+        float,
     ]
 
     if len(base_metric_keys) != len(casts):
         raise ValueError(
             f"Metric schema mismatch: {len(base_metric_keys)} keys vs {len(casts)} casts."
         )
-    if len(parts) == len(base_metric_keys) - 1:
+    if len(parts) in {24, 34, len(base_metric_keys) - 1}:
         # Backward compatibility for runs created before best_val_bits_per_byte.
         parts.insert(1, "")
     if len(parts) < len(base_metric_keys):
-        raise ValueError(
-            f"Expected at least {len(base_metric_keys)} metrics in {path}, got {len(parts)}."
-        )
+        # Backward compatibility for runs created before newer optional metrics.
+        parts.extend([""] * (len(base_metric_keys) - len(parts)))
 
     metrics: dict[str, float] = {}
     for key, typ, value in zip(base_metric_keys, casts, parts):
