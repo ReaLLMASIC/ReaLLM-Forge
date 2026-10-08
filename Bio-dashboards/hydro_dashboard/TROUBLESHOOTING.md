@@ -236,15 +236,63 @@ Hydro-dash connected to the bottle by name, showed the serial and firmware, toda
 the last sip "just now", and battery 100 %. Remaining setup: fill-level calibration and checking the
 bottle size (21 oz = 621 mL vs. the 30 oz tumbler = 887 mL; sips are a % of capacity).
 
+### 11. A day later: "can't find it" again, and it was the laptop's radio
+
+**Symptom:** after the bottle ran flat and was recharged, scans showed only unnamed devices, the
+occasional sighting was followed by a connection timeout, and the system's own scanner caught the
+name only now and then. A raw capture showed the bottle advertising normally (`ADV_IND`, its name,
+a new address).
+
+**Cause:** the laptop's built-in radio. It shares a chip and antenna with Wi-Fi and simply wasn't
+listening often enough to catch the bottle's adverts. An old USB Bluetooth dongle picked the bottle
+up almost instantly.
+
+**Fix:** use a USB dongle for the bottle. Hydro-dash now prefers an external radio automatically
+when one is plugged in (pin it under *Radio for this dashboard* in the debug panel if you have
+several); for the test script, `--adapter hci1`. `python3 hydro_test.py watch` prints one mark per
+second showing when the bottle was actually heard, which makes a deaf radio obvious.
+
+**Wrong turns:** suspecting the charge, the phone, a Find My-only mode, and the new V3.1 code. The
+connection code hadn't changed.
+
 ---
+
+### 12. Connected, but no services: an old dongle and big replies
+
+The USB dongle from step 11 heard the bottle instantly, and then "connected" with an empty service
+list: firmware unknown, 0 notifying characteristics. `btmon` showed why. The computer asks the
+bottle for a larger message size (the bottle agrees to 200 bytes), then asks for its
+characteristics. The bottle answers the small replies, and never sends the first large one
+(about 190 bytes). 30 s later the computer gives up. The link itself stays healthy throughout.
+
+The dongle was Bluetooth 4.0: 27 bytes per radio packet, so a large reply has to be cut into many
+pieces, and this bottle doesn't manage that. A radio that carries long packets whole (the laptop's
+built-in one, or a Bluetooth 5 dongle) doesn't hit it.
+
+How it was pinned down:
+
+- `gatttool -i hci0 -t random -b <addr> --characteristics` listed everything. It never asks for the
+  larger size, so every reply is small.
+- Capping the size system-wide made the dashboard's own connection work on the old dongle:
+  in `/etc/bluetooth/main.conf` add `[GATT]` / `ExchangeMTU = 64`, then restart bluetooth.
+  (Not 23: bluetoothd then fails to register any adapter.) This applies to **every** device on
+  the machine, and the Polar H10 wants the larger size, so it's a diagnostic more than a fix.
+
+Also learned: the bottle's address changes from time to time. Each change makes the computer read
+the service list afresh, so a setup that "worked this morning" from a remembered list can stop.
+Always find the bottle by name, never by a saved address.
+
+Because of this, Hydro-dash no longer picks a dongle automatically. Choose the radio in the debug
+menu: a Bluetooth 5 dongle is the best of both; an old one needs the cap above.
 
 ## Checklist
 
 | Symptom | Check |
 |---|---|
 | Bottle not listed | Shake or tip the bottle right before / during the scan (it only advertises briefly); keep it within ~1 m; tick *Show all nearby devices* |
+| Bottle rarely seen, or seen but the connection times out | The radio isn't hearing it. Plug in a USB Bluetooth dongle and select it in the debug panel; check with `python3 hydro_test.py watch --adapter hci1` |
 | `device … not found` | Use the current Hydro-dash (it follows the bottle by name and connects while scanning) |
-| Connects, but no sips | Debug panel: *Handshake* = complete, *Sip records via* found; *Undecoded sip frames* rising → new firmware layout, send `_raw.csv` |
+| Connects, but no sips | Debug panel: *Sync after connecting* = complete, *Sip records via* found; *Undecoded sip frames* rising → new firmware layout, send `_raw.csv` |
 | Sips missing | Debug panel: *Skipped records* should be 0 |
 | Volumes look ~30 % off | Capacity setting vs. your bottle (21 oz 621 mL, 30 oz tumbler 887 mL) — in the HidrateSpark app *and* Hydro-dash |
 | Anything else | `python3 hydro_test.py listen h2o0000xxxx` prints every notification decoded and saves a capture |

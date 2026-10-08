@@ -52,4 +52,12 @@ echo -e "🔗 Open your browser to: http://localhost:5001"
 echo -e "⏳ Press [Ctrl + C] to stop both services.\n"
 
 # Keep the script alive so it continues to intercept the trap signals
-wait
+# If either process stops on its own, stop the other and exit with an error: a background
+# service is then restarted, and a problem such as a missing package shows up as a failure
+# instead of a dashboard that looks started but isn't there.
+wait -n
+code=$?
+echo "❌ A dashboard process stopped unexpectedly (exit $code)."
+echo "   If the lines above say \"No module named ...\", run ./setup_env.sh in the release folder (each release has its own .venv)."
+kill $(jobs -p) 2>/dev/null
+exit 1

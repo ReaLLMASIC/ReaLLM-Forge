@@ -1,4 +1,4 @@
-# Everything needed to run all four dashboards.
+# Everything needed to run all five dashboards.
 # Each dashboard folder also has its own requirements.txt if you only need one.
 -r polar_dashboard/requirements.txt
 -r atmos_dashboard/requirements.txt

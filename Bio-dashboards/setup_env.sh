@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Creates an isolated Python environment for Bio-dash in .venv/
 #
-#   ./setup_env.sh                    all four dashboards
+#   ./setup_env.sh                    all five dashboards
 #   ./setup_env.sh polar_dashboard    just one dashboard's requirements
 #   ./setup_env.sh --fresh            delete .venv and rebuild from scratch
 #

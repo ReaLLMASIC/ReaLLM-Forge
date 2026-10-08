@@ -9,6 +9,7 @@ diagrams below; elsewhere, paste a block into <https://mermaid.live>.
 4. [Hydro-dash: the bottle protocol](#4-hydro-dash-the-bottle-protocol)
 5. [Atmos: from any sensor format to tiles](#5-atmos-from-any-sensor-format-to-tiles)
 6. [Starting and running everything](#6-starting-and-running-everything)
+7. [Hydro-dash: which Bluetooth radio](#7-hydro-dash-which-bluetooth-radio) — the old-dongle catch
 
 **Colour key** (same in every diagram):
 
@@ -347,3 +348,64 @@ flowchart LR
   other devices, start at boot.
 - **On the page:** ☀ *Keep screen on* (localhost or HTTPS), 🐞 debug panel with the System card
   (shutdown / reboot), header links between dashboards.
+
+---
+
+## 7. Hydro-dash: which Bluetooth radio
+
+The bottle is the one device in the suite that is picky about the radio. It has to be **heard**
+(it only advertises for a few seconds after it's moved) and it has to get through **reading its
+service list**, and the two radios a laptop usually has each fail a different half.
+
+```mermaid
+flowchart TB
+    B(("HidrateSpark<br/>bottle")) --> Q{"Which radio is<br/>Hydro-dash using?"}
+
+    Q -->|"laptop's built-in<br/>(shared with Wi-Fi)"| I["Built-in radio"]
+    Q -->|"old USB dongle<br/>(Bluetooth 4.0)"| O["Old dongle"]
+    Q -->|"newer USB dongle<br/>(Bluetooth 5)"| N["Bluetooth 5 dongle"]
+
+    I --> I1["Often can't hear the bottle:<br/>'not seen', connect timeouts"]
+    I1 -->|when it does connect| OK
+
+    O --> O1["Hears the bottle straight away"]
+    O1 --> M{"Message size the<br/>computer asks for"}
+    M -->|"default (large)"| X["Bottle agrees to 200 bytes, then never<br/>sends its first large reply.<br/>'Connected' with no services,<br/>firmware unknown"]
+    M -->|"capped: ExchangeMTU = 64<br/>in /etc/bluetooth/main.conf"| OK
+    X -.->|add the cap,<br/>restart bluetooth| M
+
+    N --> N1["Hears the bottle and carries<br/>large replies whole<br/>(expected; not yet tried)"]
+    N1 --> OK
+
+    OK(["Services read:<br/>sips, fill level and glow work"])
+    CAP[/"The cap applies to every device on this<br/>computer. Check the Polar H10's ECG<br/>with it on before keeping it."/]
+    M -.-> CAP
+
+    classDef device fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:2px
+    classDef radio fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:2px
+    classDef worker fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
+    classDef app fill:#CCFBF1,stroke:#0D9488,color:#134E4A,stroke-width:2px
+    classDef file fill:#F1F5F9,stroke:#64748B,color:#1E293B,stroke-width:2px
+    classDef store fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:2px
+    classDef ui fill:#FCE7F3,stroke:#DB2777,color:#831843,stroke-width:2px
+    classDef decision fill:#FFEDD5,stroke:#EA580C,color:#7C2D12,stroke-width:2px
+    classDef warn fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px
+    classDef start fill:#1E293B,stroke:#94A3B8,color:#F8FAFC,stroke-width:2px
+    class B device
+    class I,O,N radio
+    class Q,M decision
+    class I1,X warn
+    class O1,N1 worker
+    class OK start
+    class CAP file
+```
+
+- **What it looks like:** the scanner finds the bottle, the page says connected, and nothing else
+  arrives: no firmware version, no battery, no sips.
+- **Why:** an old dongle sends 27 bytes per radio packet, so a large reply has to be cut into many
+  pieces, and this bottle doesn't send it at all. With small messages every reply fits.
+- **The bottle's address changes** from time to time. Each change makes the computer read the
+  service list afresh, so this can appear on a setup that worked earlier the same day.
+- **Choosing the radio:** debug panel (D) → Bluetooth Radio. Hydro-dash defaults to the built-in
+  one, like the other dashboards.
+- Step by step, with the commands: `hydro_dashboard/TROUBLESHOOTING.md`, sections 11 and 12.

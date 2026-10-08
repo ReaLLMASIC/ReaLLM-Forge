@@ -169,10 +169,22 @@ def validate(selected):
     return None
 
 
+def packages_problem():
+    """Each release folder has its own .venv; a freshly pulled release has none until
+    ./setup_env.sh has run, and its services would start and quit straight away."""
+    venv_py = os.path.join(REPO, ".venv", "bin", "python3")
+    py = venv_py if os.access(venv_py, os.X_OK) else "python3"
+    ok, _ = run([py, "-c", "import bleak"])
+    if ok:
+        return None
+    return ("The Python packages for this release aren't installed here. Run ./setup_env.sh in "
+            f"{REPO} first (each release has its own .venv), then Apply again.")
+
+
 def apply(selected, opts, boot=None, log=print):
     """Make the installed services exactly `selected`. Returns list of problems."""
     problems = []
-    err = validate(selected)
+    err = validate(selected) or (packages_problem() if selected else None)
     if err:
         return [err]
     os.makedirs(UNIT_DIR, exist_ok=True)

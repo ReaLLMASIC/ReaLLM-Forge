@@ -41,6 +41,7 @@
     .sb-item:hover{background:#1e293b;color:#fff}
     .sb-item[aria-current]{background:#1e293b;color:#fff;font-weight:600;box-shadow:inset 3px 0 0 var(--c,#94a3b8)}
     .sb-item.on{color:#fcd34d}
+    .sb-item[hidden]{display:none}
     .sb-item:disabled{color:#475569;cursor:not-allowed}.sb-item:disabled:hover{background:none}
     .sb-dot{width:7px;height:7px;border-radius:50%;background:#475569;flex:none}
     .sb-dot.up{background:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.15)}
@@ -110,7 +111,8 @@
     const nav = sb.querySelector('#sb-nav');
     nav.innerHTML = DASHBOARDS.map(d => d.port === here
         ? `<a class="sb-item" aria-current="page" style="--c:${d.color}"><span class="sb-dot up"></span>${d.name}<span class="sb-tag">here</span></a>`
-        : `<a class="sb-item" href="${urlFor(d)}"><span class="sb-dot" data-port="${d.port}" title="checking…"></span>${d.name}<span class="sb-tag">:${d.port}</span></a>`).join('');
+        : `<a class="sb-item" href="${urlFor(d)}" hidden><span class="sb-dot" data-port="${d.port}" title="checking…"></span>${d.name}<span class="sb-tag">:${d.port}</span></a>`).join('');
+    // Other dashboards appear only while they're running (checked now and every 10 s).
     // A no-cors fetch resolves if the server answers at all and rejects if nothing listens.
     async function ping(d) {
         const dot = nav.querySelector(`[data-port="${d.port}"]`);
@@ -122,6 +124,7 @@
         clearTimeout(t);
         dot.classList.toggle('up', up);
         dot.title = up ? 'running' : 'not running';
+        dot.closest('a').hidden = !up;                    // only dashboards that are running are listed
     }
     const pingAll = () => DASHBOARDS.filter(d => d.port !== here).forEach(ping);
     pingAll();

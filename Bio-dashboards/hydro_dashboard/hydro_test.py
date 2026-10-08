@@ -6,7 +6,7 @@
                                              to find the one with HidrateSpark services
     python3 hydro_test.py dump <address|name>     services, characteristics, and every readable value
     python3 hydro_test.py listen <address|name>   handshake + drain, then print every notification live
-(Use the bottle's name, e.g. h2o00003095 -- its address rotates every few minutes.)
+(Use the bottle's name, e.g. h2o00001234 -- its address rotates every few minutes.)
 Options: --seconds N (listen time, default 60) · --no-handshake · --adapter hciN
 
 Stop Hydro-dash first (the bottle accepts one connection), and turn off Bluetooth on your phone.
@@ -34,6 +34,10 @@ except ImportError:
              "bt_debug.py next to it). From the Bio-dash release folder:\n"
              "    cd hydro_dashboard && python3 hydro_test.py")
 
+CONNECT_TRIES = 4
+# Connecting includes reading the list of services. After the puck restarts it has a new
+# address, so nothing is cached and that read takes a while, especially on an older dongle.
+CONNECT_TIMEOUT_S = 45.0
 CAPACITY_ML = 621          # only used to show sip volumes for the "percent" frame layout
 
 
@@ -41,7 +45,7 @@ MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$")
 
 
 async def resolve(target, adapter=None, timeout=25.0):
-    """An address, or a name like h2o00003095: wait for it to advertise and return the device
+    """An address, or a name like h2o00001234: wait for it to advertise and return the device
     right away. Bottles rotate their address every few minutes, so the name is the stable handle,
     and connecting the moment it's seen beats BlueZ forgetting it again."""
     if MAC_RE.match(target):
@@ -58,7 +62,7 @@ async def resolve(target, adapter=None, timeout=25.0):
 
 @contextlib.asynccontextmanager
 async def open_bottle(target, adapter=None, timeout=25.0):
-    """Connect to an address or a name (e.g. h2o00003095) WHILE STILL SCANNING.
+    """Connect to an address or a name (e.g. h2o00001234) WHILE STILL SCANNING.
     BlueZ drops this bottle the instant discovery stops, so the usual
     find -> stop scan -> connect fails with "device ... not found"."""
     by_mac = bool(MAC_RE.match(target))
@@ -71,25 +75,49 @@ async def open_bottle(target, adapter=None, timeout=25.0):
             box["dev"] = d
             found.set()
 
-    print(f"🔎 Waiting up to {timeout:.0f} s for '{target}' -- shake or tip the bottle now...")
+    print(f"🔎 Waiting up to {timeout:.0f} s for '{target}' -- shake or tip the bottle to wake it...")
     scanner = BleakScanner(on_adv, **bluez(adapter))
     await scanner.start()
-    try:
-        await asyncio.wait_for(found.wait(), timeout)
-    except asyncio.TimeoutError:
-        await scanner.stop()
-        sys.exit(f"❌ '{target}' wasn't seen. Shake the bottle and keep it next to the computer; phone Bluetooth off.")
-    dev = box["dev"]
-    print(f"   seen at {dev.address} -- connecting with the scan still running")
-    client = BleakClient(dev, timeout=20.0, **bluez(adapter))
-    try:
-        await client.connect()
-    except Exception as e:
-        with contextlib.suppress(Exception):
+    client, last_error = None, None
+    for attempt in range(1, CONNECT_TRIES + 1):
+        try:
+            await asyncio.wait_for(found.wait(), timeout)
+        except asyncio.TimeoutError:
             await scanner.stop()
-        sys.exit(f"❌ Connection refused / failed: {e.__class__.__name__}: {e}")
+            if last_error:
+                sys.exit(f"❌ Couldn't connect ({last_error}) and '{target}' stopped advertising. Shake the bottle and try again.")
+            sys.exit(f"❌ '{target}' wasn't seen. Shake the bottle and keep it next to the computer; phone Bluetooth off.")
+        dev = box["dev"]
+        print(f"   seen at {dev.address} -- connecting with the scan still running (try {attempt}/{CONNECT_TRIES}; up to {CONNECT_TIMEOUT_S:.0f} s)")
+        # The bottle only answers a connection while it is advertising (short bursts after it's
+        # moved). Once the link is up the computer reads its list of services; the bottle has been
+        # seen to stop answering part-way through that read, which stalls for 30 s and comes
+        # back empty -- treat that as a failed try, not a connection.
+        client = BleakClient(dev, timeout=CONNECT_TIMEOUT_S, **bluez(adapter))
+        try:
+            await client.connect()
+            if not any(True for svc in client.services for _ in svc.characteristics):
+                raise RuntimeError("connected, but the bottle's service list came back empty "
+                                   "(it stopped answering part-way through)")
+            break
+        except Exception as e:
+            last_error = f"{e.__class__.__name__}: {e}".rstrip(": ")
+            print(f"   ✗ {last_error} -- waiting for it to advertise again...")
+            with contextlib.suppress(Exception):
+                await client.disconnect()
+            # drop what the system remembered of this half-read device, so the next try reads it afresh
+            with contextlib.suppress(Exception):
+                proc = await asyncio.create_subprocess_exec("bluetoothctl", "remove", dev.address,
+                                                            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                await asyncio.wait_for(proc.wait(), 5)
+            client = None
+            found.clear(); box.clear()
     with contextlib.suppress(Exception):
         await scanner.stop()
+    if client is None:
+        sys.exit(f"❌ Connection failed {CONNECT_TRIES} times ({last_error}). The bottle is advertising but not accepting; "
+                 "see TROUBLESHOOTING.md, and check nothing else is connected to it.")
+    print("✅ Connected.")
     try:
         yield client
     finally:
@@ -206,7 +234,11 @@ def describe(uuid, data):
         if r["kind"] == "sip":
             when = datetime.datetime.fromtimestamp(r["ts"]).strftime("%a %H:%M:%S")
             w = f", weight {r['weight_before']}→{r['weight_after']}" if r.get("weight_before") else ""
-            return f"💧 SIP {r['volume_ml']} mL ({r['pct']}%) at {when}{w} [{r['layout']}, {r['remaining'] - 1} more queued]"
+            if r.get("cal_min"):
+                fill_ml, fill_pct = hp.fill_from_calibration(r["weight_after"], r["cal_min"], r["cal_max"], CAPACITY_ML)
+                w += f", empty/full {r['cal_min']}/{r['cal_max']} → {fill_ml} mL left ({fill_pct}%)"
+            src = f" from {r['volume_source']}" if r.get("volume_source") else ""
+            return f"💧 SIP {r['volume_ml']} mL{src} (byte: {r['pct']}%) at {when}{w} [{r['layout']}, {r['remaining'] - 1} more queued]"
         return {"empty": "sip queue empty", "pending": f"{r['remaining']} sip record(s) pending",
                 "unknown": "⚠ sip frame in an UNKNOWN layout"}[r["kind"]]
     if uuid == hp.CHAR_DEBUG:
@@ -221,7 +253,8 @@ def describe(uuid, data):
     return ""
 
 
-async def listen(address, seconds=60, handshake=True, adapter=None):
+async def listen(address, seconds=60, handshake=True, adapter=None, drain_mode="auto"):
+    global CAPACITY_ML
     folder = os.path.join(bt_debug.dashboard_dir("HidrateSpark"), "test-captures")
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, datetime.datetime.now().strftime("capture_%Y-%m-%d_%H-%M-%S.csv"))
@@ -236,13 +269,28 @@ async def listen(address, seconds=60, handshake=True, adapter=None):
         sip_char = hp.CHAR_USER_DATA if hp.CHAR_USER_DATA in chars else hp.CHAR_DATA_POINT if hp.CHAR_DATA_POINT in chars else None
         repeat = {"last": None, "n": 0}
 
-        async def write_drain():
-            await client.write_gatt_char(sip_char, hp.DRAIN, response=True)
-        drainer = hp.Drainer(write_drain)
+        firmware = ""
+        with contextlib.suppress(Exception):
+            firmware = bytes(await client.read_gatt_char(hp.CHAR_FIRMWARE)).decode("utf-8", "replace").strip("\x00 ")
+        with contextlib.suppress(Exception):
+            size = hp.parse_bottle_size(await client.read_gatt_char(hp.CHAR_BOTTLE_SIZE))
+            if size:
+                CAPACITY_ML = size
+        mode = hp.drain_mode_for(firmware) if drain_mode == "auto" else drain_mode
+        print(f"ℹ Firmware {firmware or '?'} ({hp.bottle_family(firmware)}), capacity {CAPACITY_ML} mL, draining in '{mode}' mode"
+              f"{' (0x33 acknowledge + 0x55)' if mode == 'ack' else ' (0x57)'}.")
+
+        async def write_sip(payload):
+            await client.write_gatt_char(sip_char, payload, response=True)
+            counts["_acks" if payload == hp.ACK else "_requests"] = counts.get("_acks" if payload == hp.ACK else "_requests", 0) + 1
+        drainer = hp.Drainer(write_sip, mode=mode)
         last_rem = {"n": 0}
 
-        async def drain():
-            await drainer.request()
+        async def drain(ack=False):
+            await drainer.request(ack=ack, pending=last_rem["n"] > 0)
+            if drainer.fell_back and not counts.get("_fallback"):
+                counts["_fallback"] = 1
+                print("  ⚠ no answer in 'ack' mode -- fell back to the fast (0x57) mode")
 
         def on_notify(uuid, data):
             data = bytes(data)
@@ -264,7 +312,7 @@ async def listen(address, seconds=60, handshake=True, adapter=None):
                 repeat["n"] = repeat["n"] + 1 if data.hex() == repeat["last"] else 0
                 repeat["last"] = data.hex()
                 if repeat["n"] < hp.MAX_IDENTICAL_FRAMES:
-                    asyncio.get_running_loop().create_task(drain())
+                    asyncio.get_running_loop().create_task(drain(ack=len(data) >= 16 and any(data[1:])))
 
         n_sub = 0
         for uuid, ch in chars.items():
@@ -277,7 +325,7 @@ async def listen(address, seconds=60, handshake=True, adapter=None):
 
         if handshake and hp.CHAR_SET_POINT in chars and hp.CHAR_DEBUG in chars:
             try:
-                for uuid, payload in hp.HANDSHAKE:
+                for uuid, payload in hp.LEGACY_HANDSHAKE:
                     await client.write_gatt_char(uuid, bytes.fromhex(payload), response=True)
                     await asyncio.sleep(hp.HANDSHAKE_INTERVAL_S)
                 print("✅ Handshake sent (13 writes).")
@@ -302,8 +350,10 @@ async def listen(address, seconds=60, handshake=True, adapter=None):
     out.close()
 
     print("\n=== SUMMARY ===")
-    if counts.get("skipped"):
-        print(f"  ⚠ {counts.pop('skipped')} record(s) skipped while draining")
+    acks, reqs, fell = counts.pop("_acks", 0), counts.pop("_requests", 0), counts.pop("_fallback", 0)
+    print(f"  draining: {reqs} request(s), {acks} acknowledgement(s){', FELL BACK to fast mode' if fell else ''}")
+    skipped = counts.pop("skipped", 0)
+    print(f"  {'⚠' if skipped else '✅'} {skipped} record(s) skipped while draining")
     for uuid, n in sorted(counts.items(), key=lambda kv: -kv[1]):
         print(f"  {n:5d}  {hp.KNOWN_CHARS.get(uuid, 'unknown'):22s} {uuid}")
     if not counts:
@@ -311,16 +361,62 @@ async def listen(address, seconds=60, handshake=True, adapter=None):
     print(f"\nCapture saved: {path}")
 
 
+async def watch(target, seconds=60, adapter=None):
+    """When does the bottle actually advertise? Restarts the scan every second (a running scan
+    hides repeats from the same device), and marks each second it was heard in."""
+    want = (target or "").lower()
+    print(f"👀 Watching for {'HidrateSpark bottles' if not want else repr(target)} for {seconds} s, one mark per second "
+          "(█ heard, · silent).\n   Leave the bottle still, then shake it once, then sip -- and note when you did.\n")
+    t0, marks, addrs, heard_at = time.time(), [], set(), []
+    while time.time() - t0 < seconds:
+        hit = {}
+
+        def on_adv(d, adv):
+            name = d.name or adv.local_name or ""
+            if (want and (name.lower() == want or d.address.lower() == want)) or (not want and hp.is_bottle(name, adv.service_uuids)):
+                hit["rssi"] = adv.rssi
+                addrs.add(d.address)
+        tick = time.time()
+        try:
+            async with BleakScanner(on_adv, **bluez(adapter)):
+                await asyncio.sleep(0.8)
+        except Exception as e:
+            sys.exit(f"\n❌ Scan failed: {e!r}\n   Stop Hydro-dash first -- it holds the scanner.")
+        marks.append("█" if hit else "·")
+        if hit:
+            heard_at.append(tick - t0)
+        print(marks[-1], end="", flush=True)
+        if len(marks) % 10 == 0:
+            print(f"  {tick - t0:4.0f} s", flush=True)
+        await asyncio.sleep(max(0.0, 1.0 - (time.time() - tick)))
+    print("\n")
+    if not heard_at:
+        print("Never heard. The bottle did not advertise its name at all in that time."); return
+    bursts, start, prev = [], heard_at[0], heard_at[0]
+    for t in heard_at[1:]:
+        if t - prev > 2.5:
+            bursts.append((start, prev)); start = t
+        prev = t
+    bursts.append((start, prev))
+    print(f"Heard in {len(heard_at)} of {len(marks)} seconds, address {', '.join(sorted(addrs))}.")
+    for a_, b_ in bursts:
+        print(f"  burst from {a_:5.1f} s to {b_:5.1f} s  (about {b_ - a_ + 1:.0f} s long)")
+
+
 async def main():
     ap = argparse.ArgumentParser(description="HidrateSpark bottle test (scan / dump / listen).")
-    ap.add_argument("command", nargs="?", default="all", choices=["all", "scan", "probe", "dump", "listen"])
+    ap.add_argument("command", nargs="?", default="all", choices=["all", "scan", "probe", "dump", "listen", "watch"])
     ap.add_argument("address", nargs="?")
     ap.add_argument("--seconds", type=int, default=60)
     ap.add_argument("--no-handshake", action="store_true")
     ap.add_argument("--adapter", help="Bluetooth adapter, e.g. hci1 (default: system default)")
+    ap.add_argument("--drain", default="auto", choices=["auto", "ack", "fast"],
+                    help="how to drain stored sips: auto (by firmware), ack (0x33 + 0x55), fast (0x57, the V3.0 way)")
     a = ap.parse_args()
     if a.command in ("dump", "listen") and not a.address:
-        sys.exit(f"usage: python3 hydro_test.py {a.command} <address or name, e.g. h2o00003095>")
+        sys.exit(f"usage: python3 hydro_test.py {a.command} <address or name, e.g. h2o00001234>")
+    if a.command == "watch":
+        await watch(a.address, a.seconds, a.adapter); return
     if a.command == "scan":
         await scan(adapter=a.adapter); return
     if a.command == "probe":
@@ -329,7 +425,7 @@ async def main():
     if a.command == "dump":
         await dump(a.address, a.adapter); return
     if a.command == "listen":
-        await listen(a.address, a.seconds, not a.no_handshake, a.adapter); return
+        await listen(a.address, a.seconds, not a.no_handshake, a.adapter, a.drain); return
     address = a.address
     if not address:
         address, found = await scan(adapter=a.adapter)
@@ -338,7 +434,7 @@ async def main():
     if not address:
         return
     await dump(address, a.adapter)
-    await listen(address, a.seconds, not a.no_handshake, a.adapter)
+    await listen(address, a.seconds, not a.no_handshake, a.adapter, a.drain)
 
 
 if __name__ == "__main__":

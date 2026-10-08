@@ -1,5 +1,30 @@
 # Changelog
 
+## V3.1
+
+Hydro-dash tuning, from reading how the official app talks to the bottle (no app code included).
+Run on one PRO 2: connecting, sips, fill level, bottle size and glow work; **reminders are still being confirmed.**
+
+- **Fill level without calibrating.** Every sip record carries the bottle's own calibrated "empty" and "full" weights (the two fields V3.0 logged as "constant"). The fill level is computed from those, from the newest record and from the settled live weight. The manual full / empty anchors and the "(estimated)" level are gone.
+- **Sip volume from the weights**, as the app computes it, instead of the whole-percent byte (which reads up to 6 mL low on a 21 oz bottle). The percent byte remains the fallback. The sip log gains `Cal_min`, `Cal_max` and `Volume_from` columns.
+- **Capacity read from the bottle** on connect.
+- **Draining stored sips the app's way** on current (firmware 100+) bottles: acknowledge each record, then ask for the next. V3.0's single fast request is kept for older firmware and as an automatic fallback (`BIODASH_HYDRO_DRAIN=fast` forces it). The debug panel shows the bottle family, drain mode and requests / acks.
+- **"It's full now" / "It's empty now"** now tell the bottle to redo its own calibration (two clicks to confirm), instead of storing an anchor in the dashboard.
+- **Replays aren't double counted** when a sip first logged from the percent byte comes back with a weight-based volume (de-duplication allows a small volume difference at the same timestamp).
+- **Glow and reminders.** *Glow now* button; a reminder schedule (from / to, every N minutes, only when behind on the goal or every time, optional sound), glow on reaching the goal and glow on each sip. The schedule is stored on the bottle, so it runs with the dashboard closed.
+- **Custom glow.** Choose a style (pulse, spin, flash, solid, rainbow) and two colours, previewed as the LED ring, and upload it to the bottle, which keeps it for *Glow now* and reminders. Patterns are built by Hydro-dash and sent in the bottle's own format (a protobuf message in 20-byte packets); 10 LEDs on the small puck, 13 on the large.
+- **Real sync instead of the canned handshake.** On every connect (and at midnight, and when settings change) the bottle gets the actual time of day, goal, today's total and the reminder schedule. V3.0 replayed 13 fixed writes that set the clock to 15:18 and someone else's schedule.
+- **The radio catch, found and documented.** A laptop's built-in Bluetooth often can't hear the bottle; an old Bluetooth 4.0 dongle hears it but "connects" with an empty service list, because the bottle never sends its large replies over a radio limited to 27-byte packets. Capping the message size (`ExchangeMTU = 64` in `/etc/bluetooth/main.conf`) makes it work. Hydro-dash treats an empty service list as a failed connection and retries, finds the bottle by name (its address changes), and leaves the radio choice to the debug panel. New diagram: `docs/ARCHITECTURE.md` section 7; write-up: `hydro_dashboard/TROUBLESHOOTING.md` sections 11 and 12.
+- **Bottle size is a list** of the sizes sold (17 / 20 / 21 / 24 / 30 / 32 oz) plus *Automatic*, which follows what the bottle reports.
+- **Settings survive updates:** goal, reminders and the bottle's calibration are kept in `~/.config/bio-dash/`, not in the dashboard folder (an existing file is carried over once).
+- **"It's full now" / "It's empty now" show the result straight away** instead of waiting for the next sip.
+- **Services say so when they can't start.** If a dashboard's process stops on its own (most often: a new release folder with no `.venv` yet, so "No module named …"), the launcher now exits with an error instead of printing "System is LIVE" and ending quietly, so the service shows as failing and is retried. `./biodash.py` checks for the packages before installing services and tells you to run `./setup_env.sh` first.
+- **The sidebar lists only the dashboards that are running.** Links to dashboards that aren't running are hidden, and appear within about 10 seconds of one starting.
+- **Fill level on a second machine.** If no calibration is saved yet (a new computer with the recordings copied over), the bottle's empty / full weights are taken from the newest sip record in the log, so the fill level shows on connect instead of after the next sip.
+- `hydro_test.py watch`: one mark per second showing when the bottle was heard; `listen` retries the connection while the bottle keeps advertising.
+- `hydro_test.py listen` prints the firmware family, capacity, each sip's source and the level left, and reports requests / acks / skipped records; `--drain auto|ack|fast`.
+- `PROTOCOL.md`: the full record layout, drain commands by firmware, bottle size and calibration commands.
+
 ## V3.0
 
 ### Sidebar and updates (all dashboards)

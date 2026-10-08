@@ -65,6 +65,7 @@ async function loadSummary() {
     for (const p of s.cumulative) trends.record('intake', p.x, p.y);
 }
 
+let lastGlowUpload = null;
 // ---------- live status + scanner ----------
 let showAll = false;
 $('show-all').addEventListener('change', (e) => { showAll = e.target.checked; lastListKey = ''; });
@@ -74,9 +75,27 @@ async function poll() {
     let st;
     try { st = await (await fetch('/api/status')).json(); } catch (e) { setStatus('Server offline', 'bad'); return; }
     settings = st.settings || settings;
+    // bottle size: "Automatic" follows what the bottle reports; otherwise one of the sizes sold
+    bottleCapacity = (st.live || {}).capacity_bottle || null;
+    if (document.activeElement !== $('set-capacity')) fillCapacity();
+    $('cap-note').textContent = settings.capacity_auto !== false
+        ? (bottleCapacity ? '' : 'the bottle reports its size when it connects')
+        : (bottleCapacity && bottleCapacity !== settings.capacity_ml ? `the bottle itself reports ${bottleCapacity} mL` : '');
     if (settings.units && settings.units !== units) { units = settings.units; applyUnits(); }
     const live = st.live || {};
     const streaming = st.state === 'streaming';
+    bottleConnected = streaming;
+    canUploadGlow = live.can_upload_glow;
+    const up = live.glow_upload;
+    if (up && up.at !== lastGlowUpload && up.state !== 'sending') {
+        lastGlowUpload = up.at;
+        if (Date.now() / 1000 - up.at < 20) flash('glow-up', up.state === 'done' ? `On the bottle (${up.packets} packets).` : `Upload failed: ${up.error}`, 8000);
+    }
+    if (!$('glow-note')._t) {
+        const n = live.reminders_set;
+        $('glow-note').dataset.rest = $('glow-note').textContent = !streaming ? '' : live.can_glow === false ? "this bottle doesn't offer glow control"
+            : n != null ? `${n} reminder${n === 1 ? '' : 's'} on the bottle` : '';
+    }
     $('scanner-panel').classList.toggle('hidden', streaming);
     if (streaming) setStatus('Bottle connected 🟢', 'ok');
     else if (st.state === 'connecting') setStatus(`Connecting${st.attempt > 1 ? ` (try ${st.attempt}/${st.max_attempts})` : ''}...`, 'wait');
@@ -86,11 +105,11 @@ async function poll() {
     if (live.fill_ml != null) {
         $('fill-val').textContent = vol(live.fill_ml);
         $('fill-bar').style.width = `${live.fill_pct ?? 0}%`;
-        $('fill-note').textContent = `${live.fill_pct}% of ${vol(settings.capacity_ml)} ${unitLabel()}` + (settings.weight_full_raw == null ? ' (estimated)' : '');
+        $('fill-note').textContent = `${live.fill_pct}% of ${vol(settings.capacity_ml)} ${unitLabel()}` + (live.fill_from === 'last sip record' ? ' · as of the last sip' : '');
         trends.sample('fill', live.fill_ml);
     } else {
         $('fill-val').textContent = '--';
-        $('fill-note').textContent = streaming ? 'calibrate below to see the fill level' : '';
+        $('fill-note').textContent = streaming ? 'shows after the first sip (the bottle sends its calibration with it)' : '';
     }
     if (live.battery != null) { $('batt-val').textContent = live.battery; trends.sample('battery', live.battery); }
     if (live.last_sip && live.last_sip.ts !== lastSipSeen) { lastSipSeen = live.last_sip.ts; loadSummary(); }
@@ -131,8 +150,90 @@ $('device-list').addEventListener('click', async (e) => {
 });
 
 // ---------- settings + calibration ----------
+function fillGlowForm() {
+    const r = settings.reminders || {};
+    $('rem-enabled').checked = r.enabled !== false;
+    $('rem-from').value = r.from || '08:00';
+    $('rem-to').value = r.to || '22:00';
+    $('rem-every').value = r.every_min ?? 60;
+    $('rem-always').value = r.always ? 'always' : 'behind';
+    $('rem-sound').checked = !!r.sound;
+    $('goal-glow').checked = settings.goal_glow !== false;
+    $('sip-glow').value = settings.sip_glow == null ? 'leave' : settings.sip_glow ? 'on' : 'off';
+}
+function flash(id, text, ms = 6000) {
+    const el = $(id), was = el.dataset.rest ?? (el.dataset.rest = el.textContent);
+    el.textContent = text;
+    clearTimeout(el._t); el._t = setTimeout(() => { el.textContent = el.dataset.rest; el._t = null; }, ms);
+}
+$('glow-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = { reminders: { enabled: $('rem-enabled').checked, from: $('rem-from').value, to: $('rem-to').value,
+                                every_min: +$('rem-every').value || 60, always: $('rem-always').value === 'always', sound: $('rem-sound').checked },
+                   goal_glow: $('goal-glow').checked, sip_glow: $('sip-glow').value };
+    try { settings = await (await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json(); } catch (err) {}
+    fillGlowForm();
+    flash('glow-msg', bottleConnected ? 'Saved. Sending to the bottle…' : 'Saved. It will be sent when the bottle next connects.');
+});
+$('glow-now').addEventListener('click', async () => {
+    if (!bottleConnected) return flash('glow-note', 'Connect the bottle first.', 4000);
+    await fetch('/api/glow', { method: 'POST' });
+    flash('glow-note', 'Sent.', 3000);
+});
+let bottleConnected = false;
+// ---------- custom glow: style + two colours, previewed as the LED ring ----------
+function ringColours(style, c1, c2, n = 10) {
+    const stops = (style === 'rainbow' ? ['#ff0000', '#ffa200', '#eeff00', '#2bff00', '#1499ff', '#ff1ff8'] : [c1, c2])
+        .map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+    return [...Array(n).keys()].map(i => {
+        const pos = i * stops.length / n, k = Math.floor(pos), a = stops[k % stops.length], b = stops[(k + 1) % stops.length];
+        return `rgb(${a.map((v, j) => Math.round(v + (b[j] - v) * (pos - k))).join(',')})`;
+    });
+}
+function paintGlowPreview() {
+    const cols = ringColours($('glow-style').value, $('glow-c1').value, $('glow-c2').value);
+    $('glow-preview').innerHTML = cols.map((c, i) => {
+        const a = 2 * Math.PI * i / cols.length - Math.PI / 2;
+        return `<circle cx="${28 + 21 * Math.cos(a)}" cy="${28 + 21 * Math.sin(a)}" r="4.5" fill="${c}"/>`;
+    }).join('');
+    const rainbow = $('glow-style').value === 'rainbow';
+    $('glow-c1').disabled = $('glow-c2').disabled = rainbow;
+    $('glow-c1').style.opacity = $('glow-c2').style.opacity = rainbow ? .35 : 1;
+}
+['glow-style', 'glow-c1', 'glow-c2'].forEach(id => $(id).addEventListener('input', paintGlowPreview));
+function fillGlowStyle() {
+    const g = settings.glow || {};
+    $('glow-style').value = g.style || 'pulse';
+    $('glow-c1').value = g.color1 || '#2bff00';
+    $('glow-c2').value = g.color2 || '#1499ff';
+    paintGlowPreview();
+}
+$('glow-send').addEventListener('click', async () => {
+    if (!bottleConnected) return flash('glow-up', 'Connect the bottle first.', 4000);
+    if (canUploadGlow === false) return flash('glow-up', "This bottle doesn't take custom glows.", 5000);
+    const body = { style: $('glow-style').value, color1: $('glow-c1').value, color2: $('glow-c2').value };
+    const res = await fetch('/api/glow/pattern', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    flash('glow-up', res.ok ? 'Sending… the bottle plays it when it has arrived.' : 'Not sent.', 8000);
+});
+let canUploadGlow = null;
+// The sizes HidrateSpark sells smart bottles in (mL, and the fl oz on the label).
+const BOTTLE_SIZES = [[500, 17], [592, 20], [621, 21], [710, 24], [887, 30], [946, 32]];
+let bottleCapacity = null;
+function fillCapacity() {
+    const box = $('set-capacity');
+    const want = settings.capacity_auto !== false ? 'auto' : String(settings.capacity_ml);
+    const opts = [['auto', `Automatic${bottleCapacity ? ` (${bottleCapacity} mL)` : ''}`]]
+        .concat(BOTTLE_SIZES.map(([ml, oz]) => [String(ml), `${oz} oz · ${ml} mL`]));
+    if (want !== 'auto' && !opts.some(o => o[0] === want)) opts.push([want, `${want} mL (custom)`]);   // a value saved before this was a list
+    const sig = opts.map(o => o.join('=')).join('|');
+    if (box.dataset.sig !== sig) {
+        box.innerHTML = opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+        box.dataset.sig = sig;
+    }
+    box.value = want;
+}
 function fillSettingsForm() {
-    $('set-capacity').value = settings.capacity_ml ?? '';
+    fillCapacity();
     $('set-goal').value = settings.goal_ml ?? '';
     $('set-units').value = settings.units || 'ml';
 }
@@ -142,22 +243,36 @@ function applyUnits() {
 }
 $('settings-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const body = { capacity_ml: +$('set-capacity').value || null, goal_ml: +$('set-goal').value || null, units: $('set-units').value };
+    const cap = $('set-capacity').value;
+    const body = { capacity_auto: cap === 'auto' ? true : null, capacity_ml: cap === 'auto' ? null : +cap, goal_ml: +$('set-goal').value || null, units: $('set-units').value };
     try { settings = await (await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json(); } catch (err) {}
     units = settings.units || 'ml'; applyUnits(); fillSettingsForm();
     $('settings-msg').textContent = 'Saved.';
     setTimeout(() => { $('settings-msg').textContent = ''; }, 2500);
 });
+// Recalibrating changes what the bottle itself stores as "empty" / "full", so it takes a
+// second click to confirm (the button arms for 5 s).
+let calArmed = null, calTimer = null;
+const CAL_LABEL = { full: "It's full now", empty: "It's empty now" };
+function paintCal() {
+    document.querySelectorAll('button[data-cal]').forEach(b => {
+        const armed = calArmed === b.dataset.cal;
+        b.textContent = armed ? 'Click again to confirm' : CAL_LABEL[b.dataset.cal];
+        b.style.background = armed ? '#dc2626' : ''; b.style.color = armed ? '#fff' : ''; b.style.borderColor = armed ? '#ef4444' : '';
+    });
+}
 document.querySelectorAll('button[data-cal]').forEach(b => b.addEventListener('click', async () => {
     const which = b.dataset.cal;
-    if (which === 'reset') {
-        await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reset_calibration: true }) });
-        $('settings-msg').textContent = 'Calibration cleared.';
-    } else {
-        await fetch('/api/calibrate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ which }) });
-        $('settings-msg').textContent = `Marked as ${which} (needs the bottle connected and upright).`;
+    clearTimeout(calTimer);
+    if (calArmed !== which) {
+        calArmed = which; paintCal();
+        calTimer = setTimeout(() => { calArmed = null; paintCal(); }, 5000);
+        return;
     }
-    setTimeout(() => { $('settings-msg').textContent = ''; }, 4000);
+    calArmed = null; paintCal();
+    await fetch('/api/calibrate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ which }) });
+    $('settings-msg').textContent = `Told the bottle it's ${which}: "In the bottle" now shows ${which === 'full' ? '100%' : '0%'}.`;
+    setTimeout(() => { $('settings-msg').textContent = ''; }, 6000);
 }));
 
 // ---------- tap-a-tile trends (hydration is slow: hours and days) ----------
@@ -179,7 +294,7 @@ const trends = createTileTrends({
 (async () => {
     try { settings = await (await fetch('/api/settings')).json(); } catch (e) {}
     units = settings.units || 'ml';
-    fillSettingsForm(); applyUnits();
+    fillSettingsForm(); fillGlowForm(); fillGlowStyle(); applyUnits();
     poll(); setInterval(poll, 1000);
     setInterval(loadSummary, 5000);
     setInterval(() => { if (lastSipSeen) $('last-ago').textContent = ago(lastSipSeen); }, 30000);

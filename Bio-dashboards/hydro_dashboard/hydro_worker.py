@@ -28,23 +28,47 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 DEVICES_FILE = os.path.join(LOGS_DIR, "devices.json")
 COMMAND_FILE = os.path.join(LOGS_DIR, "command.json")
 STATUS_FILE = os.path.join(LOGS_DIR, "status.json")
-SETTINGS_FILE = os.path.join(BASE_DIR, "hydro_settings.json")
+def _settings_path():
+    """Settings live outside the dashboard folder, so replacing the folder with a new release
+    keeps the goal, reminders and the bottle's calibration. An old in-folder file is adopted once."""
+    d = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "bio-dash")
+    new, old = os.path.join(d, "hydro_settings.json"), os.path.join(BASE_DIR, "hydro_settings.json")
+    try:
+        os.makedirs(d, exist_ok=True)
+        if not os.path.exists(new) and os.path.exists(old):
+            with open(old, "rb") as src, open(new, "wb") as dst:
+                dst.write(src.read())
+    except OSError:
+        return old
+    return new
 
-radio_pin = bt_debug.RadioPin(os.path.join(BASE_DIR, "radio_config.json"), prefer="internal")
+
+SETTINGS_FILE = _settings_path()
+
+radio_pin = bt_debug.RadioPin(os.path.join(BASE_DIR, "radio_config.json"), prefer="internal")   # same default as the other dashboards; pick a dongle in the debug menu if the built-in radio can't hear the bottle (see TROUBLESHOOTING 12)
 last_device = bt_debug.LastDevice(os.path.join(BASE_DIR, "last_device.json"))
 
 CONNECT_ATTEMPTS = 3
+CONNECT_TIMEOUT_S = 45.0
 LOOKUP_TIMEOUT_S = 15.0      # per attempt: how long to wait for the bottle to advertise
 STATUS_ROW_EVERY_S = 5
 REDRAIN_EVERY_S = 30          # ask for buffered sips periodically, in case live ones only queue
-DEFAULT_SETTINGS = {"capacity_ml": 621, "goal_ml": 2500, "units": "ml",
-                    "weight_full_raw": None, "weight_empty_raw": None, "weight_scale_ml": 1.0}
+# capacity_auto: take the capacity the bottle reports (turned off when you type your own).
+# cal_min / cal_max: the bottle's own empty / full weights, remembered from its last sip record.
+# reminders: the glow-reminder schedule sent to the bottle. goal_glow: glow when the goal is
+# reached. sip_glow: glow on each sip (None = leave the bottle as it is).
+DEFAULT_SETTINGS = {"capacity_ml": 621, "capacity_auto": True, "goal_ml": 2500, "units": "ml",
+                    "cal_min": None, "cal_max": None, "cal_at": None,
+                    "reminders": dict(hp.DEFAULT_REMINDERS), "goal_glow": True, "sip_glow": None,
+                    "glow": {"style": "pulse", "color1": "#2bff00", "color2": "#1499ff"}}
+# BIODASH_HYDRO_DRAIN=fast forces the V3.0 way of draining (one 0x57 per record, no acknowledge)
+DRAIN_OVERRIDE = os.environ.get("BIODASH_HYDRO_DRAIN", "").strip().lower()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
 SESSION_STREAMS = {
     "sips":   ["Timestamp_Epoch_ms", "Volume_ml", "Pct", "Total_Reported", "Source", "Layout", "Raw",
-               "Weight_before", "Weight_after"],
+               "Weight_before", "Weight_after", "Cal_min", "Cal_max", "Volume_from"],
     "status": ["Timestamp_Epoch_ms", "Fill_ml", "Fill_pct", "Weight_raw", "Weight_stable_raw", "Battery_pct", "Cap"],
     "events": ["Timestamp_Epoch_ms", "Event", "Detail"],
     "raw":    ["Timestamp_Epoch_ms", "Characteristic", "Hex"],
@@ -107,10 +131,12 @@ def reset_session_state():
     global weight, refills
     live.clear()
     live.update(fill_ml=None, fill_pct=None, weight_raw=None, weight_stable=None, battery=None,
-                cap_open=None, last_sip=None, serial=None, firmware=None, last_notify_at=None)
+                cap_open=None, last_sip=None, serial=None, firmware=None, last_notify_at=None,
+                fill_from=None, capacity_from=None, can_glow=None, synced_at=None, reminders_set=None, can_upload_glow=None, hardware=None, glow_upload=None, family=None, drain_mode=None, cal_min=None, cal_max=None)
     counters.clear()
     counters.update(notifications=0, sip_frames=0, sips_live=0, sips_replayed=0, duplicates=0,
-                    unknown_frames=0, drain_writes=0, drain_paused=0, skipped_records=0, refills=0, link_failures=counters.get("link_failures", 0))
+                    unknown_frames=0, drain_writes=0, drain_acks=0, drain_paused=0, drain_fallback=0, skipped_records=0,
+                    weight_out_of_band=0, refills=0, link_failures=counters.get("link_failures", 0))
     meters.clear()
     meters.update({k: bt_debug.RateMeter(window=30) for k in ("notifications", "weight")})
     debug["last_frames"] = {}
@@ -132,6 +158,45 @@ def event(name, detail=""):
     session.writerows("events", [[int(time.time() * 1000), name, detail]])
     session.flush("events")
     logging.info(f"event: {name} {detail}")
+
+
+def today_total_ml():
+    """Today's intake so far, from the sip log (all sessions, replays de-duplicated)."""
+    start = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
+    seen, total = hp.SipDeduper(volume_tol=dedupe.volume_tol), 0
+    for path in bt_debug.latest_session_files("HidrateSpark", "sips", limit=20):
+        try:
+            with open(path) as f:
+                next(f, None)
+                for line in f:
+                    p = line.split(",")
+                    ts, ml = int(p[0]) / 1000, int(float(p[1]))
+                    if ts >= start and seen.is_new(ts, ml):
+                        total += ml
+        except Exception:
+            continue
+    return total
+
+
+def calibration_from_log():
+    """The bottle's empty / full weights from the newest sip record on disk that has them."""
+    best = None
+    for path in bt_debug.latest_session_files("HidrateSpark", "sips", limit=20):
+        try:
+            with open(path) as f:
+                head = next(f, "").strip().split(",")
+                lo, hi = head.index("Cal_min"), head.index("Cal_max")
+                for line in f:
+                    p = line.rstrip("\n").split(",")
+                    try:
+                        ts, cal = int(p[0]), (int(p[lo]), int(p[hi]))
+                    except (ValueError, IndexError):
+                        continue
+                    if hp.valid_calibration(*cal) and (best is None or ts > best[0]):
+                        best = (ts, cal)
+        except Exception:
+            continue
+    return best[1] if best else None
 
 
 def seed_dedupe_from_today():
@@ -159,24 +224,137 @@ def seed_dedupe_from_today():
 class Session:
     """Everything that needs the connected client."""
 
-    def __init__(self, client, sip_char):
+    def __init__(self, client, sip_char, drain_mode="fast"):
         self.client = client
         self.sip_char = sip_char
         self.connected_at = time.time()
         self.last_frame_hex = None
         self.frame_repeat = 0
         self.drain_task = None
-        self.drainer = hp.Drainer(self._write_drain)
+        self.drainer = hp.Drainer(self._write_sip_char, mode=drain_mode)
         self.last_remaining = 0
+        self.newest_sip_ts = 0.0
+        self.has_led = False
+        self.can_upload = False
+        self.glow_data_response = True
+        self.synced_day = None
 
-    async def _write_drain(self):
-        await self.client.write_gatt_char(self.sip_char, hp.DRAIN, response=True)
-        counters["drain_writes"] += 1
+    async def _write_sip_char(self, payload):
+        await self.client.write_gatt_char(self.sip_char, payload, response=True)
+        counters["drain_acks" if payload == hp.ACK else "drain_writes"] += 1
 
-    async def drain(self):
-        """One request at a time (each 0x57 acknowledges a record -- overlapping requests skip one)."""
+    async def drain(self, ack=False):
+        """One request at a time (overlapping requests skip records). ack=True: acknowledge the
+        record just received first (bottles that need it -- see hp.drain_mode_for)."""
         if self.sip_char:
-            await self.drainer.request()
+            await self.drainer.request(ack=ack, pending=self.last_remaining > 0)
+            if self.drainer.fell_back and not counters["drain_fallback"]:
+                counters["drain_fallback"] = 1
+                event("drain_fallback", "acknowledged draining got no answer -- using the fast (0x57) mode for this connection")
+            live["drain_mode"] = self.drainer.mode
+
+    async def sync(self, why="connect"):
+        """Bring the bottle in step: today's total, goal, clock, glow settings and the reminder
+        schedule. Returns True when every write went through."""
+        settings = load_settings()
+        lt = time.localtime()
+        writes = hp.build_sync(settings, live.get("firmware"), today_total_ml(),
+                               lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec)
+        try:
+            for uuid, payload in writes:
+                await self.client.write_gatt_char(uuid, payload, response=True)
+                await asyncio.sleep(hp.HANDSHAKE_INTERVAL_S)
+        except Exception as e:
+            debug["handshake"] = f"failed: {e!r}"
+            event("sync_failed", repr(e))
+            return False
+        n = len(hp.reminder_times(settings.get("reminders")))
+        live["synced_at"], live["reminders_set"] = time.time(), min(n, hp.reminder_slots(live.get("firmware")))
+        self.synced_day = lt.tm_yday
+        debug["handshake"] = "complete"
+        if why != "connect":
+            event("sync", f"{why}: {live['reminders_set']} reminder(s), clock and goal sent")
+        return True
+
+    async def glow_now(self):
+        if not self.has_led:
+            event("glow_failed", "this bottle doesn't expose the LED control characteristic")
+            return
+        try:
+            await self.client.write_gatt_char(hp.CHAR_LED, hp.glow_now_bytes(live.get("firmware")), response=True)
+            event("glow", "glow now")
+        except Exception as e:
+            event("glow_failed", repr(e))
+
+    async def upload_glow(self):
+        """Send the glow chosen in the dashboard to the bottle (it keeps it), then play it once."""
+        if not self.can_upload:
+            event("glow_upload_failed", "this bottle doesn't take custom glows")
+            return
+        g = {**DEFAULT_SETTINGS["glow"], **(load_settings().get("glow") or {})}
+        try:
+            pattern = hp.glow_pattern(g["style"], [g["color1"], g["color2"]], hp.led_count(live.get("hardware")))
+            count, packets = hp.glow_packets(hp.encode_glow_pattern(pattern))
+            live["glow_upload"] = {"state": "sending", "packets": len(packets), "at": time.time()}
+            await self.client.write_gatt_char(hp.CHAR_GLOW_COUNT, count, response=True)
+            for chunk in packets:
+                await self.client.write_gatt_char(hp.CHAR_GLOW_DATA, chunk, response=self.glow_data_response)
+                if not self.glow_data_response:
+                    await asyncio.sleep(0.03)
+            live["glow_upload"] = {"state": "done", "packets": len(packets), "at": time.time(), "style": g["style"]}
+            event("glow_upload", f"{g['style']} {g['color1']} {g['color2']}: {len(packets)} packets")
+        except Exception as e:
+            live["glow_upload"] = {"state": "failed", "error": repr(e)[:160], "at": time.time()}
+            event("glow_upload_failed", repr(e))
+            return
+        await asyncio.sleep(0.3)
+        await self.glow_now()
+
+    def set_calibration(self, cal_min, cal_max):
+        """The bottle's own empty / full weights, from a sip record. Remembered across restarts."""
+        if not hp.valid_calibration(cal_min, cal_max):
+            return
+        if (live["cal_min"], live["cal_max"]) != (cal_min, cal_max):
+            first = live["cal_min"] is None
+            live["cal_min"], live["cal_max"] = cal_min, cal_max
+            settings = load_settings()
+            if (settings.get("cal_min"), settings.get("cal_max")) != (cal_min, cal_max):
+                settings.update(cal_min=cal_min, cal_max=cal_max, cal_at=int(time.time()))
+                save_settings(settings)
+                event("calibration" if first else "calibration_changed", f"empty {cal_min} / full {cal_max}")
+
+    def set_fill(self, raw, source):
+        fill_ml, fill_pct = hp.fill_from_calibration(raw, live["cal_min"], live["cal_max"], load_settings()["capacity_ml"])
+        if fill_ml is not None:
+            live["fill_ml"], live["fill_pct"], live["fill_from"] = fill_ml, fill_pct, source
+
+    async def calibrate(self, which):
+        """Tell the bottle to redo its own calibration: "this is full" / "this is empty"."""
+        if which == "full":
+            payload = hp.CAL_FULL
+        else:
+            major = hp.firmware_major(live.get("firmware"))
+            payload = hp.CAL_EMPTY if major is None or major >= 50 else hp.CAL_EMPTY_OLD
+        try:
+            await self.client.write_gatt_char(hp.CHAR_DEBUG, payload, response=True)
+            event(f"calibrate_{which}", f"sent {payload.hex()} -- the bottle confirms its new value with the next sip record")
+            self.assume_calibrated(which)
+        except Exception as e:
+            event("calibrate_failed", f"{which}: {e!r}")
+
+    def assume_calibrated(self, which):
+        """Show the result of "it's full / empty now" straight away. The bottle takes its current
+        weight as the new full / empty point but only reports that with its next sip record, so
+        until then use the settled weight we last saw. Kept for this session only: what is
+        remembered across restarts is always the bottle's own figure."""
+        w = live.get("weight_stable") or live.get("weight_raw")
+        cap = load_settings()["capacity_ml"]
+        if w is not None:
+            lo, hi = (live["cal_min"], w) if which == "full" else (w, live["cal_max"])
+            if hp.valid_calibration(lo, hi):
+                live["cal_min"], live["cal_max"] = lo, hi
+        live["fill_ml"], live["fill_pct"] = (cap, 100) if which == "full" else (0, 0)
+        live["fill_from"] = f"you said it's {which}"
 
     def on_notify(self, uuid, data):
         now = time.time()
@@ -213,7 +391,9 @@ class Session:
             if self.frame_repeat >= hp.MAX_IDENTICAL_FRAMES:
                 counters["drain_paused"] += 1          # the bottle isn't advancing; don't write-loop
             else:
-                asyncio.get_running_loop().create_task(self.drain())
+                # a full record gets acknowledged before the next is requested; a bare
+                # "more waiting" frame is just asked again
+                asyncio.get_running_loop().create_task(self.drain(ack=r["kind"] in ("sip", "unknown")))
         else:
             self.last_frame_hex, self.frame_repeat = None, 0
         if r["kind"] == "unknown":
@@ -221,6 +401,13 @@ class Session:
             return
         if r["kind"] != "sip":
             return
+        self.set_calibration(r.get("cal_min"), r.get("cal_max"))
+        # the newest record's "weight after" is the level right now, unless a settled live
+        # reading has arrived since
+        if r["ts"] >= self.newest_sip_ts and r.get("weight_after"):
+            self.newest_sip_ts = r["ts"]
+            if weight.stable_at is None or weight.stable_at < r["ts"] or live["fill_from"] != "live weight":
+                self.set_fill(r["weight_after"], "last sip record")
         if not dedupe.is_new(r["ts"], r["volume_ml"]):
             counters["duplicates"] += 1
             return
@@ -228,15 +415,13 @@ class Session:
         counters["sips_" + source] += 1
         session.writerows("sips", [[int(r["ts"] * 1000), r["volume_ml"], r["pct"] if r["pct"] is not None else "",
                                     r["total_reported"], source, r["layout"], data.hex(),
-                                    r.get("weight_before", ""), r.get("weight_after", "")]])
+                                    r.get("weight_before", ""), r.get("weight_after", ""),
+                                    r.get("cal_min") or "", r.get("cal_max") or "", r.get("volume_source", "")]])
         session.flush("sips")
         if live["last_sip"] is None or r["ts"] >= live["last_sip"]["ts"]:
             live["last_sip"] = {"ts": r["ts"], "ml": r["volume_ml"]}
-        # without a weight-based fill yet, estimate by subtracting live sips
-        if source == "live" and live["fill_ml"] is not None and settings.get("weight_full_raw") is None:
-            live["fill_ml"] = max(0, live["fill_ml"] - r["volume_ml"])
-            live["fill_pct"] = round(100 * live["fill_ml"] / settings["capacity_ml"])
-        logging.info(f"sip {r['volume_ml']} ml ({source}, {r['layout']} layout, {r['remaining'] - 1} more queued)")
+        logging.info(f"sip {r['volume_ml']} ml ({source}, {r['layout']} layout, from {r.get('volume_source', 'record')}, "
+                     f"{r['remaining'] - 1} more queued)")
 
     def on_cap(self, data, now):
         is_open = hp.parse_cap(data)
@@ -256,17 +441,17 @@ class Session:
         if stable is None:
             return
         live["weight_stable"] = stable
-        settings = load_settings()
         ev = refills.on_stable(stable, now)
         if ev:
             counters["refills"] += 1
             event("refill", f"weight {ev['pre']} -> {ev['post']} (+{ev['rise']})")
-            if settings.get("weight_empty_raw") is None:
-                settings["weight_full_raw"] = ev["post"]       # latch "full" on a refill (no empty anchor yet)
-                save_settings(settings)
-        fill_ml, fill_pct = hp.fill_from_weight(stable, settings)
-        if fill_ml is not None:
-            live["fill_ml"], live["fill_pct"] = fill_ml, fill_pct
+        # fill level from the settled live weight and the bottle's own calibration -- but only
+        # when the reading is on the calibration's scale (a tilted or lifted bottle isn't)
+        if live["cal_min"] is not None:
+            if hp.weight_in_band(stable, live["cal_min"], live["cal_max"]):
+                self.set_fill(stable, "live weight")
+            else:
+                counters["weight_out_of_band"] += 1
 
 
 def read_command():
@@ -281,23 +466,21 @@ def read_command():
         return None
 
 
-def handle_command(cmd):
-    """Commands that apply while connected (calibration)."""
-    if not cmd or cmd.get("action") != "calibrate":
+async def handle_command(cmd, sess):
+    """Commands that apply while connected: bottle calibration, glow now, re-sync."""
+    if not cmd:
         return cmd
-    which = cmd.get("which")
-    if which not in ("full", "empty"):
-        return None
-    if weight.stable is None:
-        event("calibrate_failed", f"{which}: no settled weight yet -- stand the bottle upright for a few seconds")
-        return None
-    settings = load_settings()
-    settings[f"weight_{which}_raw"] = weight.stable
-    save_settings(settings)
-    event(f"calibrate_{which}", f"weight {weight.stable}")
-    fill_ml, fill_pct = hp.fill_from_weight(weight.stable, settings)
-    if fill_ml is not None:
-        live["fill_ml"], live["fill_pct"] = fill_ml, fill_pct
+    action = cmd.get("action")
+    if action == "calibrate" and cmd.get("which") in ("full", "empty"):
+        await sess.calibrate(cmd["which"])
+    elif action == "glow":
+        await sess.glow_now()
+    elif action == "glow_pattern":
+        await sess.upload_glow()
+    elif action == "sync":
+        await sess.sync("settings changed")
+    else:
+        return cmd
     return None
 
 
@@ -372,7 +555,9 @@ def _read_devices():
 # One connected session
 # ---------------------------------------------------------------------------
 async def run_session(device, on_connected=None):
-    async with BleakClient(device, **bt_debug.bluez_args(radio_hci)) as client:
+    # timeout: connecting includes reading the service list, which is slow the first time at a
+    # new address (the puck changes address when it restarts) and on older dongles
+    async with BleakClient(device, timeout=CONNECT_TIMEOUT_S, **bt_debug.bluez_args(radio_hci)) as client:
         if on_connected:
             await on_connected()
         reset_session_state()
@@ -390,12 +575,17 @@ async def run_session(device, on_connected=None):
                 chars[ch.uuid.lower()] = ch
                 debug["gatt"].append({"service": svc.uuid, "char": ch.uuid, "props": list(ch.properties),
                                       "known": hp.KNOWN_CHARS.get(ch.uuid.lower())})
+        if not chars:
+            # The link came up but reading the service list failed. The bottle has been seen
+            # to stop answering part-way through that read; fail this attempt so it's retried
+            # instead of sitting "connected" with nothing to talk to.
+            raise RuntimeError("connected, but the bottle's service list came back empty -- "
+                               "it stopped answering part-way through")
         sip_char = hp.CHAR_USER_DATA if hp.CHAR_USER_DATA in chars else hp.CHAR_DATA_POINT
         if sip_char not in chars:
             event("protocol_mismatch", "no sip-record characteristic -- capture only (see the debug panel)")
             sip_char = None
         debug["sip_char"] = sip_char
-        sess = Session(client, sip_char)
 
         for uuid, field in ((hp.CHAR_SERIAL, "serial"), (hp.CHAR_FIRMWARE, "firmware"), (hp.CHAR_BATTERY, None)):
             if uuid in chars and "read" in chars[uuid].properties:
@@ -408,6 +598,38 @@ async def run_session(device, on_connected=None):
                 except Exception:
                     pass
 
+        # What kind of bottle this is decides how stored records are drained
+        live["family"] = hp.bottle_family(live.get("firmware"))
+        drain_mode = "fast" if DRAIN_OVERRIDE == "fast" else hp.drain_mode_for(live.get("firmware"))
+        live["drain_mode"] = drain_mode
+        sess = Session(client, sip_char, drain_mode)
+
+        # Capacity straight from the bottle (unless you typed your own)
+        settings = load_settings()
+        if hp.CHAR_BOTTLE_SIZE in chars and "read" in chars[hp.CHAR_BOTTLE_SIZE].properties:
+            try:
+                size = hp.parse_bottle_size(await client.read_gatt_char(hp.CHAR_BOTTLE_SIZE))
+            except Exception:
+                size = None
+            if size:
+                live["capacity_bottle"] = size
+                if settings.get("capacity_auto", True) and settings.get("capacity_ml") != size:
+                    settings["capacity_ml"] = size
+                    save_settings(settings)
+                    event("capacity", f"{size} mL (read from the bottle)")
+        live["capacity_from"] = "bottle" if live.get("capacity_bottle") and settings.get("capacity_auto", True) else "settings"
+        # The calibration remembered from the last session, until this session's first record
+        if hp.valid_calibration(settings.get("cal_min"), settings.get("cal_max")):
+            live["cal_min"], live["cal_max"] = settings["cal_min"], settings["cal_max"]
+        else:
+            # none saved here (new machine, recordings copied over): the sip log has it
+            cal = calibration_from_log()
+            if cal:
+                live["cal_min"], live["cal_max"] = cal
+                event("calibration", f"empty {cal[0]} / full {cal[1]} (from the sip log)")
+        # a sip first logged from the whole-percent byte may be replayed with a weight-based volume
+        dedupe.volume_tol = round(settings["capacity_ml"] * 0.012) + 2
+
         # Subscribe to every notify/indicate characteristic (known ones are decoded, all are captured)
         for uuid, ch in chars.items():
             if {"notify", "indicate"} & set(ch.properties):
@@ -416,16 +638,18 @@ async def run_session(device, on_connected=None):
                 except Exception as e:
                     logging.debug(f"notify {uuid} failed: {e!r}")
 
-        # Handshake (only if this bottle has the characteristics it targets)
+        # Sync (only if this bottle has the characteristics it targets): total, goal, clock,
+        # glow settings and reminders. The bottle sends no sip records before it.
+        sess.has_led = hp.CHAR_LED in chars
+        live["can_glow"] = sess.has_led
+        sess.can_upload = hp.CHAR_GLOW_COUNT in chars and hp.CHAR_GLOW_DATA in chars
+        sess.glow_data_response = sess.can_upload and "write" in chars[hp.CHAR_GLOW_DATA].properties
+        live["can_upload_glow"] = sess.can_upload
+        if hp.CHAR_HARDWARE in chars and "read" in chars[hp.CHAR_HARDWARE].properties:
+            with contextlib.suppress(Exception):
+                live["hardware"] = bytes(await client.read_gatt_char(hp.CHAR_HARDWARE)).decode("utf-8", "replace").strip("\x00 ")
         if hp.CHAR_SET_POINT in chars and hp.CHAR_DEBUG in chars:
-            try:
-                for uuid, payload in hp.HANDSHAKE:
-                    await client.write_gatt_char(uuid, bytes.fromhex(payload), response=True)
-                    await asyncio.sleep(hp.HANDSHAKE_INTERVAL_S)
-                debug["handshake"] = "complete"
-            except Exception as e:
-                debug["handshake"] = f"failed: {e!r}"
-                event("handshake_failed", repr(e))
+            await sess.sync()
         else:
             debug["handshake"] = "skipped (characteristics not found)"
         if sip_char:
@@ -441,7 +665,10 @@ async def run_session(device, on_connected=None):
         while client.is_connected:
             await asyncio.sleep(1)
             now = time.time()
-            handle_command(read_command())
+            await handle_command(read_command(), sess)
+            # a new day: the total and the clock need sending again
+            if sess.synced_day is not None and time.localtime().tm_yday != sess.synced_day and sess.drainer.idle(now):
+                await sess.sync("new day")
             if now >= next_status_row:
                 next_status_row = now + STATUS_ROW_EVERY_S
                 cap = "" if live["cap_open"] is None else ("open" if live["cap_open"] else "closed")

@@ -25,7 +25,7 @@ Live browser dashboards for BLE biometric and environmental sensors, built for L
 The easiest setup is an isolated virtual environment, which keeps these packages separate from anything else installed on the machine:
 
 ```bash
-./setup_env.sh                     # creates .venv/ with all four dashboards' packages
+./setup_env.sh                     # creates .venv/ with all five dashboards' packages
 ./setup_env.sh polar_dashboard     # or just one dashboard
 ./setup_env.sh --fresh             # wipe and rebuild
 ```
@@ -44,7 +44,7 @@ Or install system-wide instead: `pip3 install -r requirements.txt`.
 polar_dashboard/run_dashboard.sh    # or one dashboard on its own
 ```
 
-Every dashboard has its own port (**Omni 5000 · Polar 5001 · Atmos 5002 · Viatom 5003 · Hydro 5004**), and the sidebar links to the others, with a green dot for each one that's running.
+Every dashboard has its own port (**Omni 5000 · Polar 5001 · Atmos 5002 · Viatom 5003 · Hydro 5004**), and the sidebar links to the others that are running (a dashboard that isn't running isn't listed; it appears within about 10 seconds of starting).
 
 1. Wake the device. The H10 needs wet electrodes. The O2 Ultra only advertises while it's powered on and measuring.
 2. Pick it from the scanner panel and click **Connect**.
@@ -86,10 +86,10 @@ The dashboards don't need internet access. Every library is included under each 
 
 | Library | Version | Used by |
 |---|---|---|
-| Chart.js | 3.9.1 | All four |
-| Luxon + chartjs-adapter-luxon | 3.0.1 / 1.2.0 | All four |
-| chartjs-plugin-streaming | 2.0.0 | All four |
-| Tailwind CSS (compiled, not the play CDN) | 3.4 | All four |
+| Chart.js | 3.9.1 | All five |
+| Luxon + chartjs-adapter-luxon | 3.0.1 / 1.2.0 | All five |
+| chartjs-plugin-streaming | 2.0.0 | All five |
+| Tailwind CSS (compiled, not the play CDN) | 3.4 | All five |
 
 To re-download them, or after changing a version in the script:
 
@@ -186,10 +186,10 @@ Profile changes apply within a second, with no reconnect, and are saved to `atmo
 
 ### Hydro-dash (HidrateSpark)
 
-> 🧪 **Still being tested.** Hydro-dash is new in V3.0 and has been run on one HidrateSpark PRO 2
-> so far. Connecting, live and replayed sips and battery work; **fill-level calibration, bottle
-> capacity and long-session behaviour are still being checked**, so treat fill level and totals as
-> provisional. Other bottle models are untested.
+> 🧪 **Still being tested.** Hydro-dash has been run on one HidrateSpark PRO 2 so far. Working on
+> that bottle: connecting, live and replayed sips, battery, and new in V3.1 the fill level from the
+> bottle's own calibration, bottle size read from the bottle, and glow. **Still being confirmed:**
+> reminders. Other bottle models are untested.
 
 ![Hydro-dash](docs/hydro_dashboard.png)
 
@@ -199,7 +199,24 @@ sensor, refills and battery, with hour and 7-day charts and day-scale tile trend
 
 - **The bottle allows one connection at a time:** if the HidrateSpark app is on a nearby phone,
   force-quit it while the dashboard is in use.
+- **Bluetooth catch: the radio matters.** A laptop's built-in radio often can't hear the bottle. An
+  old (Bluetooth 4.0) USB dongle hears it instantly but then shows "connected" with no data, because
+  the bottle never sends its large replies over it; capping the message size fixes that
+  (`ExchangeMTU = 64` under `[GATT]` in `/etc/bluetooth/main.conf`, then restart bluetooth; it
+  applies to every device on the computer). See the
+  [radio diagram](docs/ARCHITECTURE.md#7-hydro-dash-which-bluetooth-radio) and
+  `hydro_dashboard/TROUBLESHOOTING.md`.
 - **Totals come from the sip log** (`_sips.csv`), so they survive restarts.
+- **Glow and reminders:** *Glow now* lights the bottle on demand. Choose a glow **style** (pulse,
+  spin, flash, solid, rainbow) and **two colours**, previewed as the LED ring, and send it to the
+  bottle; it keeps that glow for *Glow now* and for reminders. The reminder schedule (from / to,
+  every N minutes, only when you're behind on your goal or every time, with or without sound), glow
+  on reaching the goal and glow on each sip are sent to the bottle, which runs them itself, so
+  they keep working with the dashboard closed. The bottle's clock, goal and today's total are set
+  on every connect.
+- **No calibration step:** the bottle stores its own "empty" and "full" weights and sends them with
+  every sip record; the fill level and each sip's volume are computed from those. The bottle size is read
+  from the bottle too, or picked from a list of the sizes sold.
 - **PRO 2:** verified on a real bottle (sips, replayed sips, battery, weight). The debug panel lists
   every characteristic with its last raw frame and every notification is saved to `_raw.csv`.
   Details: `hydro_dashboard/README.md`, `hydro_dashboard/PROTOCOL.md` and
@@ -229,7 +246,7 @@ Tap any reading tile to open a live line graph of it under the tiles, with a 1 /
 
 The Polar H10 keeps its radio on a tight connection schedule while streaming, which can starve other Bluetooth links on the same radio. With two radios (e.g. the built-in card plus a USB dongle), give the H10 one to itself:
 
-- **Auto (default):** the Polar dashboard prefers an **external** radio, and Viatom and Atmos prefer an **internal** one. Run them side by side and they split correctly however the radios were numbered. With a single radio, everything uses the system default.
+- **Auto (default):** the Polar and Hydro dashboards prefer an **external** radio (a USB dongle hears the bottle far more reliably than a laptop's shared Wi-Fi / Bluetooth card), and Viatom and Atmos prefer an **internal** one. Run them side by side and they split correctly however the radios were numbered. With a single radio, everything uses the system default.
 - **Pinning:** set it in each dashboard's debug panel (**D**), under **Radio for this dashboard**. The choice is saved to that dashboard's `radio_config.json` **by adapter address**, so hci renumbering doesn't matter. A pinned radio that's unplugged falls back to auto. It applies on the next scan; a live connection isn't dropped.
 
 ### Omni radio routing
@@ -312,7 +329,7 @@ Run dashboards in the background, optionally from boot, without keeping a termin
 
 Everything that used to sit in the top bar lives in a sidebar, the same in every dashboard:
 
-- **Dashboards:** links to the other four in port order, with a green dot for each one that's running.
+- **Dashboards:** links to the others that are running, in port order. A dashboard that isn't running isn't listed.
 - **View:** the 🐞 debug panel (still **D**) and **☀ Keep screen on**.
 - **Updates** and **Power:** see the next two sections.
 
@@ -332,7 +349,7 @@ dashboard's title and its connection status.
 A patch never moves you to a new version, and each action needs a second tap to confirm.
 
 - **Needs a git clone**, not an unzipped copy: `git clone https://github.com/Meapy011/Bio-dash`
-  and run the dashboards from `Bio-dash/V3.0_Dashboard`.
+  and run the dashboards from the newest release folder (`Bio-dash/V3.1_Dashboard`).
 - **Only fast-forwards from the clone's own remote.** It refuses if tracked files were edited
   locally or the branch has diverged, and says which files; nothing of yours is overwritten.
 - **Recordings and settings are safe.** Recordings live in `Documents/Bio-dash`; saved settings

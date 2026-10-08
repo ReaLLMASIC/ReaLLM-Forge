@@ -91,18 +91,24 @@ const DebugPanel = (() => {
     }
 
     function renderProtocol(st, dbg) {
-        const c = dbg.counters || {};
+        const c = dbg.counters || {}, l = st.live || {};
         const hs = dbg.handshake || '—';
         const hsCls = hs === 'complete' ? 'text-emerald-400' : hs.startsWith('failed') ? 'text-red-400' : 'text-slate-400';
         const known = { '016e11b1-6c8a-4074-9e5a-076053f93784': '016e11b1… (PRO / PRO 2)', 'bf2d1ba1-c473-49f2-9571-0ce69036c642': 'modern (bf2d1ba1…)' };
         return section('Bottle Protocol',
-            row('Handshake', esc(hs), hsCls) +
+            row('Sync after connecting', esc(hs), hsCls) +
             row('Sip records via', dbg.sip_char ? esc(known[dbg.sip_char] || dbg.sip_char) : 'not found', dbg.sip_char ? 'text-slate-200' : 'text-amber-400') +
             row('Sip frames', esc(c.sip_frames ?? '—')) +
             row('Sips live / replayed', `${c.sips_live ?? '—'} / ${c.sips_replayed ?? '—'}`) +
             row('Duplicates dropped', esc(c.duplicates ?? '—'), 'text-slate-300') +
             row('Undecoded sip frames', esc(c.unknown_frames ?? '—'), c.unknown_frames ? 'text-amber-400' : 'text-emerald-400') +
-            row('Drain writes', esc(c.drain_writes ?? '—'), 'text-slate-300') +
+            row('Bottle family', esc(l.family ?? '—'), 'text-slate-300') +
+            row('Reminders on the bottle', l.reminders_set != null ? `${l.reminders_set} · synced ${Math.round(Date.now() / 1000 - l.synced_at)} s ago` : '—', 'text-slate-300') +
+            row('Glow control', l.can_glow == null ? '—' : l.can_glow ? 'available' : 'not offered', l.can_glow === false ? 'text-amber-400' : 'text-slate-300') +
+            row('Custom glow upload', l.can_upload_glow == null ? '—' : !l.can_upload_glow ? 'not offered' : l.glow_upload ? `${esc(l.glow_upload.state)}${l.glow_upload.packets ? ` · ${l.glow_upload.packets} packets` : ''}` : 'available', l.glow_upload && l.glow_upload.state === 'failed' ? 'text-amber-400' : 'text-slate-300') +
+            row('Hardware', esc(l.hardware ?? '—'), 'text-slate-300') +
+            row('Drain mode', l.drain_mode ? (l.drain_mode === 'ack' ? 'acknowledge + next' : 'fast') + (c.drain_fallback ? ' (fell back)' : '') : '—', c.drain_fallback ? 'text-amber-400' : 'text-slate-300') +
+            row('Drain requests / acks', `${esc(c.drain_writes ?? '—')} / ${esc(c.drain_acks ?? '—')}`, 'text-slate-300') +
             row('Skipped records', esc(c.skipped_records ?? '—'), c.skipped_records ? 'text-amber-400' : 'text-emerald-400') +
             row('Drain paused (stuck record)', esc(c.drain_paused ?? '—'), c.drain_paused ? 'text-amber-400' : 'text-emerald-400') +
             row('Link failures', esc(c.link_failures ?? '—'), c.link_failures ? 'text-amber-400' : 'text-emerald-400') +
@@ -113,11 +119,16 @@ const DebugPanel = (() => {
     function renderSensors(st) {
         const l = st.live || {}, s = st.settings || {}, r = (st.debug || {}).rates || {};
         const age = l.last_notify_at ? Date.now() / 1000 - l.last_notify_at : null;
-        const cal = s.weight_full_raw != null ? `full ${s.weight_full_raw}` + (s.weight_empty_raw != null ? ` · empty ${s.weight_empty_raw}` : '') : 'not calibrated';
+        const hasCal = l.cal_min != null && l.cal_max != null;
+        const cal = hasCal ? `${l.cal_min} / ${l.cal_max}` : 'waiting for a sip record';
+        const inBand = hasCal && l.weight_stable != null && l.weight_stable >= l.cal_min - (l.cal_max - l.cal_min) * 0.25 && l.weight_stable <= l.cal_max + (l.cal_max - l.cal_min) * 0.25;
         return section('Sensors',
             row('Weight raw / settled', `${esc(l.weight_raw)} / ${esc(l.weight_stable)}`) +
             row('Weight readings', r.weight != null ? `${r.weight}/s` : '—', 'text-slate-300') +
-            row('Calibration anchors', esc(cal), s.weight_full_raw != null ? 'text-slate-200' : 'text-amber-400') +
+            row('Bottle calibration empty / full', esc(cal), hasCal ? 'text-slate-200' : 'text-amber-400') +
+            row('Live weight on that scale', !hasCal || l.weight_stable == null ? '—' : inBand ? 'yes' : 'no', inBand ? 'text-emerald-400' : 'text-amber-400') +
+            row('Fill level from', esc(l.fill_from ?? '—'), 'text-slate-300') +
+            row('Capacity', `${esc(s.capacity_ml)} mL (${esc(l.capacity_from ?? 'settings')})`, 'text-slate-300') +
             row('Cap', l.cap_open == null ? '—' : l.cap_open ? 'open' : 'closed') +
             row('Battery', l.battery != null ? `${l.battery} %` : '—') +
             row('Serial / firmware', `${esc(l.serial)} / ${esc(l.firmware)}`, 'text-slate-300 text-xs') +

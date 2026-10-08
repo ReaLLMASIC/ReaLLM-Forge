@@ -5,6 +5,7 @@ from starlette.concurrency import run_in_threadpool
 import datetime
 import json
 import os
+import re
 import time
 
 import uvicorn
@@ -21,10 +22,30 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 STATUS_FILE = os.path.join(LOGS_DIR, "status.json")
 DEVICES_FILE = os.path.join(LOGS_DIR, "devices.json")
 COMMAND_FILE = os.path.join(LOGS_DIR, "command.json")
-SETTINGS_FILE = os.path.join(BASE_DIR, "hydro_settings.json")
+def _settings_path():
+    """Settings live outside the dashboard folder, so replacing the folder with a new release
+    keeps the goal, reminders and the bottle's calibration. An old in-folder file is adopted once."""
+    d = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "bio-dash")
+    new, old = os.path.join(d, "hydro_settings.json"), os.path.join(BASE_DIR, "hydro_settings.json")
+    try:
+        os.makedirs(d, exist_ok=True)
+        if not os.path.exists(new) and os.path.exists(old):
+            with open(old, "rb") as src, open(new, "wb") as dst:
+                dst.write(src.read())
+    except OSError:
+        return old
+    return new
+
+
+SETTINGS_FILE = _settings_path()
 DASH = "HidrateSpark"
-DEFAULT_SETTINGS = {"capacity_ml": 621, "goal_ml": 2500, "units": "ml",
-                    "weight_full_raw": None, "weight_empty_raw": None, "weight_scale_ml": 1.0}
+DEFAULT_SETTINGS = {"capacity_ml": 621, "capacity_auto": True, "goal_ml": 2500, "units": "ml",
+                    "cal_min": None, "cal_max": None, "cal_at": None,
+                    "reminders": {"enabled": True, "from": "08:00", "to": "22:00", "every_min": 60,
+                                  "always": False, "sound": False},
+                    "goal_glow": True, "sip_glow": None,
+                    "glow": {"style": "pulse", "color1": "#2bff00", "color2": "#1499ff"}}
+GLOW_STYLES = ("pulse", "spin", "flash", "solid", "rainbow")
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
@@ -222,7 +243,10 @@ class SettingsRequest(BaseModel):
     capacity_ml: int | None = None
     goal_ml: int | None = None
     units: str | None = None
-    reset_calibration: bool = False
+    capacity_auto: bool | None = None
+    reminders: dict | None = None
+    goal_glow: bool | None = None
+    sip_glow: str | None = None            # "on" / "off" / "leave"
 
 
 @app.get("/api/settings")
@@ -233,16 +257,64 @@ def get_settings():
 @app.post("/api/settings")
 def set_settings(req: SettingsRequest):
     s = settings()
-    if req.capacity_ml and 100 <= req.capacity_ml <= 3000:
+    if req.capacity_auto:                       # back to whatever the bottle reports on its next connect
+        s["capacity_auto"] = True
+    elif req.capacity_ml and 100 <= req.capacity_ml <= 3000:
         s["capacity_ml"] = req.capacity_ml
+        s["capacity_auto"] = False              # you picked a size: stop following the bottle
     if req.goal_ml and 250 <= req.goal_ml <= 8000:
         s["goal_ml"] = req.goal_ml
     if req.units in ("ml", "oz"):
         s["units"] = req.units
-    if req.reset_calibration:
-        s["weight_full_raw"] = s["weight_empty_raw"] = None
+    resync = bool(req.goal_ml or req.capacity_ml or req.capacity_auto)
+    if req.reminders is not None:
+        r = dict(DEFAULT_SETTINGS["reminders"], **(s.get("reminders") or {}))
+        for key in ("enabled", "always", "sound"):
+            if key in req.reminders:
+                r[key] = bool(req.reminders[key])
+        for key in ("from", "to"):
+            v = str(req.reminders.get(key, ""))
+            if re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
+                r[key] = v
+        try:
+            r["every_min"] = max(15, min(240, int(req.reminders.get("every_min", r["every_min"]))))
+        except (TypeError, ValueError):
+            pass
+        s["reminders"], resync = r, True
+    if req.goal_glow is not None:
+        s["goal_glow"], resync = req.goal_glow, True
+    if req.sip_glow in ("on", "off", "leave"):
+        s["sip_glow"], resync = {"on": True, "off": False, "leave": None}[req.sip_glow], True
     _write_json(SETTINGS_FILE, s)
+    if resync:
+        _command({"action": "sync"})       # picked up if the bottle is connected; otherwise sent at the next connect
     return s
+
+
+class GlowPatternRequest(BaseModel):
+    style: str
+    color1: str = "#2bff00"
+    color2: str = "#1499ff"
+
+
+@app.post("/api/glow/pattern")
+def glow_pattern(req: GlowPatternRequest):
+    """Save a glow style + colours and upload it to the bottle (needs the bottle connected)."""
+    ok_colour = lambda c: bool(re.fullmatch(r"#[0-9a-fA-F]{6}", c or ""))
+    if req.style not in GLOW_STYLES or not ok_colour(req.color1) or not ok_colour(req.color2):
+        return JSONResponse({"error": "style or colour not valid"}, status_code=400)
+    s = settings()
+    s["glow"] = {"style": req.style, "color1": req.color1.lower(), "color2": req.color2.lower()}
+    _write_json(SETTINGS_FILE, s)
+    _command({"action": "glow_pattern"})
+    return {"ok": True, "glow": s["glow"]}
+
+
+@app.post("/api/glow")
+def glow():
+    """Play the bottle's glow now (needs the bottle connected)."""
+    _command({"action": "glow"})
+    return {"ok": True}
 
 
 class CalibrateRequest(BaseModel):
