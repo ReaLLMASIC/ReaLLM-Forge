@@ -51,6 +51,29 @@ class GELUShifted(nn.Module):
         # Apply the shifted GELU activation
         return self.gelu(x - self.shift)
 
+class dSiLU(nn.Module):
+    """
+    Derivative of SiLU:
+    d/dx[x * sigmoid(x)] = sigmoid(x) * (1 + x * (1 - sigmoid(x)))
+    """
+    def __init__(self, config):
+        super().__init__()
+
+    def forward(self, x):
+        sig = torch.sigmoid(x)
+        return sig * (1 + x * (1 - sig))
+
+
+class Mish(nn.Module):
+    """
+    Mish activation: x * tanh(softplus(x)).
+    """
+    def __init__(self, config):
+        super().__init__()
+
+    def forward(self, x):
+        return x * torch.tanh(torch.nn.functional.softplus(x))
+
 
 class PiecewiseLearnableActivation(nn.Module):
     def __init__(self, config):
@@ -349,6 +372,7 @@ activation_dictionary = {
     "glu": GLU_Config,
     "leaky_relu": LeakyReLU_Config,
     "mish": Mish_Config,
+    "mish_custom": Mish,
     "piecewise": PiecewiseLearnableActivation,
     "pfla": PiecewiseFullyLearnableActivation,
     "pfla_le": PiecewiseFullyLearnableActivationLearnedEnds,
@@ -361,6 +385,7 @@ activation_dictionary = {
     "selu": SELU_Config,
     "sigmoid": Sigmoid_Config,
     "silu": SiLU_Config,
+    "dsilu": dSiLU,
     "softplus": Softplus_Config,
     "softsign": Softsign_Config,
     "softshrink": Softshrink_Config,

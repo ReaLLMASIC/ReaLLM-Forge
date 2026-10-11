@@ -1,0 +1,100 @@
+# all_activations_default_inf.yaml
+# Based on explorations/default_inf.yaml, but sweeps MLP activation variants.
+---
+
+named_static_groups:
+  # QK Norm
+  - named_group: "qk_norm"
+    use_qk_norm: [true]
+    use_qk_norm_scale: [true]
+
+  # Norm Type
+  - named_group: "peri_ln"
+    use_pre_ln: [true]
+    use_peri_ln: [true]
+    use_post_ln: [false]
+
+  # Position Embeddings
+  - named_group: "rotary"
+    use_rotary_embeddings: [true]
+    use_abs_pos_embeddings: [false]
+
+  # Attention Softmax
+  - named_group: "softmax"
+    softmax_variant_attn: ["softmax"]
+
+  # Infinite Attention
+  - named_group: "infinite"
+    attention_variant: ["infinite"]
+    use_concat_heads: [true]
+
+  # MQA
+  - named_group: "mqa"
+    n_kv_group: [1]
+
+  # Head Dimension
+  - named_group: "hd_100"
+    n_qk_head_dim: [100]
+    n_v_head_dim: [100]
+
+common_group:
+  dataset: ["minipile"]
+  eval_interval: [2500]
+  max_iters: [10000]
+  never_save_checkpoint: [true]
+  compile: [true]
+  log_rankme: [true]
+  log_areq: [true]
+
+  # Parameters needed by activation implementations that read config fields directly.
+  relu_power: [2.0]
+  shifted_gelu_learnable_shift: [true]
+  shifted_gelu_initial_shift: [0.0]
+  softshrink_lambda: [0.5]
+  pla_num_points: [7]
+  pla_left_bound: [-2.0]
+  pla_right_bound: [2.0]
+  pfla_num_points: [50]
+  pfla_left_bound: [-10.0]
+  pfla_right_bound: [10.0]
+  lsa_num_knots: [30]
+
+parameter_groups:
+  - named_group_static:
+      - "qk_norm"
+      - "peri_ln"
+      - "rotary"
+      - "softmax"
+      - "infinite"
+      - "mqa"
+      - "hd_100"
+    activation_variant:
+      - "celu"
+      - "elu"
+      - "gelu"
+      - "gelu_shifted"
+      - "glu"
+      - "leaky_relu"
+      - "learned_spline"
+      - "mish"
+      - "mish_custom"
+      - "piecewise"
+      - "pfla"
+      - "pfla_le"
+      - "prelu"
+      - "relu"
+      - "relu_power"
+      - "relu6"
+      - "rrelu"
+      - "disco"
+      - "selu"
+      - "sigmoid"
+      - "silu"
+      - "dsilu"
+      - "softplus"
+      - "softsign"
+      - "softshrink"
+      - "squared_relu"
+      - "squared_gelu"
+      - "tanh"
+      - "identity"
