@@ -88,3 +88,23 @@ timbre emulation.
 
 Many thanks to Srinivas Billa for sharing this approach, and shoutout to AbdulMajed for featuring and discussing the Audio-NanoGPT approach on the 1littlecoder podcast:
     * https://www.youtube.com/watch?v=sbz3w9nFV0E
+
+## Other related application
+
+We also provide a demo that trained on the same dataset which can generate texture-based audio output.
+
+## Usage
+
+**Step 1.**
+
+Train the model on the json file combined with snac tokens converted from Sherlock audio and corresponding transcriptions:
+```
+bash tts_train.sh
+```
+**Step 2.**
+
+Generated a mp3 output to test:
+```
+bash tts_demo.sh
+```
+The created mp3 should be called "out_audio.mp3"
