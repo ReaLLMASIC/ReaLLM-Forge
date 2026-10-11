@@ -3,6 +3,140 @@
 This folder includes scripts for training Gemma 270M from scratch, fine-tuning, and
 experimenting with LM head acceleration using Johnson-Lindenstrauss (JL) projection.
 
+## Experiment sequence (English → Spanish)
+
+`finetune.py` now supports the exact experiment structure below.
+
+If you want a single runnable walkthrough, use:
+
+```bash
+bash huggingface_model/gemma/270M/demo_gradual_blend_en_es.sh
+```
+
+That demo runs the gradual blend path and prints commented commands for the two baselines.
+
+### A) Gradual blend recipe (Softmax → ReLUMax/ReLU2Max + output norm blending)
+
+1. obtain checkpoint
+2. optional fine-tune with standard softmax
+3. gradual fine-tune with alpha schedule:
+   - attention: `alpha * softmax + (1-alpha) * relu_variant`
+   - output norms (post-attn + post-ffn): `alpha * output_norm + (1-alpha) * raw`
+   - alpha decreases from 1 → 0 and is clamped at 0, with optional `post_zero_steps`
+
+Example:
+
+```bash
+# Stage 1: stabilize on Softmax first
+python huggingface_model/gemma/270M/finetune.py \
+  --model_name google/gemma-3-270m \
+  --dataset_config en-es \
+  --source_lang en \
+  --target_lang es \
+  --source_lang_name English \
+  --target_lang_name Spanish \
+  --dataset_split "train[:10%]" \
+  --output_dir ./runs/gemma270_softmax_stage1 \
+  --total_iterations 20000 \
+  --sample_frequency 1000 \
+  --attention_mode softmax
+
+# Stage 2: switch activation and continue from Stage 1 checkpoint
+python huggingface_model/gemma/270M/finetune.py \
+  --model_name ./runs/gemma270_softmax_stage1 \
+  --dataset_config en-es \
+  --source_lang en \
+  --target_lang es \
+  --source_lang_name English \
+  --target_lang_name Spanish \
+  --dataset_split "train[:10%]" \
+  --output_dir ./runs/gemma270_relu2max_stage2 \
+  --total_iterations 10000 \
+  --sample_frequency 1000 \
+  --attention_mode gradual_blend \
+  --attention_activation relu2max \
+  --activation_divisor 256.0 \
+  --alpha_start 1.0 \
+  --alpha_end 0.0 \
+  --post_zero_steps 1000 \
+  --blend_output_norm
+```
+
+For `relumax`, only change:
+
+```bash
+--attention_activation relumax --activation_divisor 256.0
+```
+
+### B) Baseline recipe (Softmax only)
+
+1. obtain checkpoint
+2. fine-tune with standard softmax
+
+```bash
+python huggingface_model/gemma/270M/finetune.py \
+  --model_name google/gemma-3-270m \
+  --dataset_config en-es \
+  --output_dir ./runs/gemma270_softmax_only \
+  --total_iterations 20000 \
+  --sample_frequency 1000 \
+  --attention_mode softmax
+```
+
+### C) Sum baseline (Softmax + ReLU variant scores)
+
+1. obtain checkpoint
+2. fine-tune with summed attention probabilities/scores
+
+```bash
+python huggingface_model/gemma/270M/finetune.py \
+  --model_name google/gemma-3-270m \
+  --dataset_config en-es \
+  --output_dir ./runs/gemma270_sum_relu2max \
+  --total_iterations 20000 \
+  --sample_frequency 1000 \
+  --attention_mode sum \
+  --attention_activation relu2max \
+  --activation_divisor 256.0
+```
+
+### Important implementation note
+
+The activation swap is implemented by monkey-patching `torch.nn.functional.softmax`
+during training, so this is intended as a practical experiment path and not a
+production-safe kernel-level replacement.
+
+After each run, the script prints **multi-shot translation outputs for 3 fixed EN→ES
+test sentences** (`--print_multishot_after_train` defaults to true).
+
+## Plot validation loss per iteration (Softmax vs ReLUMax vs ReLU2Max)
+
+After running three stage-2 experiments (one each for softmax / relumax / relu2max),
+you can plot validation-loss curves from each run's `trainer_state.json`:
+
+```bash
+python huggingface_model/gemma/270M/plot_validation_loss.py \
+  --run "softmax=./runs/gemma270_softmax_stage2" \
+  --run "relumax=./runs/gemma270_relumax_stage2" \
+  --run "relu2max=./runs/gemma270_relu2max_stage2" \
+  --title "Gemma 270M EN→ES: validation loss per iteration" \
+  --output ./runs/gemma270_en_es_val_loss.png
+```
+
+## Benchmark EN→ES translation quality
+
+You can run a quick benchmark on a held-out slice with exact-match plus BLEU/chrF
+(if `sacrebleu` is installed):
+
+```bash
+python huggingface_model/gemma/270M/benchmark_en_es_translation.py \
+  --model_name ./runs/gemma270_relu2max_stage2 \
+  --dataset_config en-es \
+  --dataset_split "train[10%:11%]" \
+  --num_samples 200 \
+  --max_new_tokens 64
+```
+
 ## Loading a pre-trained checkpoint
 
 Use the Hugging Face model hub (or a local checkpoint directory) as the `model_name`:
