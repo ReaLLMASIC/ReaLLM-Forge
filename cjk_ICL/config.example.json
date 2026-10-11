@@ -1,0 +1,20 @@
+{
+  "data_dir": "cjk_translation",
+  "out_dir": "cjk_ICL/runs",
+  "selected_json": "cjk_translation/selected_base_checkpoints.json",
+  "families": ["tiktoken", "byte", "ipa"],
+  "model_variants": [],
+  "shot_counts": [0, 1],
+  "eval_splits": ["dev", "test"],
+  "benchmark": "benchmarks_easy.csv",
+  "max_examples": null,
+  "max_new_tokens": 128,
+  "temperature": 1.0,
+  "top_k": 1,
+  "device": "cuda",
+  "dtype": "bfloat16",
+  "seed": 1337,
+  "force": false,
+  "tiktoken_decode_mode": "text",
+  "drop_shots_over_block": true
+}

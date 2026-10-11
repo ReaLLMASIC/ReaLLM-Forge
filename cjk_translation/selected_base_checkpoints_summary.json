@@ -1,0 +1,50 @@
+{
+  "candidate_run_count": 180,
+  "grouping_method_counts": {
+    "internal_seed_segment": 9,
+    "trailing_seed_suffix": 27
+  },
+  "grouping_rule": "group within each out_* root by removing the seed/run index segment that forms a five-run group; supports both trailing -1..-5 and internal -1..-5- naming",
+  "outputs": {
+    "csv": "cjk_translation/selected_base_checkpoints.csv",
+    "json": "cjk_translation/selected_base_checkpoints.json"
+  },
+  "roots": [
+    "out_multidata_single",
+    "out_multidata_base",
+    "out_multidata_base_byte"
+  ],
+  "selected_by_tokenizer_family": {
+    "byte": 12,
+    "ipa": 12,
+    "tiktoken": 12
+  },
+  "selected_variation_count": 36,
+  "selection_metric": "lowest first value in best_val_loss_and_iter.txt within each inferred five-run variation group",
+  "skipped": [
+    {
+      "path": "out_multidata_base/multidata_base-one_hot_layer0-ipa_cckj-1-1-1_1-1-1-linear-multidataset-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True",
+      "reason": "missing_ckpt.pt+meta.pkl+best_val_loss_and_iter.txt"
+    },
+    {
+      "path": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-resume-ckpt.pt-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-1",
+      "reason": "missing_ckpt.pt+meta.pkl+best_val_loss_and_iter.txt"
+    },
+    {
+      "path": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-resume-ckpt.pt-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-2",
+      "reason": "missing_ckpt.pt+meta.pkl+best_val_loss_and_iter.txt"
+    },
+    {
+      "path": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-resume-ckpt.pt-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-3",
+      "reason": "missing_ckpt.pt+meta.pkl+best_val_loss_and_iter.txt"
+    },
+    {
+      "path": "out_multidata_base/multidata_base-one_hot_layer0-tiktoken_cckj-1-1-1_1-1-1-linear-base_batch_iters-multidataset-resume-ckpt.pt-True-6e-4-12-12-768-1024-True-False-True-True-True-True-100-1000-True-True-4",
+      "reason": "missing_ckpt.pt+meta.pkl+best_val_loss_and_iter.txt"
+    }
+  ],
+  "skipped_count": 5,
+  "variation_run_count_histogram": {
+    "5": 36
+  }
+}
