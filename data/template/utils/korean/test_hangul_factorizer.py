@@ -46,11 +46,11 @@ class TestHangulFactorizedTokenizer(unittest.TestCase):
         ids_nng = tok.encode_char("가", pos_tag="NNG")
         self.assertEqual(len(ids_nng), 24)
         pos_lane_idx = 23
-        self.assertEqual(tok.id_to_value[pos_lane_idx][ids_nng[pos_lane_idx]], "NNG")
+        self.assertEqual(tok.id_to_value[pos_lane_idx][ids_nng[pos_lane_idx]], "NOUN")
 
         ids_jks = tok.encode_char("가", pos_tag="JKS")
         self.assertEqual(len(ids_jks), 24)
-        self.assertEqual(tok.id_to_value[pos_lane_idx][ids_jks[pos_lane_idx]], "JKS")
+        self.assertEqual(tok.id_to_value[pos_lane_idx][ids_jks[pos_lane_idx]], "JOSA")
         self.assertNotEqual(ids_nng[pos_lane_idx], ids_jks[pos_lane_idx])
 
         # Decode character still works
@@ -60,7 +60,7 @@ class TestHangulFactorizedTokenizer(unittest.TestCase):
         # Metadata
         meta = tok.metadata_for_char("가", position=0, pos_tag="NNG")
         self.assertEqual(len(meta["lanes"]), 24)
-        self.assertEqual(meta["lanes"]["pos"]["value"], "NNG")
+        self.assertEqual(meta["lanes"]["pos"]["value"], "NOUN")
 
     def test_new_pos_tokenizer_class(self):
         """Test HangulPosFactorizedTokenizer / HangulFactorizedPosTokenizer class."""
