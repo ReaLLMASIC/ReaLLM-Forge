@@ -1020,6 +1020,11 @@ class InfiniteHeadAttention(nn.Module):
         self.n_qk_head_dim = config.n_qk_head_dim
         self.n_v_head_dim = config.n_v_head_dim
 
+        self.n_induction_head = getattr(config, "n_induction_head", 0)
+        self.n_ind_head_dim = getattr(config, "n_ind_head_dim", None)
+        self.use_manual_induction = self.n_induction_head > 0
+        if self.use_manual_induction and (self.n_ind_head_dim is None):
+            raise ValueError("n_ind_head_dim must be set when n_induction_head > 0")
 
         # Concat Heads
         self.use_concat_heads = config.use_concat_heads
@@ -1069,6 +1074,13 @@ class InfiniteHeadAttention(nn.Module):
         self.c_attn_q = self.linear_variant_q(self.n_embd, self.n_head * self.n_qk_head_dim, config, bias=config.bias)
         self.c_attn_k = self.linear_variant_k(self.n_embd, self.n_kv_group * self.n_qk_head_dim, config, bias=config.bias)
         self.c_attn_v = self.linear_variant_v(self.n_embd, self.n_kv_group * self.n_v_head_dim, config, bias=config.bias)
+
+        if self.use_manual_induction:
+            # "Manual induction" heads tie Q and K to a shared Wk projection.
+            ind_total_dim = self.n_induction_head * self.n_ind_head_dim
+            self.c_attn_k_ind = self.linear_variant_k(self.n_embd, ind_total_dim, config, bias=config.bias)
+            self.c_attn_v_ind = self.linear_variant_v(self.n_embd, ind_total_dim, config, bias=config.bias)
+            self.c_proj_ind = self.linear_variant_attn_proj(ind_total_dim, self.n_embd, config, bias=config.bias)
 
         self.q_norm_dim = 1 if self.l2_norm_attn_q_dim == "embed" else 0
         self.k_norm_dim = 1 if self.l2_norm_attn_k_dim == "embed" else 0
@@ -1183,9 +1195,30 @@ class InfiniteHeadAttention(nn.Module):
         else:
             v = self.c_attn_v(x)
 
+        if self.use_manual_induction:
+            if self.l2_norm_attn_k:
+                k_ind_weight = F.normalize(self.c_attn_k_ind.weight, p=2, dim=self.k_norm_dim)
+                k_ind = F.linear(x, k_ind_weight, self.c_attn_k_ind.bias)
+            else:
+                k_ind = self.c_attn_k_ind(x)
+
+            if self.l2_norm_attn_v:
+                v_ind_weight = F.normalize(self.c_attn_v_ind.weight, p=2, dim=self.v_norm_dim)
+                v_ind = F.linear(x, v_ind_weight, self.c_attn_v_ind.bias)
+            else:
+                v_ind = self.c_attn_v_ind(x)
+
+            # Tied-Wk induction heads: q_ind uses the same projected features as k_ind.
+            q_ind = k_ind
+
         q = q.view(B, T, self.n_head, self.n_qk_head_dim).transpose(1, 2) # (B, n_h, T, hs)
         k = k.view(B, T, self.n_kv_group, self.n_qk_head_dim).transpose(1, 2) # (B, n_kv, T, hs)
         v = v.view(B, T, self.n_kv_group, self.n_v_head_dim).transpose(1, 2) # (B, n_kv, T, hs)
+
+        if self.use_manual_induction:
+            q_ind = q_ind.view(B, T, self.n_induction_head, self.n_ind_head_dim).transpose(1, 2)
+            k_ind = k_ind.view(B, T, self.n_induction_head, self.n_ind_head_dim).transpose(1, 2)
+            v_ind = v_ind.view(B, T, self.n_induction_head, self.n_ind_head_dim).transpose(1, 2)
 
         # Apply Rotary Position Encodings
         if (self.rotary_emb_q is not None) and (self.rotary_emb_k is not None):
@@ -1242,6 +1275,15 @@ class InfiniteHeadAttention(nn.Module):
                 is_causal=True,
             )
 
+            if self.use_manual_induction:
+                y_ind = torch.nn.functional.scaled_dot_product_attention(
+                    q_ind,
+                    k_ind,
+                    v_ind,
+                    dropout_p=self.dropout if self.training else 0,
+                    is_causal=True,
+                )
+
         else:
             # Manual implementation of attention
 
@@ -1270,6 +1312,14 @@ class InfiniteHeadAttention(nn.Module):
             att = self.attn_dropout(att)
 
             y = att @ v_attn # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+
+            if self.use_manual_induction:
+                att_ind = (q_ind @ k_ind.transpose(-2, -1))
+                att_ind = att_ind / math.sqrt(self.n_ind_head_dim)
+                att_ind = att_ind.masked_fill(self.bias[:, :, :T, :T].to(x.device) == 0, float('-inf'))
+                att_ind = F.softmax(att_ind, dim=-1)
+                att_ind = self.attn_dropout(att_ind)
+                y_ind = att_ind @ v_ind
 
         if self.post_act_l2_norm:
             y = y / y.norm(dim=-1, keepdim=True).clamp_min(1e-6)
@@ -1308,6 +1358,15 @@ class InfiniteHeadAttention(nn.Module):
             else:
                 proj_outputs = [proj(y_sum) for proj in self.c_proj_list]
             y = torch.stack(proj_outputs, dim=0).sum(dim=0)
+
+        if self.use_manual_induction:
+            y_ind = y_ind.transpose(1, 2).contiguous().view(B, T, self.n_induction_head * self.n_ind_head_dim)
+            if self.l2_norm_attn_cproj:
+                cproj_ind_weight = F.normalize(self.c_proj_ind.weight, p=2, dim=self.cproj_norm_dim)
+                y_ind = F.linear(y_ind, cproj_ind_weight, self.c_proj_ind.bias)
+            else:
+                y_ind = self.c_proj_ind(y_ind)
+            y = y + y_ind
 
         # output projection
         y = self.resid_dropout(y)
