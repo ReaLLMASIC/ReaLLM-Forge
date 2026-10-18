@@ -1,0 +1,6 @@
+{
+  "hf_model/triton_relu2_attention.py": "90baf44a9124615a51e8456e5b84114ac8e1b7a7f26de7ebefadf6b10877958e",
+  "hf_model/triton_relu2linear_attention.py": "453989418517c39f23a43954aacabe96080e0f5e7638990699b78eb04fdc66a3",
+  "hf_model/triton_relu2linear_fixed.py": "215ebb2d016379d8ead8e65cf26e134a9c03a0be76139808f542520a869b08e3",
+  "hf_model/triton_relu2max.py": "2214244f2be6a9f50f47c1f2cd5d02afee435a3f7b35759c3c5c9cff9708da52"
+}

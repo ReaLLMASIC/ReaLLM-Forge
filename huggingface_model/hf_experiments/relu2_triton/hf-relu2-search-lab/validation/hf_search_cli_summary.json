@@ -1,0 +1,29 @@
+{
+  "note": "Synthetic tiny CPU functional smoke. Not a training-quality or GPU performance result.",
+  "runs": [
+    {
+      "variant": "softmax_sdpa",
+      "status": "complete",
+      "tokens": 256,
+      "target_tokens": 256,
+      "completed_budget": true,
+      "backends": "sdpa_math_padded"
+    },
+    {
+      "variant": "relu2",
+      "status": "complete",
+      "tokens": 256,
+      "target_tokens": 256,
+      "completed_budget": true,
+      "backends": "torch_reference"
+    },
+    {
+      "variant": "linear16",
+      "status": "complete",
+      "tokens": 256,
+      "target_tokens": 256,
+      "completed_budget": true,
+      "backends": "torch_reference"
+    }
+  ]
+}

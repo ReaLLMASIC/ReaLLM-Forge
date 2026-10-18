@@ -1,0 +1,41 @@
+{
+  "created_utc": "2026-09-23T17:21:27.887923+00:00",
+  "cpu_tests": {
+    "passed": 55,
+    "cuda_skipped": 50,
+    "failures": 0
+  },
+  "interpreter_cases": 41,
+  "offline_compilations": 108,
+  "fresh_install": {
+    "command": "bash scripts/setup.sh --cpu",
+    "pip_check": "No broken requirements found",
+    "python": "3.12",
+    "torch": "2.9.1+cpu",
+    "triton": "3.5.1",
+    "transformers": "4.44.2",
+    "tokenizers": "0.19.1",
+    "datasets": "3.6.0",
+    "fla_core": "0.5.2"
+  },
+  "fresh_smoke": {
+    "runs": 32,
+    "training_segments": 64,
+    "training_tokens_per_run": 384,
+    "completed_diagnostic_jobs": 32,
+    "probe_contexts": [
+      8,
+      16
+    ],
+    "probe_tokens_per_context": 32,
+    "plots": {
+      "png": 32,
+      "pdf": 32
+    },
+    "initialization_mismatches": [],
+    "automatic_completion_probe": "passed on separate selected run"
+  },
+  "no_cuda_gate": "correctly rejected on CPU-only host",
+  "original_kernels_unchanged": true,
+  "note": "Synthetic CPU workflow checks and offline compilation. No actual CUDA execution, GPU throughput or full-model quality result."
+}

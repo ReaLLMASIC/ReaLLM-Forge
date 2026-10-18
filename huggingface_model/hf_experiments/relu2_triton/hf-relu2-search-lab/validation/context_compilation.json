@@ -1,0 +1,980 @@
+{
+  "triton": "3.5.1",
+  "mode": "compile",
+  "count": 108,
+  "results": [
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 80,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 89,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 0.5,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": false,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "masked_prefill",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "forward",
+      "layout": "decode",
+      "shared_bytes": 18432,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "masked_prefill",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dq_ds_db",
+      "layout": "decode",
+      "shared_bytes": 26624,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "masked_prefill",
+      "shared_bytes": 32896,
+      "status": "compiled"
+    },
+    {
+      "sm": 90,
+      "alpha": 1.0,
+      "bias": true,
+      "mode": "dk_dv",
+      "layout": "decode",
+      "shared_bytes": 32768,
+      "status": "compiled"
+    }
+  ],
+  "note": "No CUDA execution or throughput measurements."
+}
