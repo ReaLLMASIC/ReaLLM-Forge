@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Stream Lane Lab · Live forecasting</title>
+<style>
+:root{--bg:#0b111a;--panel:#111a25;--line:#253343;--ink:#e6edf5;--muted:#91a3b8;--teal:#4ad5bc;--orange:#ffb661;--blue:#8faeff;--red:#ff8b8b;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;color:var(--ink);background:var(--bg)}*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button,select,input{color:var(--ink)}button{cursor:pointer}button:disabled{cursor:wait;opacity:.45}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--teal);outline-offset:3px}button,select,input[type=number]{border:1px solid var(--line);border-radius:7px;background:#0c1520}button{padding:10px 14px;font-weight:650}button:hover:not(:disabled){border-color:#657c92}button.primary{background:var(--teal);border-color:var(--teal);color:#082a27}button.quiet{padding:7px 10px;background:transparent}.shell{max-width:1500px;margin:auto;padding:30px 36px 24px}header{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:28px}.brand{display:flex;gap:12px;align-items:center}.brand-icon{width:40px;height:40px;border:1px solid #2a514f;border-radius:10px;display:grid;place-items:center;background:#122a2a}.brand-icon svg{width:28px;height:28px}.eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:10px;color:var(--teal);font-weight:750}.brand h1{margin:3px 0 0;font-size:23px;letter-spacing:-.04em;font-weight:620}.header-right{display:flex;gap:12px;align-items:center}.device{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted);padding:8px 11px;border:1px solid var(--line);border-radius:6px}.intro{margin-bottom:22px;display:flex;justify-content:space-between;align-items:end;gap:20px}.intro h2{font-size:29px;font-weight:570;letter-spacing:-.035em;margin:0 0 7px}.intro p{color:var(--muted);margin:0;line-height:1.65;max-width:710px;font-size:13px}.live{white-space:nowrap;text-transform:uppercase;letter-spacing:.1em;font-size:10px;font-weight:700;display:flex;align-items:center;gap:7px;padding:8px 11px;background:#15312e;color:var(--teal);border-radius:20px}.live i{height:6px;width:6px;background:currentColor;border-radius:50%}.live.paused{color:var(--muted);background:#1c2633}.layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:18px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:11px}.controls{padding:21px;align-self:start}.section-title{font-size:10px;text-transform:uppercase;letter-spacing:.12em;font-weight:750;color:var(--muted);margin:0 0 17px}.control{margin-bottom:22px}.control label,.label{display:flex;justify-content:space-between;gap:10px;font-size:12px;font-weight:650;margin-bottom:9px}.control select,.control input[type=number]{width:100%;padding:10px 11px;font-size:12px;min-height:38px}select{max-width:100%}.control input[type=range]{width:100%;accent-color:var(--teal);margin:5px 0}.hint{font-size:11px;color:var(--muted);line-height:1.55;margin:7px 0 0}.segments{display:flex;gap:5px}.segments button{flex:1;font-size:12px;padding:8px 0}.segments button.active{color:var(--teal);border-color:#35877c;background:#16322f}.control-divider{height:1px;background:var(--line);margin:22px 0}.checkbox{display:flex;align-items:start;gap:8px;font-size:11px;line-height:1.5;color:var(--muted)}.checkbox input{margin:2px 0 0;accent-color:var(--teal)}.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.model-note{font-family:ui-monospace,monospace;font-size:10px;line-height:1.7;color:var(--muted);overflow-wrap:anywhere;margin:12px 0 0}.chart-panel{overflow:hidden}.chart-head{padding:19px 23px 16px;display:flex;justify-content:space-between;align-items:center;gap:15px;border-bottom:1px solid var(--line)}.chart-head h3{font-size:14px;font-weight:650;margin:0 0 5px}.chart-head p{font-size:11px;color:var(--muted);margin:0}.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:10px;color:var(--muted)}.legend span{display:flex;gap:6px;align-items:center}.legend b{display:inline-block;width:17px;height:2px;background:var(--teal)}.legend .prediction{background:var(--orange)}.legend .truth{height:0;border-top:2px dashed var(--blue);background:transparent}.charts{padding:8px 18px 2px}.channel{padding:17px 0 0;border-bottom:1px solid #1e2c3a}.channel:last-child{border:0}.channel-label{display:flex;align-items:center;justify-content:space-between;padding:0 6px 0 38px;font-size:11px;gap:10px}.channel-label .name{font-weight:650}.channel-label .type{font-size:10px;font-family:ui-monospace,monospace;color:var(--muted)}canvas{display:block;width:100%;height:210px}.chart-footer{display:flex;justify-content:space-between;padding:13px 23px;gap:20px;border-top:1px solid var(--line);font-size:10px;color:var(--muted)}.chart-footer strong{color:var(--ink);font-weight:500}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}.metric{padding:17px 18px}.metric .k{font-size:10px;color:var(--muted);font-weight:600}.metric .v{font-size:25px;letter-spacing:-.035em;line-height:1.6;font-variant-numeric:tabular-nums}.metric .v small{font-size:11px;color:var(--muted);letter-spacing:0}.metric .s{font-size:10px;color:var(--muted);line-height:1.5}.metric .v.accent{color:var(--teal)}.status{min-height:19px;margin:14px 0 0;color:var(--muted);font-size:11px;line-height:1.55}.status.error{color:var(--red)}.explain{margin-top:18px;padding:17px 20px;display:flex;gap:13px;font-size:11px;color:var(--muted);line-height:1.65}.explain .tag{font-size:10px;color:var(--teal);letter-spacing:.08em;font-weight:750;white-space:nowrap;margin-top:1px}.explain p{margin:0}footer{display:flex;justify-content:space-between;gap:15px;font-size:10px;color:#687d93;margin-top:23px}.empty{padding:45px 22px;text-align:center;line-height:1.7;color:var(--muted)}.empty strong{display:block;color:var(--ink);font-size:17px;margin-bottom:8px}.empty code{color:var(--teal);font-size:12px;word-break:break-word}.sampling{display:none}.sampling.visible{display:block}#refresh{font-size:11px}.toolbar{display:flex;gap:10px;align-items:center}.hidden{display:none!important}@media(max-width:1050px){.shell{padding:22px}.layout{grid-template-columns:225px minmax(0,1fr)}.controls{padding:17px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-head{align-items:start;flex-direction:column}.intro h2{font-size:25px}.header-right .device{display:none}}@media(max-width:680px){.shell{padding:17px 13px}.layout{grid-template-columns:1fr}.controls{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}.controls>.section-title,.controls>.actions,.controls>.model-note,.controls>.checkbox,.controls>.control-divider{grid-column:1/-1}.controls>.control-divider{margin:0 0 18px}.control{margin-bottom:17px}.intro{display:block}.live{display:inline-flex;margin-top:13px}.header-right{display:none}.brand h1{font-size:21px}.intro h2{font-size:25px}.chart-head{padding:17px}.charts{padding:6px}.chart-footer{padding:12px 16px}.metric{padding:14px}canvas{height:190px}.explain{display:block}.explain .tag{margin-bottom:7px}footer{display:block;line-height:1.8}.sampling{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header>
+  <div class="brand"><div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M2 19C6 19 6 7 10 7S14 25 18 25 22 10 26 10 28 16 30 16" stroke="#4ad5bc" stroke-width="2"/><path d="M2 24C7 24 8 14 12 14S16 20 20 20 25 6 30 6" stroke="#4ad5bc" stroke-width="1" opacity=".3"/></svg></div><div><div class="eyebrow">A small transformer, in motion</div><h1>Stream Lane Lab</h1></div></div>
+  <div class="header-right"><span class="device" id="device">Connecting to local model</span><button class="quiet" id="refresh" type="button">Refresh checkpoints ↻</button></div>
+</header>
+<div class="intro"><div><h2>Watch the next samples take shape.</h2><p>Live superimposed sine waves, learned one frame at a time. Compare a model’s continuation with the signal as it arrives.</p></div><span id="live" class="live paused"><i></i><span>Ready</span></span></div>
+<main class="layout">
+<aside class="panel controls" aria-label="Experiment controls">
+  <p class="section-title">Stream configuration</p>
+  <div class="control"><label>Input channels</label><div class="segments" id="channels" aria-label="Input channels"><button type="button" data-channels="1" class="active" aria-pressed="true">1</button><button type="button" data-channels="2" aria-pressed="false">2</button><button type="button" data-channels="3" aria-pressed="false">3</button></div><p class="hint">Each channel combines multiple sine waves.</p></div>
+  <div class="control"><label for="checkpoint">Checkpoint</label><select id="checkpoint"><option>Loading…</option></select><p class="hint" id="checkpoint-hint">Models are read from the server’s checkpoint directory.</p></div>
+  <div class="control"><label for="seed">Signal seed</label><input id="seed" type="number" min="0" max="2147483647" value="2026"><p class="hint">Changing the seed starts a fresh signal.</p></div>
+  <div class="control"><label for="horizon">Forecast horizon <span id="horizon-value">8 samples</span></label><input id="horizon" type="range" min="1" max="64" value="8"><p class="hint">Start short; increase the horizon to inspect forecast drift.</p></div>
+  <div class="control"><label for="mode">Decoding</label><select id="mode"><option value="mean">Probability mean</option><option value="greedy">Greedy · highest probability</option><option value="sample">Sample · categorical</option></select><p class="hint">Predictions feed back into the model during the rollout.</p></div>
+  <div class="sampling" id="sampling"><div class="control"><label for="temperature">Temperature</label><input id="temperature" type="number" min="0.05" max="5" step="0.05" value="0.8"></div><div class="control"><label for="top-k">Top-k <span>0 = all states</span></label><input id="top-k" type="number" min="0" max="4096" value="8"></div></div>
+  <div class="control-divider"></div>
+  <div class="control"><label for="speed">Playback pace</label><select id="speed"><option value="500">2 samples / second</option><option value="250" selected>4 samples / second</option><option value="100">10 samples / second</option></select><p class="hint">Playback waits for inference when needed.</p></div>
+  <label class="checkbox"><input id="truth" type="checkbox" checked><span>Show future demo truth as a dashed line. The model never receives it.</span></label>
+  <div class="control-divider"></div>
+  <div class="actions"><button id="play" type="button" class="primary">▶ Start stream</button><button id="reset" type="button">↺ Reset</button></div>
+  <div class="model-note" id="model-note">No model loaded.</div>
+</aside>
+<section aria-label="Forecasting charts and measurements">
+  <div class="panel chart-panel">
+    <div class="chart-head"><div><h3>Observed signal &amp; model forecast</h3><p>The vertical line marks the latest forecast origin. Orange history preserves past one-step predictions.</p></div><div class="legend"><span><b></b>Observed</span><span><b class="prediction"></b>Forecast</span><span id="truth-legend"><b class="truth"></b>Future truth</span></div></div>
+    <div id="empty" class="empty hidden"><strong>No checkpoint for this channel count yet.</strong>Train a model, then refresh checkpoints.<br><code>python -m lane_lab train --help</code><p>The signal can still be inspected below; predictions require a trained model.</p></div>
+    <div id="charts" class="charts"></div>
+    <div class="chart-footer"><span>Sample <strong id="sample">—</strong> · observed context <strong id="context">—</strong></span><span>Forecasts are computed locally</span></div>
+  </div>
+  <div class="metrics">
+    <div class="panel metric"><div class="k">ONE-STEP MAE</div><div class="v accent" id="one-step">—</div><div class="s" id="one-count">Waiting for next observed sample</div></div>
+    <div class="panel metric"><div class="k">MATURED ROLLOUT MAE</div><div class="v" id="rollout">—</div><div class="s" id="roll-count">Only targets that have arrived</div></div>
+    <div class="panel metric"><div class="k">ROLLOUT LATENCY</div><div class="v" id="latency">— <small>ms</small></div><div class="s" id="latency-note">Excludes checkpoint loading</div></div>
+    <div class="panel metric"><div class="k">FORECAST FRAMES / SECOND</div><div class="v" id="fps">—</div><div class="s">Model rollout throughput</div></div>
+  </div>
+  <p class="status" id="status" role="status" aria-live="polite">Loading model inventory…</p>
+  <div class="panel explain"><div class="tag">CAUSAL BY CONSTRUCTION</div><p>Every forecast starts from observed samples only. Its future frames are generated recursively; each prediction becomes the next input. Error updates only when a target arrives, across all channels. These live measurements describe this signal, not the held-out benchmark.</p></div>
+</section>
+</main>
+<footer><span>STREAM LANE LAB / independent tables · linked SLERP · per-column heads</span><span>Local research viewer · no remote scripts or services</span></footer>
+</div>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const state = {models:[], model:null, channels:1, signal:[], index:63, origin:63, predictions:[], historical:[], running:false, busy:false, generation:0, timer:null, pending:[], one:[], rollout:[], latency:null, steps:0};
+const MAX_METRICS = 10000;
+function status(message,error=false){$('status').textContent=message;$('status').classList.toggle('error',error)}
+async function api(url,options){const response=await fetch(url,options);let data;try{data=await response.json()}catch{throw Error(`Server returned HTTP ${response.status}`)}if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail||data));return data}
+function currentSeed(){const n=Number($('seed').value);if(!Number.isInteger(n)||n<0||n>2147483647)throw Error('Signal seed must be an integer between 0 and 2147483647.');return n}
+function setRunning(value){state.running=value;$('play').textContent=value?'Ⅱ Pause':'▶ Start stream';$('live').classList.toggle('paused',!value);$('live').lastElementChild.textContent=value?'Streaming':'Paused';if(!value)clearTimeout(state.timer)}
+function syncModels(){
+  const previous=$('checkpoint').value, available=state.models.filter(m=>m.channels===state.channels);
+  $('checkpoint').replaceChildren();
+  available.forEach(model=>{const option=document.createElement('option');option.value=model.id;option.textContent=model.name;$('checkpoint').append(option)});
+  if(available.some(m=>m.id===previous))$('checkpoint').value=previous;
+  if(!available.length){const option=document.createElement('option');option.textContent='No matching checkpoint';option.value='';$('checkpoint').append(option)}
+  state.model=available.find(m=>m.id===$('checkpoint').value)||null;
+  $('empty').classList.toggle('hidden',!!state.model);
+  $('checkpoint-hint').textContent=state.model?`${state.model.context_length}-frame context · ${state.model.d_model||'?'} hidden width · ${state.model.n_layers||'?'} layers`:'Train a model with this number of columns, then refresh.';
+  $('model-note').textContent=state.model?state.model.columns.map((c,i)=>`C${i+1}: ${c.kind}${c.kind==='slerp'?` K=${c.knots}`:''} · ${c.tied?'tied':'untied'} · ${c.levels} levels`).join('\n'):'Signal-only view. No model forecast.';
+  $('model-note').style.whiteSpace='pre-line';
+}
+async function loadModels(){const data=await api('/api/models');state.models=data.models;$('device').textContent=`${data.device.toUpperCase()} · ${data.threads} thread${data.threads===1?'':'s'}`;syncModels()}
+function createCharts(){
+  $('charts').replaceChildren();
+  for(let c=0;c<state.channels;c++){
+    const div=document.createElement('div');div.className='channel';
+    const label=document.createElement('div');label.className='channel-label';
+    const name=document.createElement('span');name.className='name';name.textContent=state.model?.columns[c]?.name||`Channel ${c+1}`;
+    const type=document.createElement('span');type.className='type';const spec=state.model?.columns[c];type.textContent=spec?`${spec.kind}${spec.kind==='slerp'?` / ${spec.knots} knots`:''} / ${spec.tied?'tied':'untied'}`:'superimposed sines';
+    label.append(name,type);const canvas=document.createElement('canvas');canvas.dataset.channel=c;canvas.setAttribute('role','img');canvas.setAttribute('aria-label',`${name.textContent}: observed values and future forecasts`);div.append(label,canvas);$('charts').append(div);
+  }
+}
+function resetMetrics(){state.pending=[];state.historical=[];state.one=[];state.rollout=[];state.latency=null;state.steps=0;renderMetrics()}
+async function reset(){
+  setRunning(false);const generation=++state.generation;state.predictions=[];resetMetrics();
+  status('Preparing a fresh signal…');
+  try{
+    const data=await api(`/api/signal?seed=${currentSeed()}&channels=${state.channels}&frames=4096`);
+    if(generation!==state.generation)return;
+    state.signal=data.values;state.index=(state.model?.context_length||64)-1;state.origin=state.index;createCharts();draw();
+    if(state.model)await forecast(generation);else status('No checkpoint selected. Start the stream to inspect the synthetic input.');
+  }catch(error){if(generation===state.generation)status(error.message,true)}
+}
+async function forecast(generation){
+  if(!state.model)return;
+  const origin=state.index, model=state.model, horizon=Number($('horizon').value);
+  state.busy=true;
+  try{
+    const body={model_id:model.id,history:state.signal.slice(Math.max(0,origin-model.context_length+1),origin+1),horizon,mode:$('mode').value,temperature:Number($('temperature').value),top_k:Number($('top-k').value),seed:(currentSeed()+origin)%2147483647};
+    const result=await api('/api/forecast',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(generation!==state.generation)return;
+    state.predictions=result.predictions;state.origin=origin;state.latency=result.latency_ms;
+    state.historical.push({target:origin+1,values:result.predictions[0]});
+    result.predictions.forEach((values,h)=>state.pending.push({target:origin+h+1,values,horizon:h+1}));
+    const clipped=result.out_of_range_counts.reduce((a,b)=>a+b,0);
+    status(`${result.history_frames_used} observed frames → ${horizon} recursively predicted frames.${clipped?` ${clipped} input values lie outside checkpoint ranges.`:''}${result.model_loaded?' Checkpoint loaded. First inference can include backend warmup.':''}`);
+    draw();renderMetrics();
+  }catch(error){if(generation===state.generation){setRunning(false);status(error.message,true)}}finally{state.busy=false}
+}
+function mature(){
+  const keep=[];
+  for(const prediction of state.pending){
+    if(prediction.target>state.index){keep.push(prediction);continue}
+    const truth=state.signal[prediction.target];if(!truth)continue;
+    for(let c=0;c<state.channels;c++){
+      const error=Math.abs(prediction.values[c]-truth[c]);state.rollout.push(error);if(prediction.horizon===1)state.one.push(error);
+    }
+  }
+  state.pending=keep;if(state.one.length>MAX_METRICS)state.one=state.one.slice(-MAX_METRICS);if(state.rollout.length>MAX_METRICS)state.rollout=state.rollout.slice(-MAX_METRICS);
+}
+async function tick(){
+  if(!state.running)return;
+  const started=performance.now(), generation=state.generation;
+  if(state.index+130>=state.signal.length){setRunning(false);status('End of this 4096-frame signal. Reset to start again.');return}
+  if(state.busy){state.timer=setTimeout(tick,50);return}
+  state.index++;state.steps++;mature();draw();renderMetrics();
+  if(state.model)await forecast(generation);
+  if(state.running&&generation===state.generation)state.timer=setTimeout(tick,Math.max(10,Number($('speed').value)-(performance.now()-started)));
+}
+function mean(values){return values.length?values.reduce((a,b)=>a+b,0)/values.length:null}
+function renderMetrics(){
+  const one=mean(state.one), roll=mean(state.rollout);
+  $('one-step').textContent=one===null?'—':one.toFixed(4);$('rollout').textContent=roll===null?'—':roll.toFixed(4);
+  $('one-count').textContent=state.one.length?`${state.one.length.toLocaleString()} revealed channel targets`:'Waiting for next observed sample';
+  $('roll-count').textContent=state.rollout.length?`${state.rollout.length.toLocaleString()} revealed forecasts · overlapping origins`:'Only targets that have arrived';
+  $('latency').replaceChildren(document.createTextNode(state.latency===null?'— ':`${state.latency.toFixed(1)} `));const unit=document.createElement('small');unit.textContent='ms';$('latency').append(unit);
+  $('fps').textContent=state.latency?Math.round(1000*state.predictions.length/state.latency).toLocaleString():'—';
+}
+function draw(){
+  $('sample').textContent=state.index.toLocaleString();$('context').textContent=state.model?`${Math.min(state.index+1,state.model.context_length)} frames`:'signal only';
+  const showTruth=$('truth').checked;$('truth-legend').classList.toggle('hidden',!showTruth);
+  for(const canvas of document.querySelectorAll('canvas')){
+    const c=Number(canvas.dataset.channel), bounds=canvas.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+    canvas.width=Math.max(1,Math.round(bounds.width*dpr));canvas.height=Math.round(bounds.height*dpr);const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+    const w=bounds.width,h=bounds.height,pad={l:42,r:15,t:25,b:30},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
+    const horizon=Number($('horizon').value), origin=state.predictions.length?state.origin:state.index;
+    const left=Math.max(0,origin-95),right=origin+horizon+3,min=-1.12,max=1.12;
+    const x=i=>pad.l+(i-left)/(right-left)*pw, y=v=>pad.t+(max-v)/(max-min)*ph;
+    ctx.clearRect(0,0,w,h);ctx.fillStyle='#192431';ctx.fillRect(x(origin),pad.t,w-pad.r-x(origin),ph);
+    ctx.font='10px ui-monospace,monospace';ctx.textBaseline='middle';
+    for(const v of [-1,-.5,0,.5,1]){ctx.strokeStyle=v===0?'#304151':'#23313f';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,y(v));ctx.lineTo(w-pad.r,y(v));ctx.stroke();ctx.fillStyle='#73889e';ctx.textAlign='right';ctx.fillText(v.toFixed(1),pad.l-9,y(v));}
+    const step=Math.ceil((right-left)/5/10)*10;
+    for(let i=Math.ceil(left/step)*step;i<=right;i+=step){ctx.strokeStyle='#1e2d3b';ctx.beginPath();ctx.moveTo(x(i),pad.t);ctx.lineTo(x(i),h-pad.b);ctx.stroke();ctx.fillStyle='#73889e';ctx.textAlign='center';ctx.fillText(String(i),x(i),h-13)}
+    ctx.save();ctx.beginPath();ctx.rect(pad.l,pad.t,pw,ph);ctx.clip();
+    function path(points,color,dash,width){ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);let first=true;for(const [i,v]of points){if(!Number.isFinite(v)){first=true;continue}if(first){ctx.moveTo(x(i),y(v));first=false}else ctx.lineTo(x(i),y(v))}ctx.stroke();ctx.setLineDash([])}
+    if(showTruth){const pts=[];for(let i=origin;i<=Math.min(right,state.signal.length-1);i++)pts.push([i,state.signal[i]?.[c]]);path(pts,'#8faeff',[3,5],1.6)}
+    const actual=[];for(let i=left;i<=state.index;i++)actual.push([i,state.signal[i]?.[c]]);path(actual,'#4ad5bc',[],2);
+    path(state.historical.filter(p=>p.target>=left&&p.target<=state.index).map(p=>[p.target,p.values[c]]),'#ffb661',[2,3],1.4);
+    if(state.predictions.length){const predicted=[[origin,state.signal[origin]?.[c]],...state.predictions.map((row,i)=>[origin+i+1,row[c]])];path(predicted,'#ffb661',[],2.1)}
+    ctx.restore();
+    ctx.strokeStyle='#61778c';ctx.lineWidth=1;ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(x(origin),pad.t);ctx.lineTo(x(origin),h-pad.b);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#8298ae';ctx.textAlign='left';ctx.font='9px ui-sans-serif,system-ui';ctx.fillText('OBSERVED',pad.l,12);ctx.fillStyle='#b8c6d6';ctx.textAlign='right';ctx.fillText('FORECAST',w-pad.r,12);
+    const last=state.signal[state.index]?.[c];if(Number.isFinite(last)){ctx.beginPath();ctx.arc(x(state.index),y(last),3,0,2*Math.PI);ctx.fillStyle='#4ad5bc';ctx.fill()}
+  }
+}
+async function changeSetup(){syncModels();await reset()}
+$('channels').addEventListener('click',async e=>{const button=e.target.closest('button');if(!button)return;state.channels=Number(button.dataset.channels);for(const b of $('channels').children){const selected=b===button;b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected))}await changeSetup()});
+$('checkpoint').addEventListener('change',changeSetup);
+$('seed').addEventListener('change',reset);
+$('mode').addEventListener('change',()=>{$('sampling').classList.toggle('visible',$('mode').value==='sample');reset()});
+$('horizon').addEventListener('input',()=>{$('horizon-value').textContent=`${$('horizon').value} samples`;draw()});
+$('horizon').addEventListener('change',reset);
+$('temperature').addEventListener('change',reset);$('top-k').addEventListener('change',reset);
+$('truth').addEventListener('change',draw);
+$('play').addEventListener('click',()=>{if(!state.signal.length)return;setRunning(!state.running);if(state.running)tick()});
+$('reset').addEventListener('click',reset);
+$('refresh').addEventListener('click',async()=>{try{setRunning(false);await loadModels();await reset()}catch(error){status(error.message,true)}});
+window.addEventListener('resize',draw);
+(async()=>{try{await loadModels();await reset()}catch(error){status(`Could not connect to the local server: ${error.message}`,true)}})();
+</script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+{
+  "seed_start": 30000,
+  "sequences": 24,
+  "horizon": 32,
+  "mode": "mean",
+  "teacher_nll": 0.8573643565177917,
+  "teacher_rmse": 0.007309626322239637,
+  "one_step_rmse": 0.00478403503075242,
+  "rollout_rmse": 0.1738329976797104,
+  "persistence_rmse": 0.46095165610313416,
+  "linear_rmse": 0.8628672957420349,
+  "rollout_rmse_per_column": [
+    0.1738329976797104
+  ],
+  "boundary_fraction": 0.0,
+  "batched_forecast_ms": 271.236612003122,
+  "rmse_by_horizon": {
+    "1": 0.00478403503075242,
+    "8": 0.057233091443777084,
+    "16": 0.10136261582374573,
+    "32": 0.1738329976797104
+  },
+  "parameters": 49633,
+  "steps": 2500,
+  "training_seconds": 306.0513567960006,
+  "cpu_threads": 1,
+  "cuda_verified": false,
+  "single_stream_horizon_ms_median": 70.10740500118118,
+  "persistence_one_step_rmse": 0.035784512758255005,
+  "linear_one_step_rmse": 0.011083799414336681,
+  "persistence_rmse_by_horizon": {
+    "1": 0.035784512758255005,
+    "8": 0.176048144698143,
+    "16": 0.31062671542167664,
+    "32": 0.46095165610313416
+  }
+}

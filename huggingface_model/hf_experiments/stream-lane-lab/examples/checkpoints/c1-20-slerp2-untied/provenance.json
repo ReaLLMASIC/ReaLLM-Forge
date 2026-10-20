@@ -1,0 +1,4 @@
+{
+  "run": "tuned-c1-slerp2-untied",
+  "metrics": "../../results/tuned-c1-slerp2-untied/metrics.json"
+}

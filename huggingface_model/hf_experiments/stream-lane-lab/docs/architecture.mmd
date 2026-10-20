@@ -1,0 +1,37 @@
+flowchart TB
+  INPUT(["Observed numeric frame"])
+  subgraph ENCODE["Per-column input geometry"]
+    direction LR
+    E0["Column 1: independent table"]
+    E1["Column 2: 2-knot SLERP"]
+    E2["Column 3: 5-knot SLERP"]
+    E0 ~~~ E1 ~~~ E2
+  end
+  FUSE["Sum embeddings / sqrt C"]
+  subgraph BACKBONE["Shared causal transformer"]
+    POS["Position embedding"]
+    ATT["Pre-norm attention"]
+    MLP["Pre-norm MLP"]
+    POS --> ATT --> MLP
+  end
+  subgraph DECODE["Per-column output geometry"]
+    direction LR
+    H0["Independent head"]
+    H1["Tied SLERP head"]
+    H2["Untied linked head"]
+    H0 ~~~ H1 ~~~ H2
+  end
+  OUT(["Next-frame distributions"])
+  INPUT --> ENCODE
+  ENCODE --> FUSE
+  FUSE --> BACKBONE
+  BACKBONE --> DECODE
+  DECODE --> OUT
+  classDef input fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+  classDef curve fill:#e0e7ff,stroke:#6366f1,color:#312e81
+  classDef compute fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef output fill:#dcfce7,stroke:#16a34a,color:#14532d
+  class INPUT input
+  class E0,E1,E2 curve
+  class FUSE,POS,ATT,MLP compute
+  class H0,H1,H2,OUT output

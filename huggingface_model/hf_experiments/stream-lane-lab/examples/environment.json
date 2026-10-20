@@ -1,0 +1,30 @@
+{
+  "python": "3.12.14",
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+  "device": "cpu",
+  "threads_per_inference": 1,
+  "packages": {
+    "torch": "2.14.1+cpu",
+    "transformers": "4.57.6",
+    "numpy": "2.3.5",
+    "fastapi": "0.150.0",
+    "uvicorn": "0.54.0",
+    "pytest": "9.1.1",
+    "matplotlib": "3.10.8",
+    "safetensors": "0.8.0"
+  },
+  "validation": {
+    "cpu_tests_passed": 40,
+    "cuda_tests_skipped": 13,
+    "browser": "desktop 1440px and mobile390px; controls and 11 real API inference calls passed",
+    "diagrams": "Mermaid rendered and visually inspected; group-title arrow overlaps corrected"
+  },
+  "checkpoint_mapping": {
+    "c1-00-slerp5-rollout": "long-c1-slerp5-tied",
+    "c2-00-slerp5-rollout": "long-c2-slerp5-tied",
+    "c3-00-slerp5-rollout": "long-c3-slerp5-tied",
+    "c1-10-independent": "c1-independent-tied",
+    "c1-20-slerp2-untied": "tuned-c1-slerp2-untied",
+    "c3-10-mixed": "tuned-c3-mixed"
+  }
+}

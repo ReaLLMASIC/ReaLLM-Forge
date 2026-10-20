@@ -1,0 +1,4 @@
+{
+  "run": "tuned-c3-mixed",
+  "metrics": "../../results/tuned-c3-mixed/metrics.json"
+}

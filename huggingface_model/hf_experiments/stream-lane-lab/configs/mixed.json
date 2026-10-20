@@ -1,0 +1,8 @@
+{
+  "columns": [
+    {"name": "lookup", "kind": "independent", "levels": 128, "tied": true, "backend": "auto"},
+    {"name": "spherical", "kind": "slerp", "knots": 5, "levels": 128, "tied": true, "backend": "auto"},
+    {"name": "relaxed", "kind": "slerp", "knots": 3, "levels": 128, "tied": false, "backend": "auto"}
+  ],
+  "d_model": 48, "n_heads": 2, "n_layers": 2, "d_ff": 144, "context_length": 64
+}

@@ -1,0 +1,25 @@
+flowchart TB
+  X(["Scalar value x"])
+  T["Normalize to t in [0, 1]"]
+  J{"Choose segment j"}
+  subgraph CURVE["Linked curve: one parameter at each shared knot"]
+    direction LR
+    W0(("W0"))
+    W1(("W1"))
+    W2(("W2"))
+    W0 ---|"arc 0"| W1
+    W1 ---|"arc 1"| W2
+  end
+  BLEND["a times Wj + b times Wj+1"]
+  E(["Interpolated embedding"])
+  X --> T --> J
+  J --> CURVE
+  CURVE --> BLEND --> E
+  classDef scalar fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+  classDef knot fill:#e0e7ff,stroke:#6366f1,color:#312e81
+  classDef operation fill:#fef3c7,stroke:#d97706,color:#78350f
+  classDef output fill:#dcfce7,stroke:#16a34a,color:#14532d
+  class X,T scalar
+  class W0,W1,W2 knot
+  class J,BLEND operation
+  class E output

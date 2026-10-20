@@ -1,0 +1,4 @@
+{
+  "run": "long-c3-slerp5-tied",
+  "metrics": "../../results/long-c3-slerp5-tied/metrics.json"
+}

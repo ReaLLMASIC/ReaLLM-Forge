@@ -1,0 +1,28 @@
+{
+  "architectures": [
+    "LaneModel"
+  ],
+  "auxiliary_mse_weight": 0.0,
+  "columns": [
+    {
+      "backend": "auto",
+      "kind": "slerp",
+      "knots": 2,
+      "levels": 128,
+      "maximum": 1.0,
+      "minimum": -1.0,
+      "name": "signal_1",
+      "tied": false
+    }
+  ],
+  "context_length": 64,
+  "d_ff": 144,
+  "d_model": 48,
+  "dropout": 0.0,
+  "dtype": "float32",
+  "model_type": "stream_lane",
+  "n_heads": 2,
+  "n_layers": 2,
+  "tie_word_embeddings": false,
+  "transformers_version": "4.57.6"
+}

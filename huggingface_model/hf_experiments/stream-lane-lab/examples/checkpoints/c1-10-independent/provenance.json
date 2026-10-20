@@ -1,0 +1,4 @@
+{
+  "run": "c1-independent-tied",
+  "metrics": "../../results/c1-independent-tied/metrics.json"
+}
