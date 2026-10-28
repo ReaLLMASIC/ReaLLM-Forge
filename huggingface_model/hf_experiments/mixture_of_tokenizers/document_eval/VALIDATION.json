@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "date": "2026-10-25",
+  "timezone": "America/Los_Angeles",
+  "unit_tests": {
+    "passed": 15,
+    "command": "python -m unittest discover -s document_eval -p 'test_*.py' -v"
+  },
+  "analytic_original_evaluator_equality": "passed in bytes and token modes; Unicode, empty, repeated and multiwindow documents",
+  "cli_cpu_integration": "passed export, reference reconciliation, provenance, atomic publication and verified-existing reuse",
+  "launcher_simulations": "passed dry-run without writes, eight jobs plus bootstrap, archive checksums, rerun preservation, lock refusal and incorrect seed rejection",
+  "real_checkpoint_evaluation": "not run; user 4090 execution required",
+  "new_training": "none",
+  "benchmark_adapters": "not included"
+}

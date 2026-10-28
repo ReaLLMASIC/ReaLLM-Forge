@@ -1,0 +1,66 @@
+# Run both vocabulary conditions sequentially on one RTX 4090.
+data:
+  output: data/prepared
+  source: hf
+  max_documents_per_language: 200000
+  max_bytes_per_language: 500000000
+  val_fraction: 0.01
+  test_fraction: 0.01
+  seed: 1337
+  zh_conversion: t2s
+  sources:
+    zh:
+      path: HuggingFaceFW/fineweb-2
+      name: cmn_Hani
+      revision: af9c13333eb981300149d5ca60a8e9d659b276b9
+      split: train
+      text_column: text
+    ko:
+      path: HuggingFaceFW/fineweb-2
+      name: kor_Hang
+      revision: af9c13333eb981300149d5ca60a8e9d659b276b9
+      split: train
+      text_column: text
+    ja:
+      path: HuggingFaceFW/fineweb-2
+      name: jpn_Jpan
+      revision: af9c13333eb981300149d5ca60a8e9d659b276b9
+      split: train
+      text_column: text
+    en:
+      path: HuggingFaceFW/fineweb
+      name: sample-10BT
+      revision: 9bb295ddab0e05d785b879661af7260fed5140fc
+      split: train
+      text_column: text
+tokenizers:
+  output: tokenizers
+  sizes: [10000, 20000]
+  alphabet_limit: 4000
+  candidate_size: 60000
+  min_frequency: 2
+model:
+  hidden_size: 384
+  num_hidden_layers: 6
+  num_attention_heads: 6
+  intermediate_size: 1536
+  max_position_embeddings: 512
+training:
+  output: runs
+  device: cuda
+  precision: bf16
+  seed: 1337
+  batch_size_per_route: 4
+  target_tokens: 20000000
+  max_steps: null
+  learning_rate: 0.0003
+  min_learning_rate: 0.00003
+  warmup_steps: 100
+  weight_decay: 0.1
+  grad_clip: 1.0
+  eval_interval: 100
+  eval_batches: 4
+  save_interval: 100
+  log_interval: 1
+  threads: 4
+

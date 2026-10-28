@@ -1,0 +1,58 @@
+# Planning manifest. It is not an automatic dataset download or official scoring adapter.
+# Pin a dataset commit and task template before a reported benchmark run.
+protocol:
+  primary: heldout_canonical_tokenization_bits_per_utf8_byte
+  context_modes: [bytes, token]
+  routes: [native, byte]
+  corpus_text: preserve_original_benchmark_text
+  mc_adapter: normalized_jsonl
+  mc_fields: [language, prompt, choices, answer_index]
+  mc_score: summed_continuation_log_probability
+  mc_boundary: encode_prompt_and_continuation_separately
+  mc_context: discard_from_both_routes_if_any_option_exceeds_context
+  official_scores: require_task_specific_adapter_and_pinned_template
+
+initial:
+  chinese:
+    task: C-Eval
+    dataset: ceval/ceval-exam
+    configs: all_subjects
+    split: val
+    source: https://github.com/hkust-nlp/ceval
+    note: Dev examples are for demonstrations, not held-out scoring.
+  korean:
+    task: KoBEST
+    dataset: skt/kobest_v1
+    configs: [copa, boolq]
+    split: test
+    source: https://huggingface.co/datasets/skt/kobest_v1
+  japanese:
+    task: JCommonsenseQA
+    repository: yahoojapan/JGLUE
+    data_location: datasets/jcommonsenseqa-v1.1
+    split: valid
+    source: https://github.com/yahoojapan/JGLUE
+    note: Five answer choices; pin the repository commit and actual data release.
+  english:
+    - task: HellaSwag
+      dataset: Rowan/hellaswag
+      split: validation
+      source: https://rowanzellers.com/hellaswag/
+    - task: ARC-Easy
+      dataset: allenai/ai2_arc
+      config: ARC-Easy
+      split: test
+      source: https://huggingface.co/datasets/allenai/ai2_arc
+  parallel_multilingual:
+    task: Belebele
+    dataset: facebook/belebele
+    configs: [zho_Hans, kor_Hang, jpn_Jpan, eng_Latn]
+    split: test
+    source: https://github.com/facebookresearch/belebele
+    note: 900 examples per language variant; Simplified Chinese selected.
+
+later:
+  chinese: {task: CMMLU, source: "https://github.com/haonan-li/CMMLU"}
+  korean: {task: KMMLU, source: "https://huggingface.co/datasets/HAERAE-HUB/KMMLU"}
+  japanese: {task: JSQuAD, source: "https://github.com/yahoojapan/JGLUE", metric: official_Japanese_EM_F1}
+  english: {task: ARC-Challenge, dataset: allenai/ai2_arc, config: ARC-Challenge, split: test}

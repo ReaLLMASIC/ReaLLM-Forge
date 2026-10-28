@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "validated_date": "2026-10-27",
+  "status": "passed",
+  "unit_tests": {
+    "count": 53,
+    "command": "python -m unittest discover -s benchmark-addon/mixed-tokenization-benchmarks -p 'test_*.py'",
+    "result": "passed"
+  },
+  "source_downloads": {
+    "final": {
+      "prepared_rows": 4456,
+      "tasks_sha256": "bc0988566e248d2224a7cdaeab69318dcabb9a09c5e0377eb16c11f29cb94095",
+      "live_download_and_offline_verification": "passed",
+      "eligible_rows": 4435,
+      "piqa_excluded": 21
+    },
+    "dev": {
+      "prepared_rows": 3557,
+      "tasks_sha256": "b96d5166370637b610a5e093068831fafa54aaf285900a881510f674386b45c0",
+      "live_download_and_offline_verification": "passed",
+      "eligible_rows": 3536,
+      "piqa_excluded": 21
+    }
+  },
+  "real_cpu_smoke": {
+    "scope": "Implementation verification only: four untrained synthetic tiny HF models, K64/128, seeds1337/1338",
+    "environment": {
+      "torch": "2.5.1+cpu",
+      "transformers": "4.46.3",
+      "tokenizers": "0.20.3",
+      "numpy": "2.5.4"
+    },
+    "task_questions_compared_to_original": 48,
+    "task_max_abs_difference": 0.0,
+    "task_save_reload_and_cli_resume": "passed for all four models",
+    "lm_models": 4,
+    "lm_original_evaluate_corpus_all_fields_equal": true,
+    "lm_exact_output_reuse": true,
+    "lm_shared_overlap_cache_entries": 8,
+    "combined_report": {
+      "task_rows": 32,
+      "lm_rows": 32,
+      "paired_contrasts": 48,
+      "bootstrap_samples": 1000,
+      "status": "passed"
+    }
+  },
+  "limitations": [
+    "No actual trained checkpoint weights or prepared corpus in this workspace",
+    "No actual benchmark task accuracy or fresh test BPB computed",
+    "No GPU runtime, memory or performance measurement"
+  ],
+  "tested_source_sha256": {
+    "prepare_tasks.py": "c601d90173d89329135bfebad9325ce368ec196a2105852dacbf14415bc03e46",
+    "report_tasks.py": "d2595e1cd429c1e7b8621a9088f09cda87aa5d3cd2f3b299003b3d140edc0c6d",
+    "run_benchmarks.py": "c09be06d92b46cd5a5616b97607481e9f5273af61607b1dc10d08dac78dbe7fb",
+    "score_lm.py": "c369bd5ebbc4e4b4b5c8d5da297f9f6a924e832e0bb9dbced54b237a63a74bd5",
+    "score_tasks.py": "321a1800413a3514bd1c4a0dc42b819045282455eec8057cf49a00592a1745df",
+    "test_prepare_tasks.py": "0a6ba9889ad9bbfa8bd4febd2402c3e3181556ac67083d9223f8959016480042",
+    "test_report_tasks.py": "5091b64b3bba268e7a3070291d97d13eb7d21d5c069a73e1b860915647975390",
+    "test_run_benchmarks.py": "ed33e7afa5ec47da0de3649d946099e1047e5da9cc6a887310002e7d4cbd1fba",
+    "test_score_lm.py": "7a76387bccbf9a85ce0026dd2ac09bb6fd036df90ac8919f2f80e05aab2c2d7f",
+    "test_score_tasks.py": "4a166070ba0f79a8434f676f64d455d1d7f7bb9e4422fe30a5505d88505e3d18"
+  }
+}

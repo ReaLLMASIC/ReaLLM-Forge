@@ -1,0 +1,41 @@
+# Synthetic multilingual smoke data: this does not measure language quality.
+data:
+  output: data/demo
+  source: demo
+  max_documents_per_language: 2000
+  max_bytes_per_language: 2000000
+  val_fraction: 0.1
+  test_fraction: 0.1
+  seed: 1337
+  zh_conversion: t2s
+tokenizers:
+  output: tokenizers/demo
+  sizes: [128]
+  alphabet_limit: 96
+  candidate_size: 4096
+  min_frequency: 2
+model:
+  hidden_size: 64
+  num_hidden_layers: 2
+  num_attention_heads: 4
+  intermediate_size: 256
+  max_position_embeddings: 64
+training:
+  output: runs/demo
+  device: cpu
+  precision: fp32
+  seed: 1337
+  batch_size_per_route: 4
+  target_tokens: 1000000
+  max_steps: 40
+  learning_rate: 0.001
+  min_learning_rate: 0.0001
+  warmup_steps: 2
+  weight_decay: 0.1
+  grad_clip: 1.0
+  eval_interval: 20
+  eval_batches: 2
+  save_interval: 20
+  log_interval: 1
+  threads: 2
+
