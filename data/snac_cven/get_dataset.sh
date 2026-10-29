@@ -21,7 +21,7 @@ fi
 
 # Authenticate with hugging face
 echo "Authenticating with Hugging Face..."
-huggingface-cli login --token "${HF_TOKEN}"
+hf auth login --token "${HF_TOKEN}"
 
 # Get current script directory
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"

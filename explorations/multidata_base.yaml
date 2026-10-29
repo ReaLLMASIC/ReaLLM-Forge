@@ -1,0 +1,135 @@
+# explorations/multokenization.yaml
+---
+# Base hyperparameters
+named_static_groups:
+  - named_group: "1-1-1_1-1-1"
+    dataset_sampling_probs: 
+      - [1, 1, 1]
+    dataset_sampling_probs_final: 
+      - [1, 1, 1]
+
+  - named_group: "linear"
+    dataset_sampling_probs_transition_method: [linear]
+
+  - named_group: "byte_jckj"
+    dataset: [byte_ja]
+    dataset_list: [byte_ja byte_ko byte_zh]
+    batch_size: [16]
+    max_iters: [61800]
+
+  - named_group: "byte_kckj"
+    dataset: [byte_ko]
+    dataset_list: [byte_ja byte_ko byte_zh]
+    batch_size: [16]
+    max_iters: [34500]
+
+  - named_group: "byte_cckj"
+    dataset: [byte_zh]
+    dataset_list: [byte_ja byte_ko byte_zh]
+    batch_size: [16]
+    max_iters: [42300]
+
+  - named_group: "ipa_jckj"
+    dataset: [commonvoice_ja]
+    dataset_list: [commonvoice_ja commonvoice_ko commonvoice_zh]
+    batch_size: [16]
+    max_iters: [285300]
+
+  - named_group: "tiktoken_jckj"
+    dataset: [snac_cvja]
+    dataset_list: [snac_cvja snac_cvko snac_cvzh]
+
+  - named_group: "ipa_cckj"
+    dataset: [commonvoice_zh]
+    dataset_list: [commonvoice_ja commonvoice_ko commonvoice_zh]
+    batch_size: [16]
+    max_iters: [249300]
+
+  - named_group: "tiktoken_cckj"
+    dataset: [snac_cvzh]
+    dataset_list: [snac_cvja snac_cvko snac_cvzh]
+
+  - named_group: "ipa_kckj"
+    dataset: [commonvoice_ko]
+    dataset_list: [commonvoice_ja commonvoice_ko commonvoice_zh]
+    batch_size: [16]
+    max_iters: [69300]
+
+  - named_group: "tiktoken_kckj"
+    dataset: [snac_cvko]
+    dataset_list: [snac_cvja snac_cvko snac_cvzh]
+
+  - named_group: "base_batch_iters"
+    batch_size: [16]
+    max_iters: [30000]
+
+  - named_group: "one_hot_layer0"
+    use_lsv: [true]
+    lsv_variant: [one_hot]
+    apply_lsv_at_layer_idx: [0]
+
+  - named_group: "one_hot_layer6"
+    use_lsv: [true]
+    lsv_variant: [one_hot]
+    apply_lsv_at_layer_idx: [6]
+
+  - named_group: "ohmg_layer0"
+    use_lsv: [true]
+    lsv_variant: [ohmg]
+    apply_lsv_at_layer_idx: [0]
+
+  - named_group: "ohmg_layer6"
+    use_lsv: [true]
+    lsv_variant: [ohmg]
+    apply_lsv_at_layer_idx: [6]
+
+  - named_group: "without_lsv"
+    use_lsv: [false]
+
+training_mode: [multidataset]
+dataset_interleaving: [true]
+learning_rate: [6e-4]
+n_layer: [12]
+n_head: [12]
+n_embd: [768]
+block_size: [1024]
+use_rotary_embeddings: [true]
+use_abs_pos_embeddings: [false]
+use_qk_norm: [true]
+use_qk_norm_scale: [true]
+use_peri_ln: [true]
+use_gradient_checkpoint: [true]
+max_sample_tokens: [100]
+eval_interval: [1000]
+sample_each_eval: [true]
+compile: [true]
+seed: [1, 2, 3, 4, 5]
+
+parameter_groups:
+  - named_group_static: ["tiktoken_cckj", "1-1-1_1-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6"]
+
+  - named_group_static: ["tiktoken_kckj", "1-1-1_1-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6"]
+
+  - named_group_static: ["tiktoken_jckj", "1-1-1_1-1-1", "linear", "base_batch_iters"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6"]
+
+  - named_group_static: ["ipa_cckj", "1-1-1_1-1-1", "linear"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6"]
+
+  - named_group_static: ["ipa_kckj", "1-1-1_1-1-1", "linear"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6"]
+
+  - named_group_static: ["ipa_jckj", "1-1-1_1-1-1", "linear"]
+    named_group_alternates: ["one_hot_layer0", "one_hot_layer6"]
+
+  
+  # - named_group_static: ["ipa_jckj", "1-1-1_1-1-1", "linear", "base_batch_iters"]
+  #   named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+
+  # - named_group_static: ["byte_jckj", "1-1-1_1-1-1", "linear", "base_batch_iters"]
+  #   named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
+
+  # - named_group_static: ["tiktoken_jckj", "1-1-1_1-1-1", "linear", "base_batch_iters"]
+  #   named_group_alternates: ["one_hot_layer0", "one_hot_layer6", "ohmg_layer0", "ohmg_layer6", "without_lsv"]
