@@ -10,9 +10,10 @@ usage() {
 Usage: bash demos/run_cjk_nohup.sh [charbpe|char_byte_fallback|byte] [train|all|prepare]
 
 Defaults: charbpe train (reuse already prepared data).
-On a fresh machine, supply JA_TEXT / KO_TEXT / ZH_CN_TEXT and use all.
+On a fresh machine, use all to download xinyixuu/ted-2020 and prepare the data.
+JA_TEXT / KO_TEXT / ZH_CN_TEXT optionally override the downloaded files.
 PYTHON_BIN, CJK_DATA_ROOT, CJK_OUT_ROOT, CJK_LOG_ROOT and training overrides
-are passed to the pipeline. Default output/log roots have a _target_metrics suffix.
+are passed to the pipeline. Default output/log roots have a _12l_3epochs suffix.
 
 Files in CJK_LOG_ROOT:
   nohup.log     Combined stdout/stderr.
@@ -95,8 +96,8 @@ main() {
   export PYTHONUNBUFFERED=1
   export MPLBACKEND=Agg
   export CJK_DATA_ROOT="$(realpath -m "${CJK_DATA_ROOT:-${ROOT_DIR}/data/${suffix}}")"
-  export CJK_OUT_ROOT="$(realpath -m "${CJK_OUT_ROOT:-${ROOT_DIR}/out/${suffix}_target_metrics}")"
-  export CJK_LOG_ROOT="$(realpath -m "${CJK_LOG_ROOT:-${ROOT_DIR}/logs/${suffix}_target_metrics}")"
+  export CJK_OUT_ROOT="$(realpath -m "${CJK_OUT_ROOT:-${ROOT_DIR}/out/${suffix}_12l_3epochs}")"
+  export CJK_LOG_ROOT="$(realpath -m "${CJK_LOG_ROOT:-${ROOT_DIR}/logs/${suffix}_12l_3epochs}")"
   mkdir -p "${CJK_LOG_ROOT}"
   if ! mkdir "${CJK_LOG_ROOT}/.nohup-run"; then
     printf 'This log root already has a launch. Choose a fresh CJK_LOG_ROOT: %s\n' "${CJK_LOG_ROOT}" >&2

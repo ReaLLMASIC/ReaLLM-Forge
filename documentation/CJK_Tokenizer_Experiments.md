@@ -195,8 +195,8 @@ Existing datasets can be reused on the current machine. Keep the old outputs
 and point training at new output/log directories:
 
 ```bash
-CJK_OUT_ROOT="$PWD/out/cjk_ipa_charbpe_target_metrics" \
-CJK_LOG_ROOT="$PWD/logs/cjk_ipa_charbpe_target_metrics" \
+CJK_OUT_ROOT="$PWD/out/cjk_ipa_charbpe_12l_3epochs" \
+CJK_LOG_ROOT="$PWD/logs/cjk_ipa_charbpe_12l_3epochs" \
 bash demos/cjk_ipa_charbpe_compare.sh train
 ```
 
@@ -212,19 +212,18 @@ For a detached run with a status file, use the launcher (it invokes `nohup`):
 # Current machine: reuse prepared char-BPE datasets and retrain with new metrics.
 bash demos/run_cjk_nohup.sh charbpe train
 
-# Fresh machine: provide the three corpus paths and prepare + train byte fallback.
-JA_TEXT=/path/to/ja.txt KO_TEXT=/path/to/ko.txt ZH_CN_TEXT=/path/to/zh_cn.txt \
+# Fresh machine: download the TED corpus and prepare + train byte fallback.
 bash demos/run_cjk_nohup.sh char_byte_fallback all
 ```
 
-The default char-BPE log root is `logs/cjk_ipa_charbpe_target_metrics`.
-The byte-fallback launch uses `logs/cjk_ipa_char_byte_fallback_target_metrics`.
+The default char-BPE log root is `logs/cjk_ipa_charbpe_12l_3epochs`.
+The byte-fallback launch uses `logs/cjk_ipa_char_byte_fallback_12l_3epochs`.
 Monitor a char-BPE run with:
 
 ```bash
-tail -f logs/cjk_ipa_charbpe_target_metrics/nohup.log
-cat logs/cjk_ipa_charbpe_target_metrics/status
-cat logs/cjk_ipa_charbpe_target_metrics/pid
+tail -f logs/cjk_ipa_charbpe_12l_3epochs/nohup.log
+cat logs/cjk_ipa_charbpe_12l_3epochs/status
+cat logs/cjk_ipa_charbpe_12l_3epochs/pid
 ```
 
 `status` is `RUNNING` while active, `0` when the whole selected pipeline succeeds,
@@ -235,18 +234,10 @@ Each launch reserves its log root using `.nohup-run`; choose a new log/output ro
 for another attempt. Normal termination signals are recorded as failure; SIGKILL
 or a machine shutdown cannot run the exit handler.
 
-The original `ja.txt`, `ko.txt` and `zh_cn.txt` are external inputs and are not in
-GitHub. Copy them separately to the other machine, for example from this machine:
-
-```bash
-scp /home/xinyixu/ja.txt /home/xinyixu/ko.txt /home/xinyixu/zh_cn.txt \
-  YOUR_USER@YOUR_HOST:/absolute/path/to/corpora/
-```
-
-Create the destination directory beforehand, then set the three input variables
-to those paths. Run `all` to regenerate IPA and tokenized datasets on that machine.
+The original text files are hosted on Hugging Face rather than GitHub.
+Run `all` to download them and regenerate IPA and tokenized datasets.
 Alternatively, transfer the prepared dataset tree and use `train` with its
-`CJK_DATA_ROOT`; training-only execution does not read the three original files.
+`CJK_DATA_ROOT`; training-only execution does not read the original text files.
 
 Each run writes `full_config.json`, `ckpt.pt`, `best_val_loss_and_iter.txt` and
 `per_token_metrics/`. The report directory includes detailed and summary CSVs,
