@@ -6,19 +6,30 @@ model settings, BPB reporting and the three validation per-token metrics from
 
 | Entry point | Comparison | Default data/output/log suffix |
 | --- | --- | --- |
-| `demos/cjk_ipa_charbpe_compare.sh` | char vs char-BPE (8192 vocabulary) | `cjk_ipa_charbpe` |
-| `demos/cjk_ipa_char_byte_fallback_compare.sh` | char vs character whitelist + UTF-8 byte fallback | `cjk_ipa_char_byte_fallback` |
+| `demos/cjk_ipa_charbpe_compare.sh` | char vs char-BPE (8192 vocabulary) | data: `cjk_ipa_charbpe`; output/log: `cjk_ipa_charbpe_12l_3epochs` |
+| `demos/cjk_ipa_char_byte_fallback_compare.sh` | char vs character whitelist + UTF-8 byte fallback | data: `cjk_ipa_char_byte_fallback`; output/log: `cjk_ipa_char_byte_fallback_12l_3epochs` |
 
 Each experiment has 12 runs: Japanese / Korean / Chinese × original / IPA ×
-two tokenizers. Defaults match the existing experiment: 6 layers, 6 heads,
-embedding dimension 384, block size 256, batch size 64, 3500 iterations,
-learning rate 0.001, seed 1337, bfloat16, evaluation every 500 iterations
-using 50 sampled batches per split. Training runs sequentially on `cuda:0`;
+two tokenizers. Defaults: 12 layers, 12 heads, embedding dimension 768,
+MLP hidden size 3072
+(`MLP_SIZE`, default `4 * N_EMBD`), block size 1024, batch size 16,
+QK normalization and QK norm scale enabled, `torch.compile` enabled,
+TensorBoard disabled, learning rate 0.001, seed 1337 and bfloat16.
+Each run uses `--training_limiters max_epochs --max_epochs 3`; `MAX_EPOCHS`
+overrides the epoch limit. The iteration limiter is not active. Evaluation
+runs every 500 iterations using 50 sampled batches per split. Epochs are
+measured as cumulative sampled training tokens divided by the training split
+token count, so tokenizers have different iteration counts and the last batch
+may slightly exceed 3 epochs. Sampling remains the trainer’s random-window
+sampling; an epoch is not a shuffled pass over every window.
+Training runs sequentially on `cuda:0`;
 `CUDA_VISIBLE_DEVICES` chooses the physical GPU.
 
 ## Byte-fallback vocabulary
 
-The new demo defaults to `FALLBACK_CHAR_LIMIT=256`. For each language and
+The new demo defaults to `FALLBACK_CHAR_LIMIT=7936`, giving a total vocabulary
+of at most 8192 including the 256 byte tokens. No unused IDs are added to pad
+smaller vocabularies. For each language and
 representation independently, the whitelist contains the K most frequent
 non-whitespace Unicode characters in the training split. Frequency ties are
 broken by Unicode order. Validation text is never used to select this whitelist.
@@ -32,7 +43,7 @@ is `256 + min(K, available non-whitespace training characters)`. The baseline
 char tokenizer retains its existing behavior of covering train and validation
 characters. It is not a train-only/OOV baseline.
 
-If K covers every training character, this comparison primarily measures the
+If K covers every non-whitespace training character, this comparison primarily measures the
 additional byte vocabulary, changed IDs, and validation-only characters.
 Several IPA streams have fewer than 256 distinct characters. Use a lower K
 when you want fallback to handle more of their observed characters.
@@ -68,15 +79,28 @@ python3 -c 'import torch; print(torch.cuda.is_available(), torch.cuda.is_bf16_su
 
 `requirements_cpu.txt` contains the general Python dependencies and IPA
 converters; GPU-specific optional packages are not required for this demo.
-Use `DTYPE=float32` or `float16` if needed for your GPU. Supply your three
-original UTF-8 text corpora explicitly; they are not uploaded to GitHub:
+Use `DTYPE=float32` or `float16` if needed for your GPU.
+The `prepare` and `all` stages automatically download `ja.txt`, `ko.txt` and
+`zh_cn.txt` from [xinyixuu/ted-2020](https://huggingface.co/datasets/xinyixuu/ted-2020)
+to `data/ted-2020` using `huggingface_hub`. Downloads use the Hub cache.
+Set `HF_DATASET_REVISION` to a commit hash to pin a dataset version;
+`HF_DATASET_REPO` and `HF_DATASET_DIR` override the repository and download
+directory. `train` uses prepared files and does not download source text.
+For offline preparation, supply all three local UTF-8 corpus paths explicitly.
+The default full char-BPE pipeline is:
+
+```bash
+bash demos/run_cjk_experiment.sh charbpe all
+```
+
+For local source overrides and byte-fallback comparison:
 
 ```bash
 export PYTHON_BIN="$(command -v python3)"
 export JA_TEXT=/path/to/ja.txt
 export KO_TEXT=/path/to/ko.txt
 export ZH_CN_TEXT=/path/to/zh_cn.txt
-export FALLBACK_CHAR_LIMIT=256
+export FALLBACK_CHAR_LIMIT=7936
 
 # Optionally select one physical GPU.
 export CUDA_VISIBLE_DEVICES=0
@@ -91,6 +115,63 @@ For pure byte comparison:
 ```bash
 COMPARISON_TOKENIZER=byte bash demos/cjk_ipa_char_byte_fallback_compare.sh all
 ```
+
+## Background execution with nohup and exit codes
+
+`demos/run_cjk_experiment.sh` wraps either experiment and normalizes its exit
+code: successful completion returns **0**; any nonzero underlying exit code
+returns **1**. Both experiments default to downloading the three TED corpora from
+`xinyixuu/ted-2020`. `JA_TEXT`, `KO_TEXT` and `ZH_CN_TEXT` optionally override
+individual files with local paths. From the
+repository root, launch the full char versus byte-fallback experiment with:
+
+```bash
+# Unique directories preserve previous runs and give each job its own status.
+JOB_DIR="$(mktemp -d "$PWD/cjk_job.XXXXXX")"
+export PYTHON_BIN="$(command -v python3)"
+export CUDA_VISIBLE_DEVICES=0
+export FALLBACK_CHAR_LIMIT=7936
+export CJK_DATA_ROOT="$PWD/data/cjk_ipa_fallback_vocab8192"
+export CJK_OUT_ROOT="$JOB_DIR/out"
+export CJK_LOG_ROOT="$JOB_DIR/logs"
+export CJK_EXIT_CODE_FILE="$JOB_DIR/exit_code"
+
+nohup bash demos/run_cjk_experiment.sh byte-fallback all \
+  >"$JOB_DIR/nohup.log" 2>&1 < /dev/null &
+CJK_PID=$!
+printf 'pid=%s\njob_dir=%s\n' "$CJK_PID" "$JOB_DIR"
+
+# Follow progress (Ctrl-C stops tail only).
+tail -f "$JOB_DIR/nohup.log"
+```
+
+For char versus char-BPE, replace `byte-fallback` with `charbpe` and use
+`CJK_DATA_ROOT="$PWD/data/cjk_ipa_charbpe"`. Replace `all` with `prepare` or
+`train` to run just one stage. Training requires prepared datasets.
+
+The optional `CJK_EXIT_CODE_FILE` contains `running` during execution, then
+`0` or `1` when the wrapper exits. Read it after reconnecting using the printed
+absolute job directory: `cat /absolute/job/directory/exit_code`. A missing file
+can mean the wrapper has not started yet. Forced termination with `SIGKILL`,
+machine shutdown, or a failure to write the file can leave the status missing
+or at `running`; check the process and log in those cases.
+
+In the **same shell that launched the job**, obtain the actual final exit code:
+
+```bash
+if wait "$CJK_PID"; then
+  CJK_STATUS=0
+else
+  CJK_STATUS=1
+fi
+printf 'Final exit code: %s\n' "$CJK_STATUS"
+# In an automation shell script, propagate it with: exit "$CJK_STATUS"
+```
+
+`$?` immediately after `nohup ... &` describes background launch, not experiment
+completion. A new shell cannot `wait` on the old shell's child; use the status
+file instead. Errors are determined by process exit codes and the pipeline's
+output validation, not by searching logs for the word `error`.
 
 Use distinct artifact roots for different K values, whitelists, seeds or model
 settings. For example:
@@ -119,7 +200,7 @@ CJK_LOG_ROOT="$PWD/logs/cjk_ipa_charbpe_target_metrics" \
 bash demos/cjk_ipa_charbpe_compare.sh train
 ```
 
-On a fresh machine, supply the three corpus paths and run `all` first. The new
+On a fresh machine, run `all` first to download and prepare the corpora. The new
 metrics cannot be recovered for earlier evaluation snapshots from old CSV
 losses alone; full metric histories require retraining.
 
@@ -177,6 +258,22 @@ sort orders per evaluation. The three new CSV columns are:
 - `avg_left_probability`: probability mass strictly ahead of the target,
   lower is better; the target and tied competitors are excluded.
 
+Each completed run also logs and writes `training_token_stats.json`. The
+`comparison_summary.tsv` includes these counts for every tokenizer:
+
+- `vocab_size`: actual number of vocabulary IDs, including unused byte IDs.
+- `training_unique_token_ids`: number of distinct target IDs actually seen in
+  training, excluding IDs whose cumulative `training_seen_count` is zero.
+- `training_tokens_processed`: total training target occurrences, counting
+  repeated tokens and repeated sampling of data, excluding padding (`-1`).
+- `training_tokens_iteration`: latest exported snapshot used for these counts.
+
+Counts come from the latest per-token snapshot, not the best-loss snapshot;
+cumulative counts are never added across snapshots. They exclude validation
+and training-split evaluation batches. Existing completed runs can regenerate
+the JSON and log counts when selected by the `train` stage without retraining.
+`best_tokens` remains the existing count at the best validation-loss iteration.
+
 All three are validation-only means over positions with that target token.
 Tokens not sampled in validation have `NaN`. Padding targets (`-1`) are ignored.
 `per_token_summary.csv` describes the distribution across populated token IDs.
@@ -191,7 +288,8 @@ within the same representation. Original and IPA BPB use different byte streams
 and cannot directly establish which representation is better. The existing
 Chinese IPA converter has known mixed-number/Hanzi issues.
 
-Model depth/width and processed token counts match across runs. Parameter counts,
+Model depth/width and the epoch budget match across runs. Processed token
+counts differ with tokenization. Parameter counts,
 processed raw bytes and FLOPs are not matched. This is a single-seed experiment.
 Reports use Plotly CDN for interactive views; CSVs and static PNGs work offline.
 

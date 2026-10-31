@@ -1,6 +1,7 @@
 """CJK preparation checks that do not require IPA conversion or a GPU."""
 
 import csv
+import json
 import os
 from pathlib import Path
 import pickle
@@ -12,7 +13,7 @@ import unittest
 import numpy as np
 
 from data.template.utils.build_char_fallback_vocab import read_characters, select_characters
-from utils.cjk_comparison_metrics import FIELDS, snapshot_metrics
+from utils.cjk_comparison_metrics import FIELDS, snapshot_metrics, training_token_stats
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +68,18 @@ class FallbackPipelineTests(unittest.TestCase):
                     rows = list(csv.DictReader(handle))
                 self.assertEqual({int(row["iteration"]) for row in rows}, {0, 1})
                 self.assertGreater(sum(int(row["training_seen_count"]) for row in rows), 0)
+                stats_result = subprocess.run([
+                    "bash", "-c", "source demos/cjk_ipa_char_byte_fallback_compare.sh; "
+                    'write_training_token_stats "$TEST_RUN_OUT"',
+                ], cwd=ROOT, env=env, capture_output=True, text=True, timeout=30)
+                self.assertEqual(stats_result.returncode, 0, stats_result.stdout + stats_result.stderr)
+                stats = json.loads((out_dir / "training_token_stats.json").read_text())
+                latest = [row for row in rows if int(row["iteration"]) == 1]
+                self.assertEqual(stats["vocab_size"], len(latest))
+                self.assertEqual(stats["training_tokens_processed"],
+                                 sum(int(row["training_seen_count"]) for row in latest))
+                self.assertEqual(stats["training_unique_token_ids"],
+                                 sum(int(row["training_seen_count"]) > 0 for row in latest))
                 (out_dir / ".complete").write_text("test-completed\n", encoding="utf-8")
             summary = subprocess.run([
                 "bash", "-c", "source demos/cjk_ipa_char_byte_fallback_compare.sh; write_comparison_summary",
@@ -78,6 +91,23 @@ class FallbackPipelineTests(unittest.TestCase):
             for row in rows:
                 self.assertGreater(float(row["val_avg_target_probability"]), 0)
                 self.assertGreaterEqual(float(row["val_avg_target_rank"]), 1)
+                self.assertEqual(int(row["training_tokens_iteration"]), 1)
+                self.assertGreater(int(row["training_tokens_processed"]), 0)
+                self.assertLessEqual(int(row["training_unique_token_ids"]), int(row["vocab_size"]))
+
+    def test_training_token_counts_use_latest_snapshot_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "metrics.csv"
+            with path.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=("iteration", "token_id", "training_seen_count"))
+                writer.writeheader()
+                for iteration, counts in ((0, [0, 0, 0]), (5, [4, 2, 0]), (10, [8, 3, 0])):
+                    for token_id, count in enumerate(counts):
+                        writer.writerow(dict(iteration=iteration, token_id=token_id, training_seen_count=count))
+            self.assertEqual(training_token_stats(path), {
+                "vocab_size": 3, "training_tokens_iteration": 10,
+                "training_tokens_processed": 11, "training_unique_token_ids": 2,
+            })
 
     def test_training_only_selection_and_whitelist_validation(self):
         with tempfile.TemporaryDirectory() as directory:

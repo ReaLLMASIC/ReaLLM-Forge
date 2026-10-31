@@ -8,25 +8,30 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." >/dev/null 2>&1 && pwd)"
 MODE="${1:-all}"
 PYTHON_BIN="${PYTHON_BIN:-$(command -v python3)}"
 
-JA_TEXT="${JA_TEXT:-/home/xinyixu/ja.txt}"
-KO_TEXT="${KO_TEXT:-/home/xinyixu/ko.txt}"
-ZH_CN_TEXT="${ZH_CN_TEXT:-/home/xinyixu/zh_cn.txt}"
+HF_DATASET_REPO="${HF_DATASET_REPO:-xinyixuu/ted-2020}"
+HF_DATASET_REVISION="${HF_DATASET_REVISION:-main}"
+HF_DATASET_DIR="${HF_DATASET_DIR:-${ROOT_DIR}/data/ted-2020}"
+# Empty overrides select the Hugging Face files; explicit paths work offline.
+JA_TEXT="${JA_TEXT:-}"
+KO_TEXT="${KO_TEXT:-}"
+ZH_CN_TEXT="${ZH_CN_TEXT:-}"
 
 DATA_ROOT="${CJK_DATA_ROOT:-${ROOT_DIR}/data/cjk_ipa_charbpe}"
 SOURCE_ROOT="${DATA_ROOT}/_source"
-OUT_ROOT="${CJK_OUT_ROOT:-${ROOT_DIR}/out/cjk_ipa_charbpe}"
-LOG_ROOT="${CJK_LOG_ROOT:-${ROOT_DIR}/logs/cjk_ipa_charbpe}"
+OUT_ROOT="${CJK_OUT_ROOT:-${ROOT_DIR}/out/cjk_ipa_charbpe_12l_3epochs}"
+LOG_ROOT="${CJK_LOG_ROOT:-${ROOT_DIR}/logs/cjk_ipa_charbpe_12l_3epochs}"
 
 BPE_VOCAB_SIZE="${BPE_VOCAB_SIZE:-8192}"
 KOREAN_WORKERS="${KOREAN_WORKERS:-32}"
-MAX_ITERS="${MAX_ITERS:-3500}"
+MAX_EPOCHS="${MAX_EPOCHS:-3}"
 EVAL_INTERVAL="${EVAL_INTERVAL:-500}"
 EVAL_ITERS="${EVAL_ITERS:-50}"
-BATCH_SIZE="${BATCH_SIZE:-64}"
-BLOCK_SIZE="${BLOCK_SIZE:-256}"
-N_LAYER="${N_LAYER:-6}"
-N_HEAD="${N_HEAD:-6}"
-N_EMBD="${N_EMBD:-384}"
+BATCH_SIZE="${BATCH_SIZE:-16}"
+BLOCK_SIZE="${BLOCK_SIZE:-1024}"
+N_LAYER="${N_LAYER:-12}"
+N_HEAD="${N_HEAD:-12}"
+N_EMBD="${N_EMBD:-768}"
+MLP_SIZE="${MLP_SIZE:-$((4 * N_EMBD))}"
 LEARNING_RATE="${LEARNING_RATE:-1e-3}"
 SEED="${SEED:-1337}"
 DTYPE="${DTYPE:-bfloat16}"
@@ -92,9 +97,14 @@ Stages:
 Useful environment overrides:
   PYTHON_BIN, JA_TEXT, KO_TEXT, ZH_CN_TEXT
   CJK_DATA_ROOT, CJK_OUT_ROOT, CJK_LOG_ROOT
-  BPE_VOCAB_SIZE, KOREAN_WORKERS, MAX_ITERS, EVAL_INTERVAL, EVAL_ITERS
-  BATCH_SIZE, BLOCK_SIZE, N_LAYER, N_HEAD, N_EMBD, LEARNING_RATE, SEED, DTYPE
+  HF_DATASET_REPO, HF_DATASET_REVISION, HF_DATASET_DIR
+  BPE_VOCAB_SIZE, KOREAN_WORKERS, MAX_EPOCHS, EVAL_INTERVAL, EVAL_ITERS
+  BATCH_SIZE, BLOCK_SIZE, N_LAYER, N_HEAD, N_EMBD, MLP_SIZE, LEARNING_RATE, SEED, DTYPE
   RUN_FILTER  Bash regular expression matched against names such as ja_original_char_bpe.
+
+Source defaults to xinyixuu/ted-2020 (ja.txt, ko.txt, zh_cn.txt).
+Training defaults: 3 epochs, 12 layers/heads, embedding 768, MLP 3072,
+batch 16, block 1024, QK norm + scale and compile enabled, TensorBoard disabled.
 
 The default charBPE path intentionally uses nanoGPT's existing Python BPE trainer.
 On the full CJK corpora, vocabulary training can take many hours or longer.
@@ -151,7 +161,7 @@ validate_configuration() {
 
   validate_positive_integer BPE_VOCAB_SIZE "${BPE_VOCAB_SIZE}"
   validate_positive_integer KOREAN_WORKERS "${KOREAN_WORKERS}"
-  validate_positive_integer MAX_ITERS "${MAX_ITERS}"
+  "${PYTHON_BIN}" -c 'import math,sys; n=float(sys.argv[1]); sys.exit(0 if math.isfinite(n) and n > 0 else "MAX_EPOCHS must be positive and finite")' "${MAX_EPOCHS}"
   validate_positive_integer EVAL_INTERVAL "${EVAL_INTERVAL}"
   validate_positive_integer EVAL_ITERS "${EVAL_ITERS}"
   validate_positive_integer BATCH_SIZE "${BATCH_SIZE}"
@@ -159,6 +169,7 @@ validate_configuration() {
   validate_positive_integer N_LAYER "${N_LAYER}"
   validate_positive_integer N_HEAD "${N_HEAD}"
   validate_positive_integer N_EMBD "${N_EMBD}"
+  validate_positive_integer MLP_SIZE "${MLP_SIZE}"
   validate_positive_integer SEED "${SEED}"
   case "${COMPARISON_TOKENIZER}" in
     char_bpe|byte) ;;
@@ -202,6 +213,22 @@ source_for_language() {
     zh_cn) printf '%s\n' "${ZH_CN_TEXT}" ;;
     *) die "Unsupported language '$1'." ;;
   esac
+}
+
+download_source_texts() {
+  local files=()
+  [[ -n "${JA_TEXT}" ]] || files+=(ja.txt)
+  [[ -n "${KO_TEXT}" ]] || files+=(ko.txt)
+  [[ -n "${ZH_CN_TEXT}" ]] || files+=(zh_cn.txt)
+  if (( ${#files[@]} )); then
+    log "Downloading ${HF_DATASET_REPO}@${HF_DATASET_REVISION}: ${files[*]}"
+    "${PYTHON_BIN}" "${ROOT_DIR}/data/template/utils/download_cjk_ted.py" \
+      --repo-id "${HF_DATASET_REPO}" --revision "${HF_DATASET_REVISION}" \
+      --local-dir "${HF_DATASET_DIR}" --files "${files[@]}"
+  fi
+  JA_TEXT="${JA_TEXT:-${HF_DATASET_DIR}/ja.txt}"
+  KO_TEXT="${KO_TEXT:-${HF_DATASET_DIR}/ko.txt}"
+  ZH_CN_TEXT="${ZH_CN_TEXT:-${HF_DATASET_DIR}/zh_cn.txt}"
 }
 
 normalize_and_split() {
@@ -485,6 +512,7 @@ prepare_all() {
   mkdir -p "${SOURCE_ROOT}" "${DATA_ROOT}" "${OUT_ROOT}" "${LOG_ROOT}"
 
   "${PYTHON_BIN}" -c 'import numpy, tqdm, pykakasi, konlpy, dragonmapper, jieba' >/dev/null
+  download_source_texts
 
   local language
   for language in ja ko zh_cn; do
@@ -580,6 +608,17 @@ if missing:
 ' "${metrics_dir}/per_token_metrics.csv" "${metrics_dir}/per_token_summary.csv"
 }
 
+write_training_token_stats() {
+  local out_dir=$1 stats iteration processed unique vocab_size
+  stats="$("${PYTHON_BIN}" "${ROOT_DIR}/utils/cjk_comparison_metrics.py" \
+    "${out_dir}/per_token_metrics/per_token_metrics.csv" --training-stats \
+    --output-json "${out_dir}/training_token_stats.json.tmp")"
+  mv -f "${out_dir}/training_token_stats.json.tmp" "${out_dir}/training_token_stats.json"
+  IFS=$'\t' read -r iteration processed unique <<<"${stats}"
+  vocab_size="$("${PYTHON_BIN}" -c 'import json,sys; print(json.load(open(sys.argv[1]))["vocab_size"])' "${out_dir}/training_token_stats.json")"
+  log "${out_dir##*/}: vocab_size=${vocab_size}, training_unique_token_ids=${unique}, training_tokens_processed=${processed}, snapshot_iteration=${iteration}"
+}
+
 train_one() {
   local language=$1
   local representation=$2
@@ -599,6 +638,7 @@ train_one() {
     grep -Fxq "per_token_metrics_schema=${PER_TOKEN_METRICS_SCHEMA}" "${complete_marker}" \
       || die "Run ${run_name} predates ${PER_TOKEN_METRICS_SCHEMA}. Use a fresh CJK_OUT_ROOT to collect the complete metric history."
     validate_training_outputs "${out_dir}"
+    write_training_token_stats "${out_dir}"
     log "Run ${run_name} is already complete; skipping."
     return
   fi
@@ -608,7 +648,7 @@ train_one() {
     die "Run ${run_name} has partial output in ${out_dir}. Move it aside before retrying; automatic resume would reset cumulative per-token counts."
   fi
 
-  mkdir -p "${out_dir}" "${LOG_ROOT}/tensorboard" "${LOG_ROOT}/csv"
+  mkdir -p "${out_dir}" "${LOG_ROOT}/csv"
   log "Starting training run ${run_name}."
 
   (
@@ -618,7 +658,8 @@ train_one() {
       --dataset "${dataset_name}" \
       --out_dir "${out_dir}" \
       --init_from scratch \
-      --max_iters "${MAX_ITERS}" \
+      --training_limiters max_epochs \
+      --max_epochs "${MAX_EPOCHS}" \
       --eval_interval "${EVAL_INTERVAL}" \
       --eval_iters "${EVAL_ITERS}" \
       --batch_size "${BATCH_SIZE}" \
@@ -627,16 +668,17 @@ train_one() {
       --n_layer "${N_LAYER}" \
       --n_head "${N_HEAD}" \
       --n_embd "${N_EMBD}" \
+      --mlp_size "${MLP_SIZE}" \
+      --use_qk_norm \
+      --use_qk_norm_scale \
       --dropout 0.0 \
       --learning_rate "${LEARNING_RATE}" \
       --seed "${SEED}" \
       --device cuda:0 \
       --dtype "${DTYPE}" \
-      --no-compile \
+      --compile \
       --always_save_checkpoint \
-      --tensorboard_log \
-      --tensorboard_log_dir "${LOG_ROOT}/tensorboard" \
-      --tensorboard_run_name "${run_name}" \
+      --no-tensorboard_log \
       --csv_log \
       --csv_dir "${LOG_ROOT}/csv" \
       --csv_name "${run_name}" \
@@ -646,6 +688,7 @@ train_one() {
   )
 
   validate_training_outputs "${out_dir}"
+  write_training_token_stats "${out_dir}"
   printf 'completed_at=%s\nper_token_metrics_schema=%s\n' \
     "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "${PER_TOKEN_METRICS_SCHEMA}" \
     >"${complete_marker}"
@@ -655,11 +698,11 @@ train_one() {
 write_comparison_summary() {
   local summary_file="${OUT_ROOT}/comparison_summary.tsv"
   local temporary="${summary_file}.tmp.$$"
-  printf 'run\tlanguage\trepresentation\ttokenizer\tvocab_size\tbest_val_loss\tbest_bits_per_byte\tbest_iter\tbest_tokens\tval_avg_target_probability\tval_avg_target_rank\tval_avg_left_probability\treport_html\n' >"${temporary}"
+  printf 'run\tlanguage\trepresentation\ttokenizer\tvocab_size\tbest_val_loss\tbest_bits_per_byte\tbest_iter\tbest_tokens\tval_avg_target_probability\tval_avg_target_rank\tval_avg_left_probability\ttraining_tokens_iteration\ttraining_tokens_processed\ttraining_unique_token_ids\treport_html\n' >"${temporary}"
 
   local spec language representation tokenizer run_name dataset_dir out_dir
   local vocab_size best_val_loss best_bits_per_byte best_iter best_tokens
-  local metric_values
+  local metric_values training_stats
   for spec in "${RUN_SPECS[@]}"; do
     IFS='|' read -r language representation tokenizer <<<"${spec}"
     run_name="${language}_${representation}_${tokenizer}"
@@ -677,11 +720,13 @@ write_comparison_summary() {
     best_tokens="${best_tokens//[[:space:]]/}"
     metric_values="$("${PYTHON_BIN}" "${ROOT_DIR}/utils/cjk_comparison_metrics.py" \
       "${out_dir}/per_token_metrics/per_token_metrics.csv" "${best_iter}")"
+    training_stats="$("${PYTHON_BIN}" "${ROOT_DIR}/utils/cjk_comparison_metrics.py" \
+      "${out_dir}/per_token_metrics/per_token_metrics.csv" --training-stats)"
 
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "${run_name}" "${language}" "${representation}" "${tokenizer}" \
       "${vocab_size}" "${best_val_loss}" "${best_bits_per_byte}" \
-      "${best_iter}" "${best_tokens}" "${metric_values}" \
+      "${best_iter}" "${best_tokens}" "${metric_values}" "${training_stats}" \
       "${out_dir}/per_token_metrics/per_token_metrics.html" >>"${temporary}"
   done
 
@@ -690,7 +735,7 @@ write_comparison_summary() {
 }
 
 train_all() {
-  mkdir -p "${OUT_ROOT}" "${LOG_ROOT}" "${LOG_ROOT}/tensorboard" "${LOG_ROOT}/csv"
+  mkdir -p "${OUT_ROOT}" "${LOG_ROOT}" "${LOG_ROOT}/csv"
   "${PYTHON_BIN}" -c '
 import sys
 import torch
