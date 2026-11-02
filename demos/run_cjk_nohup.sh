@@ -7,10 +7,12 @@ ROOT_DIR="$(cd "$(dirname "${SCRIPT_FILE}")/.." && pwd)"
 
 usage() {
   cat <<'EOF'
-Usage: bash demos/run_cjk_nohup.sh [charbpe|char_byte_fallback|byte] [train|all|prepare]
+Usage: bash demos/run_cjk_nohup.sh [charbpe|char_byte_fallback|byte] [train|all|prepare|download|download-train]
 
 Defaults: charbpe train (reuse already prepared data).
 On a fresh machine, use all to download xinyixuu/ted-2020 and prepare the data.
+Use charbpe download-train or char_byte_fallback download-train to fetch the
+published tokenized data and skip preprocessing. download fetches data only.
 JA_TEXT / KO_TEXT / ZH_CN_TEXT optionally override the downloaded files.
 PYTHON_BIN, CJK_DATA_ROOT, CJK_OUT_ROOT, CJK_LOG_ROOT and training overrides
 are passed to the pipeline. Default output/log roots have a _12l_3epochs suffix.
@@ -89,7 +91,7 @@ main() {
       ;;
     *) usage >&2; exit 2 ;;
   esac
-  case "${mode}" in train|all|prepare) ;; *) usage >&2; exit 2 ;; esac
+  case "${mode}" in train|all|prepare|download|download-train) ;; *) usage >&2; exit 2 ;; esac
   command -v nohup >/dev/null
   command -v setsid >/dev/null
   export PYTHON_BIN="${PYTHON_BIN:-$(command -v python3)}"

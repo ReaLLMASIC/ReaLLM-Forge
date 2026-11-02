@@ -23,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXPERIMENT="${1:-byte-fallback}"
 MODE="${2:-all}"
 if (( $# > 2 )); then
-  printf 'Usage: bash demos/run_cjk_experiment.sh [byte-fallback|charbpe] [prepare|train|all|--help]\n' >&2
+  printf 'Usage: bash demos/run_cjk_experiment.sh [byte-fallback|charbpe] [prepare|train|all|download|download-train|--help]\n' >&2
   exit 1
 fi
 case "${EXPERIMENT}" in

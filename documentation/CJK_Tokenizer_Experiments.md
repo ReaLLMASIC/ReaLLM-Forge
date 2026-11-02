@@ -58,6 +58,72 @@ different whitelist files separately. A lower-level alternative is
 
 ## On the other machine
 
+### Download tokenized data and train directly
+
+For a ready-to-paste PR comment with clone, setup, launch and monitoring commands,
+see [CJK_CharBPE_PR_Comment.md](CJK_CharBPE_PR_Comment.md).
+
+The [published prepared package](https://huggingface.co/datasets/xinyixuu/ted-2020/tree/main/cjk_char_byte_fallback_prepared)
+contains the char baselines and character-byte-fallback datasets (K=7936). The
+[new charBPE package](https://huggingface.co/datasets/xinyixuu/ted-2020/tree/main/cjk_charbpe_tokenized)
+contains six charBPE datasets. The charBPE download stage combines the six char
+baselines from the first package with the six charBPE datasets from the second,
+covering Japanese, Korean and Chinese in original and IPA representations. Both
+packages are pinned to the same Hub commit during each download. After installing
+PyTorch with CUDA support and `requirements_gpu.txt`, choose one launch command:
+
+```bash
+# Download all 12 char vs charBPE datasets, then train sequentially on one GPU.
+bash demos/run_cjk_experiment.sh charbpe download-train
+
+# Or detach the same char vs charBPE experiment with status/log tracking.
+bash demos/run_cjk_nohup.sh charbpe download-train
+
+# Separate comparison: char vs byte fallback.
+bash demos/run_cjk_experiment.sh byte-fallback download-train
+
+# Or launch in the background with the existing status/log tracking.
+bash demos/run_cjk_nohup.sh char_byte_fallback download-train
+
+# Download only; no GPU or IPA conversion dependencies are needed for this stage.
+bash demos/cjk_ipa_char_byte_fallback_compare.sh download
+# Later (including offline):
+bash demos/cjk_ipa_char_byte_fallback_compare.sh train
+```
+
+These are alternative launch commands; choose one to avoid duplicate training.
+The existing `prepare`, `all` and `train` stages keep their previous behavior.
+`download-train` skips source downloads, normalization, IPA conversion and
+tokenization entirely. `espeak-ng` and the IPA converter packages are needed
+only for local `prepare`/`all`, not for the prepared-data path.
+
+```bash
+# Example: download and train only the Japanese original-text pair.
+RUN_FILTER='^ja_original_' \
+CJK_DATA_ROOT="$PWD/data/cjk_downloaded" \
+CJK_OUT_ROOT="$PWD/out/cjk_downloaded" \
+CJK_LOG_ROOT="$PWD/logs/cjk_downloaded" \
+bash demos/run_cjk_experiment.sh charbpe download-train
+```
+
+The downloader selects only the requested dataset directories, including
+`train.bin`, `val.bin`, `meta.pkl`, preparation markers, whitelists, and charBPE
+vocabulary/count JSONs. It excludes
+`_source` text and checks file sizes and SHA256 against `manifest.json` before
+installing files under `CJK_DATA_ROOT/<run_name>/`. Already matching local files
+are reused; differing existing files require a fresh data root or moving them
+aside. Metadata is validated before training. Custom `FALLBACK_CHAR_LIMIT` or
+`FALLBACK_CHARS_FILE` settings require local preparation rather than downloading
+the fixed published fallback vocabularies.
+
+`HF_DATASET_REPO` and `HF_DATASET_REVISION` select the dataset repository/version;
+the downloader pins all binaries to the manifest's commit. `HF_PREPARED_SUBDIR`
+defaults to `cjk_char_byte_fallback_prepared` for char/fallback datasets;
+`HF_CHARBPE_SUBDIR` defaults to `cjk_charbpe_tokenized` for charBPE datasets.
+The downloader supports both manifest formats and installs both packages into
+one data root. Published charBPE vocabularies have 8192 IDs including 256 byte
+fallback IDs; use `prepare`/`all` with a separate data root for other vocabulary sizes.
+
 Clone the feature branch (replace the directory name if desired):
 
 ```bash
@@ -87,10 +153,10 @@ Set `HF_DATASET_REVISION` to a commit hash to pin a dataset version;
 `HF_DATASET_REPO` and `HF_DATASET_DIR` override the repository and download
 directory. `train` uses prepared files and does not download source text.
 For offline preparation, supply all three local UTF-8 corpus paths explicitly.
-The default full char-BPE pipeline is:
+To use the uploaded data for the full char-BPE experiment:
 
 ```bash
-bash demos/run_cjk_experiment.sh charbpe all
+bash demos/run_cjk_experiment.sh charbpe download-train
 ```
 
 For local source overrides and byte-fallback comparison:
@@ -200,7 +266,8 @@ CJK_LOG_ROOT="$PWD/logs/cjk_ipa_charbpe_12l_3epochs" \
 bash demos/cjk_ipa_charbpe_compare.sh train
 ```
 
-On a fresh machine, run `all` first to download and prepare the corpora. The new
+On a fresh machine, use `download-train` to fetch the published tokenized data
+and train directly. Use `all` only when intentionally rebuilding tokenization. The new
 metrics cannot be recovered for earlier evaluation snapshots from old CSV
 losses alone; full metric histories require retraining.
 
@@ -212,8 +279,8 @@ For a detached run with a status file, use the launcher (it invokes `nohup`):
 # Current machine: reuse prepared char-BPE datasets and retrain with new metrics.
 bash demos/run_cjk_nohup.sh charbpe train
 
-# Fresh machine: download the TED corpus and prepare + train byte fallback.
-bash demos/run_cjk_nohup.sh char_byte_fallback all
+# Fresh machine: download tokenized data and train char vs charBPE directly.
+bash demos/run_cjk_nohup.sh charbpe download-train
 ```
 
 The default char-BPE log root is `logs/cjk_ipa_charbpe_12l_3epochs`.
@@ -234,8 +301,8 @@ Each launch reserves its log root using `.nohup-run`; choose a new log/output ro
 for another attempt. Normal termination signals are recorded as failure; SIGKILL
 or a machine shutdown cannot run the exit handler.
 
-The original text files are hosted on Hugging Face rather than GitHub.
-Run `all` to download them and regenerate IPA and tokenized datasets.
+The original text and tokenized datasets are hosted on Hugging Face.
+Use `download-train` for published data, or `all` to regenerate IPA/tokenization.
 Alternatively, transfer the prepared dataset tree and use `train` with its
 `CJK_DATA_ROOT`; training-only execution does not read the original text files.
 

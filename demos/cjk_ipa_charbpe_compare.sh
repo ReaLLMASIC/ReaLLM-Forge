@@ -10,6 +10,8 @@ PYTHON_BIN="${PYTHON_BIN:-$(command -v python3)}"
 
 HF_DATASET_REPO="${HF_DATASET_REPO:-xinyixuu/ted-2020}"
 HF_DATASET_REVISION="${HF_DATASET_REVISION:-main}"
+HF_PREPARED_SUBDIR="${HF_PREPARED_SUBDIR:-cjk_char_byte_fallback_prepared}"
+HF_CHARBPE_SUBDIR="${HF_CHARBPE_SUBDIR:-cjk_charbpe_tokenized}"
 HF_DATASET_DIR="${HF_DATASET_DIR:-${ROOT_DIR}/data/ted-2020}"
 # Empty overrides select the Hugging Face files; explicit paths work offline.
 JA_TEXT="${JA_TEXT:-}"
@@ -87,22 +89,28 @@ trap on_error ERR
 
 usage() {
   cat <<'EOF'
-Usage: bash demos/cjk_ipa_charbpe_compare.sh [prepare|train|all]
+Usage: bash demos/cjk_ipa_charbpe_compare.sh [prepare|train|all|download|download-train]
 
 Stages:
   prepare  Normalize/split source text, create IPA text, and tokenize 12 datasets.
   train    Train all selected datasets sequentially on one visible GPU.
   all      Run prepare followed by train (default).
+  download        Download and verify selected prepared datasets only.
+  download-train  Download prepared datasets, then train; skip preprocessing.
 
 Useful environment overrides:
   PYTHON_BIN, JA_TEXT, KO_TEXT, ZH_CN_TEXT
   CJK_DATA_ROOT, CJK_OUT_ROOT, CJK_LOG_ROOT
   HF_DATASET_REPO, HF_DATASET_REVISION, HF_DATASET_DIR
+  HF_PREPARED_SUBDIR  Prepared package directory in the dataset repository.
+  HF_CHARBPE_SUBDIR   Separate charBPE package (default: cjk_charbpe_tokenized).
   BPE_VOCAB_SIZE, KOREAN_WORKERS, MAX_EPOCHS, EVAL_INTERVAL, EVAL_ITERS
   BATCH_SIZE, BLOCK_SIZE, N_LAYER, N_HEAD, N_EMBD, MLP_SIZE, LEARNING_RATE, SEED, DTYPE
   RUN_FILTER  Bash regular expression matched against names such as ja_original_char_bpe.
 
 Source defaults to xinyixuu/ted-2020 (ja.txt, ko.txt, zh_cn.txt).
+download-train combines char baselines from cjk_char_byte_fallback_prepared
+with the six charBPE datasets from cjk_charbpe_tokenized, without preprocessing.
 Training defaults: 3 epochs, 12 layers/heads, embedding 768, MLP 3072,
 batch 16, block 1024, QK norm + scale and compile enabled, TensorBoard disabled.
 
@@ -146,7 +154,7 @@ validate_positive_integer() {
 
 validate_configuration() {
   case "${MODE}" in
-    prepare|train|all) ;;
+    prepare|train|all|download|download-train) ;;
     -h|--help)
       usage
       exit 0
@@ -532,6 +540,37 @@ prepare_all() {
   log "All selected datasets are prepared."
 }
 
+download_prepared_datasets() {
+  local spec language representation tokenizer run_name
+  local runs=() package_options=()
+  for spec in "${RUN_SPECS[@]}"; do
+    IFS='|' read -r language representation tokenizer <<<"${spec}"
+    run_name="${language}_${representation}_${tokenizer}"
+    selected_run "${run_name}" && runs+=("${run_name}")
+  done
+  (( ${#runs[@]} )) || die "RUN_FILTER selected no datasets."
+  if [[ -n "${FALLBACK_CHARS_FILE}" || "${FALLBACK_CHAR_LIMIT}" != 7936 ]] \
+      && [[ " ${runs[*]} " == *char_byte_fallback* ]]; then
+    die "The published fallback package uses FALLBACK_CHAR_LIMIT=7936 and no custom whitelist. Use prepare/all for custom settings."
+  fi
+  log "Downloading prepared datasets: ${runs[*]}"
+  if [[ "${COMPARISON_TOKENIZER}" == char_bpe ]]; then
+    package_options+=(--charbpe-subdir "${HF_CHARBPE_SUBDIR}")
+  fi
+  "${PYTHON_BIN}" "${ROOT_DIR}/data/template/utils/download_cjk_prepared.py" \
+    --repo-id "${HF_DATASET_REPO}" --revision "${HF_DATASET_REVISION}" \
+    --subdir "${HF_PREPARED_SUBDIR}" "${package_options[@]}" \
+    --data-root "${DATA_ROOT}" --runs "${runs[@]}"
+  for spec in "${RUN_SPECS[@]}"; do
+    IFS='|' read -r language representation tokenizer <<<"${spec}"
+    run_name="${language}_${representation}_${tokenizer}"
+    if selected_run "${run_name}"; then
+      assert_dataset_ready_for_training "${run_name}" "${tokenizer}"
+    fi
+  done
+  log "All selected prepared datasets are ready."
+}
+
 assert_dataset_ready_for_training() {
   local run_name=$1
   local method=$2
@@ -762,6 +801,11 @@ main() {
   case "${MODE}" in
     prepare) prepare_all ;;
     train) train_all ;;
+    download) download_prepared_datasets ;;
+    download-train)
+      download_prepared_datasets
+      train_all
+      ;;
     all)
       prepare_all
       train_all

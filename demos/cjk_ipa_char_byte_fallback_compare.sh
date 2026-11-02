@@ -14,7 +14,12 @@ source "${SCRIPT_DIR}/cjk_ipa_charbpe_compare.sh"
 
 usage() {
   cat <<'EOF'
-Usage: bash demos/cjk_ipa_char_byte_fallback_compare.sh [prepare|train|all]
+Usage: bash demos/cjk_ipa_char_byte_fallback_compare.sh [prepare|train|all|download|download-train]
+
+download        Fetch and verify selected tokenized datasets from Hugging Face.
+download-train  Fetch prepared data and train directly, without IPA/tokenization.
+The published package uses K=7936 and includes char / char_byte_fallback.
+HF_DATASET_REPO, HF_DATASET_REVISION, HF_PREPARED_SUBDIR select the package.
 
 Compare char with char+byte fallback on Japanese, Korean and Chinese,
 in both original and IPA text (12 runs). Shared training defaults: 3 epochs,
