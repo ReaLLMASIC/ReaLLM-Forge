@@ -1,5 +1,114 @@
 # Changelog
 
+## V8.0 patch: the Forecast buttons stay put
+
+- **Fixed:** switching on the beat-to-beat (R-R) forecast made all three Forecast buttons disappear. The page
+  read the R-R error as `mae` / `hold`; forecast_service.py sends `model_ms` / `hold_ms`. The demo's made-up
+  forecasts had the same wrong names, so the tests didn't see it; they now use the service's.
+- **Fixed:** forecasts arriving slower than every 3 s (a CPU, or the Orin with all three overlays on) were
+  taken for a stopped service and kept flashing "Starting…". The page now learns how often each one comes.
+- A forecast the page can't read shows "Forecast on" and is logged to the browser console, instead of
+  taking the buttons away. Checked with the real models and service against the demo strap.
+
+
+**One app.** Everything Bio-dash does, in one server on one port with one service, built on the
+first 6.0 one-app design and brought up to date with all that came after it. Recordings are
+unchanged.
+
+- **One server** (`server.py`, port 5000) runs the Bluetooth worker of each device that's on,
+  serves each device's API at `/api/d/<device>` and sends live data to the pages over one
+  WebSocket. The separate web servers (`app.py` on 5000 – 5006), their templates, their copies of
+  the shared scripts and Omni's own engine are gone. Every device folder is now the same pair:
+  a worker and `api.py`.
+- **People** (Settings → People, up to 3). The first person's strap and ring are `heart` and
+  `oxygen`, as with one person. Each extra person gets one more of the same worker and API
+  (`heart-p2`, `oxygen-p2` …) with their state in `~/.config/bio-dash/people/<id>/`. A switcher on
+  Heart and Oxygen picks whose; Home shows a card each.
+  - **Compare** page: a row per person (heart rate, HRV, SpO₂, ring pulse, connection), shared
+    charts over 5 min – 1 h, and everyone's ECG under each other. A colour and a line style each.
+  - A strap or ring belongs to one person: the finder says who has it, and *Move here* takes it over.
+  - Radios are shared out when there are two or more people (straps take the USB dongles first);
+    Settings → Bluetooth radios warns when there are more straps than radios. A pinned radio wins.
+  - Each page and API follows its own worker's recording instead of "the newest file".
+  - **Analysis** no longer merges two people's straps or rings into one line: when a range holds
+    more than one, you pick which (the first person's by default).
+- **Brain** (Muse S Athena) is a page of the app: EEG lanes, bands (now and over 2 minutes),
+  fNIRS with *Zero*, pulse, motion, head position, the preset, and a Home card.
+- **Forecasts:** a *Forecast* button by the ECG, the beat-to-beat chart (the R-R model's next
+  beats) and the motion chart (the ECG + accelerometer model), each with its live error. The
+  model lab is served at `/lab`. Settings → Forecasts shows what the service is doing.
+- **Settings**, in sections with a jump bar: Devices, People, Look (themes, *Keep this screen
+  on*), Forecasts, Bluetooth radios, Updates, This computer, About.
+- **Heart:** *Disconnect* in the Device sheet (Brain too). The Polar worker now has both V7's
+  disconnect / switch commands and the stream-refusal handling ("the strap refused the ECG
+  stream", with the reason), which had lived in different versions.
+- **Water:** the "now tap *It's full*" calibration banner shows straight away.
+- **Demo** (`./launch.sh --demo`): a made-up headband, made-up forecasts, and distinct readings
+  per person; it keeps its state in the scratch folder, never in the device folders.
+- **Fixed:** a page that finished loading after you had left it could throw a script error.
+- **Tests:** `test_server.py` (69 checks: API, people, moving a strap, Analysis per unit,
+  forecasts, recordings) and the new `test_web.py` (every page in a browser, adding a person,
+  phone width). The worker, protocol and exporter tests are unchanged and pass.
+- **Upgrading:** `./biodash.py install` removes the old per-dashboard services (including
+  `biodash-muse` and `biodash-omni`) and turns on the devices they ran. Paired devices, radio pins
+  and settings carry over; Omni's people (V7.0) are added again in Settings → People.
+- **Not yet tried on hardware:** several people at once in this form (the radio sharing follows
+  V7's rule), and the merged Polar worker.
+
+## V7.0
+
+**Omni compares people:** up to 3 at once, each with a Polar H10 and an O2 ring, on one page.
+
+- **People.** Your V6 H10 and O2 ring become **Person 1** on the first start (from `last_device_*.json` and the
+  Polar's radio pin), so one person carries on as before. **Add person** (up to 3), rename in place, reorder,
+  **Remove** (two clicks; disconnects their devices). Saved in `Omni-dashboard/people.json`, which the updater
+  carries to new versions like the other settings.
+- **Devices nearby:** the H10s and O2 rings Omni hears, unassigned first (assigned ones folded away), each with
+  **Give to <person>** / **New person** / **Move to**. A device belongs to one person; handing it over
+  disconnects it from the first and connects it for the second (quick retries while it lets go). Each person's
+  devices have **Disconnect** / **Connect** (auto-reconnect off / on) and **Forget**, and reconnect by themselves
+  when back in range.
+- **Compare:** a table of everyone's latest H10 heart rate, ring heart rate, SpO₂, R-R, RMSSD and SDNN, and shared
+  5-minute charts of heart rate (H10), SpO₂ and HRV (RMSSD), one line per person: a colour **and** a line style
+  each (solid, dashed, dotted), pre-filled from their recordings.
+- **A card per person:** the six tiles, a live ECG sweep, R-R per beat and motion.
+- **Radios:** each H10 gets a radio of its own (external first, in people order; more H10s than radios share, and
+  the Radios panel warns); O2 rings take a radio no H10 uses, else their person's; scanning avoids H10 radios, and
+  on a streaming H10's radio sweeps only while something is missing or after **Find devices** (at most every
+  15 s). A radio pin per person in the Radios panel (**D**), saved by adapter address.
+- **Recordings** unchanged: per device under `Omni/<device>/<date>/`, now with `<time>_person.json` saying whose
+  session it was. The night report and the analysis dashboard read them as before.
+- **API:** `/api/people` (GET, POST add), `/api/people/<id>` (POST name / colour / radio / move, DELETE),
+  `/api/people/<id>/device` (assign, connect, disconnect, forget), `/api/scan`; `/api/stream` sends
+  `{"people": {id: {polar, viatom}}}`; `/api/history` and `/api/radios` take a person. V6's `/api/connect` and
+  `/api/scanners` still work (first person).
+- **Test without hardware:** `OMNI_FAKE=1 python3 omni.py` (three stand-in H10s, O2 rings and radios,
+  `fake_omni.py`); `test_omni.py` runs three people end to end, page included (37 checks).
+- Omni's classic ECG view and tap-a-tile trends are gone (the per-person sweep and the shared charts replace them).
+
+## V6.3
+
+V6.2 plus a third live forecast: **R-R**, from the ECG + R-R model (the R-R plan v2 proof of concept,
+2026-11-05).
+
+- **🔮 Forecast on the Heart Rate Variability (R-R) card.** The next beats the model forecasts in the coming
+  second, on the R-R chart: a ring at each beat's time and R-R (the median of the samples), a bar from the
+  lowest to the highest R-R the samples gave, and small dots for the last beats as the model sees them. The status
+  shows the next R-R and its heart rate, and the running error: each beat's R-R against the last forecast made
+  before the strap reported it, over the last 60 beats, next to repeating the last R-R.
+- **The model is included:** `polar_dashboard/forecast/models/ecg_rr` (`hf_g125_ecg_rr_d3_6L_384D_40k`, step
+  26,250; 13.5 M parameters, 52 MB), the same weights as the Hugging Face folder `ecg_rr/`.
+- **`polar_dashboard/rr_lane.py` builds the R-R lane live** from the session's `_rr.csv`, the way the training
+  export made it (beats chained from the strap's R-R messages, anchored to their arrival; a straight line
+  between beats), with the newest beat's R-R held after it ("hold": a live forecast can't know the next beat).
+  It matches the PoC's export code beat for beat and row for row; `test_rr_lane.py` checks it.
+- **`forecast_service.py`** tails the `_rr.csv` too, has an `rr` overlay (`--rr-model`, setting `rr`) and adds
+  `beats`, `known` and `rr_score` to its R-R forecasts; `--bench` times all three models. `app.py` relays
+  `rr_forecast`. `tools/orin_setup.sh --models` installs and times `ecg_rr` as well.
+- **Expect it to be about as good as holding the last R-R.** That's what the proof of concept measured on
+  held-out data (9.31 vs 9.48 ms), and its rebuilt beats sit a median 456 ms after the ECG's R peaks. The overlay
+  is for watching the model live and for dropping plan v2's models into the same folder.
+
 ## V6.2
 
 V6.0 with the forecasts working on a Jetson Orin out of the box.

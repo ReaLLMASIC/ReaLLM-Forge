@@ -2,7 +2,7 @@
 
 Same shape as the other dashboards' workers: it scans and lists headbands for the page (logs_muse/devices.json),
 takes commands from it (command.json: connect / disconnect / preset / zero), reports what it's doing
-(status.json, with the debug panel's numbers) and writes the session's CSVs, which app.py follows:
+(status.json, with the debug panel's numbers) and writes the session's CSVs, which api.py follows:
 
     <Documents>/Bio-dash/Muse/<headband>/<date>/<time>_<stream>.csv
       eeg      Timestamp_Epoch_ms, TP9_uV, AF7_uV, AF8_uV, TP10_uV [, AUX1_uV .. AUX4_uV]     256 Hz
@@ -23,6 +23,8 @@ from importlib.metadata import version as _pkg_version
 
 from bleak import BleakClient, BleakScanner
 
+import os as _os, sys as _sys
+_sys.path.insert(1, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the shared bt_debug.py, in the release folder
 import bt_debug
 import muse_protocol as mp
 import muse_signal as ms
@@ -30,7 +32,7 @@ import muse_signal as ms
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S",
                     handlers=[logging.StreamHandler(sys.stdout)])
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = bt_debug.state_dir(os.path.dirname(os.path.abspath(__file__)))
 LOGS_DIR = os.path.join(BASE_DIR, "logs_muse")
 os.makedirs(LOGS_DIR, exist_ok=True)
 DEVICES_FILE = os.path.join(LOGS_DIR, "devices.json")

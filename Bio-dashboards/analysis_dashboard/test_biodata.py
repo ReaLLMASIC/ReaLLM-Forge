@@ -104,6 +104,8 @@ with tempfile.TemporaryDirectory() as root:
 
 # power-cut protection in the shared recorder (bt_debug.py, the same file in every dashboard)
 import time
+import os as _os, sys as _sys
+_sys.path.insert(1, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the shared bt_debug.py, in the release folder
 import bt_debug
 with tempfile.TemporaryDirectory() as root:
     os.environ["BIODASH_DATA_DIR"] = root

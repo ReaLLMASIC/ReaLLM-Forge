@@ -1,800 +1,280 @@
 # Bio-dash
 
-Live browser dashboards for BLE biometric and environmental sensors, built for Linux (Jetson Orin Nano, x86 laptops) using BlueZ. Each dashboard has two parts. A **hardware worker** talks to the device over Bluetooth and logs to CSV, and a **web app** streams that data to charts in the browser.
+**One app for your heart, oxygen, brain, air and water — for up to three people at once.** Bio-dash connects to Bluetooth health and home
+sensors, shows them live on any screen in the house, and records everything to plain CSV files on
+your own computer. Built for Linux with BlueZ (Jetson Orin Nano, x86 laptops, a Raspberry Pi).
 
-| Dashboard | Device | Streams | Port | Launch |
-|---|---|---|---|---|
-| `polar_dashboard/` | Polar H10 chest strap | ECG 130 Hz, accelerometer 200 Hz, HR, R-R / RMSSD | 5001 | `./run_dashboard.sh` |
-| `viatom_dashboard/` | Viatom Checkme O2 Ultra (advertises as `Band-WU …`) | SpO₂, pulse, battery | 5003 | `./run_dashboard.sh` |
-| `atmos_dashboard/` | Any Atmos device: **Atmos-Mini** (SEN69C), **Atmos-Sphere S4** (SCD30 + SEN44 + SFA3X), **S5** (SCD30 + SEN55 + SFA3X), or anything sending CSV / key=value / JSON over Nordic UART | Whatever the device reports: CO₂, PM1–10, temp / RH, VOC, NOx, HCHO, plus any unrecognised fields | 5002 | `./run_dashboard.sh` |
-| `Omni-dashboard/` | Polar H10 + Viatom O2 at the same time | Both of the above in one view, each on its own radio when two are available | 5000 | `./run_dashboard.sh` |
-| `hydro_dashboard/` | **HidrateSpark** smart bottle (PRO / PRO 2) | Sips with timestamps, intake vs. goal, fill level, refills, battery | 5004 | `./run_dashboard.sh` |
-| `analysis_dashboard/` | *No device:* reads what the others recorded | Summaries per day or range, every signal on one clock, CSV export, overnight reports | 5005 | `./run_dashboard.sh` |
-| `muse_dashboard/` | **Muse S Athena** headband (new in V6.0) | EEG 8 ch at 256 Hz with band powers and contact, fNIRS (blood oxygenation, both sides), heart rate from the forehead PPG, head motion, battery | 5006 | `./run_dashboard.sh` |
-
-![Polar H10 dashboard with bedside-monitor ECG](docs/polar_dashboard.png)
-
-![Viatom O2 Ultra dashboard](docs/viatom_dashboard.png)
-
-> ⚠️ **Not a medical device.** The stress/HRV labels are rough RMSSD thresholds for experimentation, not clinical interpretation.
-
-## Requirements
-
-- Linux with BlueZ and a working Bluetooth adapter
-- Python **3.10+** (required by `polar-python`)
-- Omni: works with one radio. **Two radios are recommended**, e.g. the built-in card plus a USB dongle, so the H10 can have one to itself (see *Omni radio routing* below).
-
-The easiest setup is an isolated virtual environment, which keeps these packages separate from anything else installed on the machine:
-
-```bash
-./setup_env.sh                     # creates .venv/ with all seven dashboards' packages
-./setup_env.sh polar_dashboard     # or just one dashboard
-./setup_env.sh --fresh             # wipe and rebuild
-```
-
-Once `.venv/` exists, the launch scripts use it automatically, so you don't need to activate it. For your own testing, run `source .venv/bin/activate`.
-
-Or install system-wide instead: `pip3 install -r requirements.txt`.
-
-## Usage
-
-```bash
-./launch.sh                 # Polar + Viatom + Atmos together (Ctrl+C stops them all)
-./launch.sh polar atmos     # or any combination
-./launch.sh omni atmos      # Omni runs the Polar and O2 itself, so it can't be combined with polar/viatom
-
-polar_dashboard/run_dashboard.sh    # or one dashboard on its own
-```
-
-Every dashboard has its own port (**Omni 5000 · Polar 5001 · Atmos 5002 · Viatom 5003 · Hydro 5004 · Analysis 5005 · Muse 5006**), and the sidebar links to the others that are running (a dashboard that isn't running isn't listed; it appears within about 10 seconds of starting).
-
-1. Wake the device. The H10 needs wet electrodes. The O2 Ultra only advertises while it's powered on and measuring.
-2. Pick it from the scanner panel and click **Connect**.
-3. Charts start as soon as data arrives. If the device goes quiet, the scanner comes back automatically.
-
-`Ctrl+C` stops both the worker and the web server. Recordings are saved to your Documents folder; see *Where recordings are saved* below.
-
-> The Omni launcher runs `sudo systemctl restart bluetooth` to clear stale BlueZ state, so it will ask for your password.
-
-## Project layout
-
-Each dashboard keeps its Python and web front end separate:
-
-```
-polar_dashboard/
-├── advanced_worker.py      # BLE worker: talks to the device, writes CSV
-├── bt_debug.py             # radio discovery + rate meters for the debug panel (Polar, Viatom, Atmos)
-├── atmos_parser.py         # (Atmos) line formats, field-name normalisation, device profiles
-├── app.py                  # web server: API + live stream (no HTML inside)
-├── requirements.txt
-├── run_dashboard.sh
-├── templates/index.html    # page markup
-└── static/
-    ├── js/dashboard.js     # charts, scanner panel, stream handling
-    ├── js/ecg_monitor.js   # (Polar, Omni) bedside-monitor ECG sweep renderer
-    ├── js/ecg_view.js      # (Polar, Omni) 🩺 Monitor / 📈 Classic ECG toggle
-    ├── js/tile_trends.js   # tap-a-tile trend graphs (all dashboards; shared module)
-    ├── js/debug_panel.js   # 🐞 debug panel (Polar, Viatom, Atmos)
-    ├── js/sidebar.js       # sidebar: dashboard links, debug, keep-awake, theme, updates, power (all dashboards)
-    ├── js/themes.js        # picks the theme (cookie shared by every port) and recolours chart axes (all dashboards)
-    ├── css/tailwind.css    # compiled Tailwind (all dashboards)
-    ├── css/themes.css      # the themes: Light, OLED black, High contrast, Warm night (all dashboards)
-    └── vendor/             # Chart.js, Luxon, adapter, streaming plugin
-```
-
-The analysis dashboard has no worker: `analysis_dashboard/biodata.py` reads the recordings
-(also used by `tools/interpolate.py`), `app.py` serves the page, `sample_data.py` writes made-up
-recordings to try it with, and `test_biodata.py` checks the numbers.
-
-`templates/index.html` is served as a plain file, not rendered through Jinja, so you can edit the HTML, JS and CSS directly and just refresh the browser. Only changes to the `.py` files need a restart.
-
-## Offline use
-
-The dashboards don't need internet access. Every library is included under each dashboard's `static/`:
-
-| Library | Version | Used by |
+| | Device | What you get |
 |---|---|---|
-| Chart.js | 3.9.1 | All six |
-| Luxon + chartjs-adapter-luxon | 3.0.1 / 1.2.0 | All six |
-| chartjs-plugin-streaming | 2.0.0 | The five live dashboards |
-| Tailwind CSS (compiled, not the play CDN) | 3.4 | The five live dashboards (Analysis has its own small stylesheet) |
+| **Heart** | Polar H10 chest strap | Live ECG (bedside-monitor style), heart rate, HRV, beat-to-beat, motion |
+| **Oxygen** | Checkme O2 ring (Viatom / Wellue, advertises as `Band-WU …`) | SpO₂, pulse and battery, live and over the night |
+| **Brain** | Muse S Athena headband | Live EEG, brain-wave bands, forehead blood oxygenation (fNIRS), pulse, head movement |
+| **Air** | Atmos-Mini, Atmos-Sphere S4 / S5, or anything sending CSV / key=value / JSON over Nordic UART or Wi-Fi | CO₂, particles, temperature, humidity, VOC, NOx, formaldehyde, with plain-language advice |
+| **Water** | HidrateSpark PRO / PRO 2 bottle | Every sip, today against your goal, the week, glow reminders, a goal that follows the weather |
+| **Compare** | *(two or three people)* | Everyone's heart rate, HRV, SpO₂ and ECG side by side, live |
+| **Analysis** | *(no device)* | Any day or range: summaries, night reports, every signal on one chart, CSV export |
 
-To re-download them, or after changing a version in the script:
+![Home](docs/home.png)
+
+> ⚠️ **Not a medical device.** HRV words and SpO₂ bands are rough guides for curiosity, not diagnosis.
+
+## Quick start
 
 ```bash
-./fetch_vendor.sh              # wget the JS libs from jsDelivr, verify SHA-256
-./fetch_vendor.sh --tailwind   # also rebuild tailwind.css (needs Node/npx)
+./setup_env.sh          # once: creates .venv/ with everything it needs (Python 3.10+)
+./launch.sh             # then open http://localhost:5000
 ```
 
-Tailwind CSS is compiled, so it only contains classes that already appear in `templates/` and `static/js/`. **If you add a new Tailwind class, run `./fetch_vendor.sh --tailwind`,** or the new class will have no effect.
+The first time, a short setup asks which devices you have and finds each one. After that Bio-dash
+reconnects by itself whenever a device comes back in range.
 
-## How it works
+**Try it without any devices:** `./launch.sh --demo` runs with made-up readings (in a scratch folder;
+your real recordings aren't touched).
 
-Flow diagrams of the whole suite — devices, radios, workers, recordings, the Hydro-dash bottle
-protocol and the Atmos parser: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+**Open it on your phone:** `http://<computer-name>.local:5000` on the same network. In the phone's
+browser menu, *Add to Home Screen* makes it an app icon.
 
+**Keep it running in the background** (and at boot, for a headless Orin):
+
+```bash
+./biodash.py            # asks a few questions, then installs one service
+./biodash.py status     # running? where to open it
+./biodash.py logs -f    # what it's doing, every device included
 ```
- BLE device ──► worker (bleak) ──► CSV log ──► web app (tails file) ──► browser
-                     ▲                              │
-                     └──── command.json ◄───────────┘  (Connect clicks)
-```
 
-- **Workers** own the Bluetooth link. They write every sample to CSV, write `devices.json` for the scanner panel, and read `command.json` when you click Connect. The Polar worker also writes `status.json` (scanning / connecting / streaming).
-- **Web apps** follow the newest CSV and push batches to the browser. Polar and the air app use WebSockets; Viatom and Omni use Server-Sent Events.
-- Logs are plain CSV with epoch-ms timestamps, so they open directly in pandas or a spreadsheet.
+## What's new in V8
 
-### Debug panels (Polar, Viatom, Atmos)
+V8 puts everything since the first one-app design back into **one app**: one address, one port
+(5000), one service. Your recordings are exactly the same files as before.
 
-Press **D** or click **🐞 Debug** to open the panel:
+- **One app.** Up to V7.0 Bio-dash was separate dashboards on ports 5000 – 5006. Heart, Oxygen,
+  Brain, Air, Water, Compare, Analysis and Settings are now pages of one app, with one WebSocket,
+  one small chart library and no build step.
+- **People.** Settings → People adds a second and third person. Each gets their own strap and
+  ring, a switcher on the Heart and Oxygen pages, and a line (a colour *and* a line style) on the
+  new **Compare** page. One person works exactly as before.
+- **Brain.** The Muse S Athena dashboard as a page, redrawn in the app's charts.
+- **Forecasts.** The three H10 models (ECG, ECG + accelerometer, ECG + R-R) each have a *Forecast*
+  button by their chart on the Heart page; the model lab is at `/lab`.
+- **A proper Settings page:** Devices, People, Look (themes, keep this screen on), Forecasts,
+  Bluetooth radios, Updates, This computer, About.
+- **Sturdier:** the Polar worker has both the disconnect / switch commands and the plain-language
+  "the strap refused the stream" handling; each page follows its own device's recording.
 
-![Polar debug panel](docs/polar_debug_panel.png)
+See [CHANGELOG.md](CHANGELOG.md) for the full list, and *Upgrading* below.
 
-- **Bluetooth Radio:** every adapter BlueZ reports, titled by its **Bluetooth address**, with chip vendor/product, bus, power state and an **INTERNAL / EXTERNAL** tag. The one the H10 is actually using is marked **IN USE**.
-  - `hciN` is shown only as "currently hciN". Linux numbers adapters in the order they come up, so a USB dongle can take hci0 and push an internal card to hci1. The address never changes.
-  - Internal/external comes from the kernel's port info (`removable` / `connect_type`). Wi-Fi+BT combo cards show as **USB** because their Bluetooth half uses the M.2 slot's USB lines. Hover the tag to see how it was determined.
-- **Link:** connection state and attempt count, device name/address, RSSI from the scan, and how long it has been connected.
-- **Stream Rates:** ECG and ACC samples per second measured by the worker against the nominal 130 / 200 Hz (green within 2%), plus frames/s × samples per frame, HR notifications, R-R intervals per minute, and **dropped samples**, detected from gaps in the H10's own timestamps.
-- **Browser & Versions:** WebSocket messages/s, rows received, ECG display delay and buffer depth, and bleak / polar-python / Python versions.
+## The pages
 
-**Viatom version.** It has the same **Bluetooth Radio** and **Link** sections, adapted to how the O2 works (it answers a poll every 2 s rather than streaming):
-
-![Viatom debug panel](docs/viatom_debug_panel.png)
-
-- **Data Rates** (20 s window): valid readings/s against the nominal 0.5/s, notifications/s, polls sent, time since the last reading, and counters for continuation fragments skipped, calibration (`0xA5`) packets, out-of-range SpO₂ frames and poll write failures.
-- **GATT:** the notify and write characteristics in use (hover to see the full UUID), the write mode the link settled on, the MTU, SSE update rate, and versions.
-
-**Atmos version.** It has the same **Bluetooth Radio** and **Link** sections, tuned for a Nordic UART text stream, plus a **Device Profile** section (see *Atmos dashboard* below):
-
-![Atmos debug panel](docs/atmos_debug_panel.png)
-
-- **UART Stream** (15 s window): readings/s, the average line interval ± jitter, time since the last reading, notifications/s, throughput, bytes per notification (how the MTU is splitting lines), header lines, **rejected lines** (garbled or unparseable lines, kept out of the CSV), buffer overflows, and rows logged.
-- **UART:** the NUS service and TX characteristic, the MTU, the browser row rate, and versions.
-
-### Atmos dashboard
-
-One dashboard for every Atmos device. It reads whatever the device sends and shows only what that device has. An S4 has no NOx tile, for example, and a board with extra sensors gets extra tiles.
-
-![Atmos dashboard with an unrecognised device](docs/atmos_other_readings.png)
-
-**Accepted line formats** (detected per line):
-
-| Format | Example |
+| | |
 |---|---|
-| JSON | `{"scd30_co2": 612, "sen55_temp": 22.4}` |
-| key=value | `co2=612, temp=22.4, pm2.5=3.1` (also `key: value`) |
-| CSV with a header line | `CO2_ppm,Temp_C,RH` once, then numeric rows |
-| Bare numeric CSV | `612,22.4,41.0,…`, mapped by the device profile |
+| ![Heart](docs/heart.png) | ![Compare](docs/compare.png) |
+| ![Brain](docs/brain.png) | ![Settings](docs/settings.png) |
 
-**Field names** are normalised, so `CO2_ppm`, `PM2.5 [µg/m³]`, `Humidity_RH`, `SCD30 Temp` and `sen55_rh` all land on the right tiles. A sensor name in the field keeps sources apart (`temp@scd30`, `temp@sen55`). When several sensors report the same quantity (the Spheres have three temperature/RH sources), the tile uses the best one: SEN5x/SEN6x (compensated) → SHT4x → SCD30 (runs warm) → SFA3X. The debug panel shows all of them. Fields the dashboard doesn't recognise appear under **Other Readings** with their own tap-to-trend tiles.
+![On a phone: Home, Compare, Heart](docs/phone.png)
 
-**Device profiles** only matter for bare numeric CSV, which has no names. Pick one in the debug panel's **Device Profile** section (**D**):
+- **Home** — a card per device: the newest reading, the last half hour, and what to do if it isn't
+  connected.
+- **Heart** — the ECG sweeps like a bedside monitor (tap *Size* for the gain, *Beep* for a tone per
+  beat); heart rate, HRV (RMSSD of the last 20 beats), R-R and ECG signal strength (low means the pads
+  need wetting); trend over 5 min – 1 h; beat-to-beat and motion. With the models installed, a
+  *Forecast* button by the ECG, the beat-to-beat chart and the motion chart draws what each model
+  expects next (see *Live forecasts*). With several people, a switcher under the title picks whose.
+- **Oxygen** — SpO₂, pulse and the ring's battery; the last 15 min – 24 h with the lowest, the
+  average and time below 95 % and 90 %.
+- **Brain** — the EEG in four lanes (scale, mains notch, filtered / raw, + AUX); heart rate from the
+  forehead, alpha share, sensor contact and battery; the five bands now and over 2 minutes; fNIRS
+  (HbO / HbR per side, *Zero* for a new baseline); the pulse wave; head position. *What the headband
+  sends* picks the preset.
+- **Compare** — appears with two or three people: a row each for heart rate, HRV, SpO₂ and the
+  ring's pulse; shared charts over 5 min – 1 h; everyone's ECG under each other.
+- **Air** — one line on how the air is (“Fresh”, “Stuffy — open a window”), a tile per reading with
+  its band (CO₂, PM2.5 by the US EPA's 2024 breakpoints, VOC index), charts for 15 min – 24 h, and
+  any field Bio-dash doesn't know yet. *Device options* picks the Atmos model if readings land in the
+  wrong boxes, and connects a Wi-Fi Atmos-Sphere by address.
+- **Water** — today against the goal with your pace (“About 300 mL behind — 250 mL an hour gets you
+  there by 22:00”), today's curve, by hour, the last 7 days and every sip. Settings: the goal and
+  *How much should I drink?* (weight, exercise and today's local forecast, optionally every
+  morning), bottle size, calibration, glow reminders and glow style.
+- **Analysis** — pick a day (the strip shows which days have recordings) or a range: what was
+  recorded when, the numbers per device, night reports, any signal on a chart, CSV export. When a
+  range holds more than one strap or ring, you pick which one, so two people aren't mixed.
+- **Settings** — which devices you have; people; themes and *Keep this screen on*; the forecast
+  service; Bluetooth radios; updates; restart / shut down; where recordings go.
 
-| Profile | Fields | Column order |
-|---|---|---|
-| Auto (default) | — | Picks by field count: 9 → S4 over Wi-Fi, 10 → Mini, 13 → S4, 14 → S5 |
-| Atmos-Mini (SEN69C) | 10 | PM1, PM2.5, PM4, PM10, RH, T, VOC, NOx, HCHO, CO₂ (confirmed) |
-| Atmos-Sphere S4 | 13 | SCD30 (CO₂, T, RH) · SEN44 (PM1–10, VOC, RH, T) · SFA3X (HCHO, RH, T), confirmed: the S4 firmware's BLE fallback sends exactly this, plus a header line |
-| Atmos-Sphere S4 over Wi-Fi | 9 | PM1–10 (SEN44) · RH, T (averaged across the three sensors) · VOC (SEN44) · HCHO (SFA3X) · CO₂ (SCD30), confirmed from the S4 firmware's TCP stream |
-| Atmos-Sphere S5 | 14 | SCD30 (CO₂, T, RH) · SEN55 (PM1–10, RH, T, VOC, NOx) · SFA3X (HCHO, RH, T), **assumed** |
+### The Device sheet
 
-The S5 order follows each Sensirion library's read order, but its sensor block order is an assumption. If readings land on the wrong tiles, either:
-- have the firmware print a **header line** at connect (e.g. `co2@scd30,temp@scd30,rh@scd30,pm1@sen55,…`), which always takes priority, or
-- set a **custom column map** in the debug panel.
+Every device page has a **Device** button:
 
-Profile changes apply within a second, with no reconnect, and are saved to `atmos_profile.json`.
+![Device sheet](docs/device_sheet.png)
 
-**Wi-Fi:** devices that stream CSV over TCP work too. Enter the IP (and port, default 8080) under **Connect over Wi-Fi** in the scanner panel. The Atmos-Sphere S4's Wi-Fi stream (9 fields, averaged temperature/RH, no header) is recognised automatically by its own profile. The last address is remembered. The S4 firmware serves one TCP client at a time, so close its Python client first.
+- **Disconnect** (Heart, Brain) — ends the session; it then waits for you to pick a device.
+- **Reconnect automatically** — on by default, to the device you used last.
+- **Use a different …** — forgets this one and looks again.
+- **Find a device** — what the last scan heard, with signal bars and a Connect button each. A strap
+  or ring belongs to one person at a time: one that someone else has says so, and *Move here*
+  takes it over.
+- **Bluetooth radio** — *Automatic* (the Polar prefers a USB dongle, the rest the built-in radio;
+  with several people each strap gets a radio of its own where there are enough) or pin one. See [Radios on the Orin](docs/ARCHITECTURE.md#9-radios-on-the-orin-what-plugs-in-where).
+- **Troubleshooting** — restart the device's connection, its recent messages, *Copy details* for a
+  bug report.
 
-**Logs** go to `Documents/Bio-dash/Atmos/<device>/<date>/<time>_readings.csv` (see *Where recordings are saved*). The header names every series, so files stay readable whichever device wrote them. If a new field appears mid-session, logging continues in a `<time>_part2_readings.csv` with the wider header.
+## Where recordings are saved
 
-**Tiles and charts:**
-- **Headline tiles:** CO₂ with ventilation guidance (under 800 ppm well ventilated; 1000+ ventilate), PM2.5 with its US EPA AQI category (2024 breakpoints; the official AQI uses a 24 h average, so treat this as indicative), and temperature / RH.
-- **Secondary tiles:** VOC and NOx indices (Sensirion's learned baseline is 100 and 1 respectively), HCHO, and PM1 / PM4 / PM10.
-- **Trend charts** for CO₂, particulates, temperature & humidity, and gas indices & HCHO, with a **5 min / 15 min / 1 hour** window, pre-filled from the logs.
-
-### Hydro-dash (HidrateSpark)
-
-> 🧪 **Still being tested.** Hydro-dash has been run on one HidrateSpark PRO 2 so far. Working on
-> that bottle: connecting, live and replayed sips, battery, and new in V3.1 the fill level from the
-> bottle's own calibration, bottle size read from the bottle, and glow. **Still being confirmed:**
-> reminders. Other bottle models are untested.
-
-![Hydro-dash](docs/hydro_dashboard.png)
-
-Every sip with its time (sips taken while the bottle was out of range are replayed from its buffer
-with their original times), today's intake against a goal, fill level from the bottle's weight
-sensor, refills and battery, with hour and 7-day charts and day-scale tile trends.
-
-- **The bottle allows one connection at a time:** if the HidrateSpark app is on a nearby phone,
-  force-quit it while the dashboard is in use.
-- **Bluetooth catch: the radio matters.** A laptop's built-in radio often can't hear the bottle. An
-  old (Bluetooth 4.0) USB dongle hears it instantly but then shows "connected" with no data, because
-  the bottle never sends its large replies over it; capping the message size fixes that
-  (`ExchangeMTU = 64` under `[GATT]` in `/etc/bluetooth/main.conf`, then restart bluetooth; it
-  applies to every device on the computer). A Bluetooth 5 dongle needs no cap (tested: TP-Link
-  UB500 Plus, working out of the box on a Jetson Orin Nano). See the
-  [radio diagram](docs/ARCHITECTURE.md#7-hydro-dash-which-bluetooth-radio),
-  [every adapter tried and why it did or didn't work](docs/ARCHITECTURE.md#9-radios-on-the-orin-what-plugs-in-where)
-  and `hydro_dashboard/TROUBLESHOOTING.md`.
-- **Jetson Orin catch:** with a UB500 Plus *and* an ASUS USB-BT400 plugged in at power-on, the Orin
-  doesn't boot at all; plug the ASUS dongles in after it's up (TROUBLESHOOTING 14).
-- **Totals come from the sip log** (`_sips.csv`), so they survive restarts.
-- **Glow and reminders:** *Glow now* lights the bottle on demand. Choose a glow **style** (pulse,
-  spin, flash, solid, rainbow) and **two colours**, previewed as the LED ring, and send it to the
-  bottle; it keeps that glow for *Glow now* and for reminders. The reminder schedule (from / to,
-  every N minutes, only when you're behind on your goal or every time, with or without sound), glow
-  on reaching the goal and glow on each sip are sent to the bottle, which runs them itself, so
-  they keep working with the dashboard closed. The bottle's clock, goal and today's total are set
-  on every connect.
-- **No calibration step:** the bottle stores its own "empty" and "full" weights and sends them with
-  every sip record; the fill level and each sip's volume are computed from those. The bottle size is read
-  from the bottle too, or picked from a list of the sizes sold.
-- **PRO 2:** verified on a real bottle (sips, replayed sips, battery, weight). The debug panel lists
-  every characteristic with its last raw frame and every notification is saved to `_raw.csv`.
-  Details: `hydro_dashboard/README.md`, `hydro_dashboard/PROTOCOL.md` and
-  `hydro_dashboard/TROUBLESHOOTING.md`.
-
-### Muse-dash (Muse S Athena)
-
-> 🧪 **New in V6.0, not yet tried on a real headband.** The protocol comes from
-> [OpenMuse](https://github.com/DominiqueMakowski/OpenMuse) (validated there on real recordings), and the
-> decoder here matches OpenMuse's on its test packets, but the dashboard itself has so far only run
-> against the stand-in headband (`MUSE_FAKE=1`). Feedback from the first real sessions will tune it.
-
-![Muse-dash with the stand-in headband](docs/muse_dashboard.png)
-
-- **The Brain page,** in the V6 design (the redesign's colours, cards and charts, in every theme).
-- **EEG:** the four head sensors (TP9, AF7, AF8, TP10; **+ AUX** adds the 4 extra channels) as live
-  traces, filtered 1-40 Hz with a 60 Hz notch for display (50 Hz or off with a tap; the recording is raw).
-- **Brain waves:** delta / theta / alpha / beta / gamma as a share of the power, every second from the
-  last 2 s, averaged over the sensors in contact, now and over the last 2 minutes. **Alpha share** is a
-  tile with a trend.
-- **Sensor contact:** one dot per sensor (good / fair / bad / off), from how much each signal swings or
-  sits stuck at the end of its range. Wet the sensors or move hair when one isn't green.
-- **fNIRS:** oxy- and deoxy-haemoglobin change on each side of the forehead (730 + 850 nm, modified
-  Beer-Lambert), against a 10 s baseline; **⟲ Zero** takes a new one. The path length is assumed, so
-  the direction and shape are what to read, not the µM.
-- **Heart rate from the forehead PPG:** the optical channel with the clearest pulse is picked every
-  second; beats, heart rate and RMSSD, plus the pulse waveform.
-- **Head motion and position:** accelerometer chart, tilt forward / back and left / right, turning,
-  still or moving. **Battery** from the headband.
-- **Presets** (debug panel): what the headband sends. Default `p1041`, everything: EEG 8 ch, optics
-  16 ch (all wavelengths, both sides), motion, battery. `p21` is EEG and motion only (no light on the
-  forehead). Changing it starts a new session, since the files' columns change.
-- **Recordings:** `Muse/<headband>/<date>/<time>_` `eeg` (µV, 256 Hz), `optics` (64 Hz), `imu` (g, °/s,
-  52 Hz), `bands` (log10 µV² per sensor and band, and contact, 1 / s), `heart` (per beat), `fnirs` (1 / s)
-  and `battery`. Times come from the headband's own clock, mapped to the computer's as with the H10.
-- **One connection at a time:** close the Muse phone app. The radio: "auto" uses the built-in one when
-  there are two, leaving a dongle to the H10.
-- **Without the headband:** `MUSE_FAKE=1 muse_dashboard/run_dashboard.sh` runs everything against a
-  stand-in that sends packets in the real format (alpha, beta, blinks, a 66 bpm pulse, a slow
-  oxygenation swing). Details: `muse_dashboard/README.md` and `muse_dashboard/PROTOCOL.md`.
-
-### Analysis (all devices, from the recordings)
-
-![Analysis dashboard](docs/analysis_dashboard.png)
-
-A dashboard that talks to no device: it reads the recordings the other five have saved, so it
-works on any computer that has them (copy the `Bio-dash` folder over with `rsync`, say). Port **5005**.
-
-- **Pick a range:** today, yesterday, the last 7 or 30 days, or any dates; ‹ › step through.
-- **What was recorded:** a strip per device showing when it was recording and when it wasn't.
-- **A card per device:** heart rate (average, range, a resting estimate, HRV), SpO₂ (average,
-  lowest, time below 95 / 90 / 88 %, with a link to each night's overnight report), air (CO₂ and
-  every other metric your Atmos reports), water (drunk against your Hydro-dash goal, sips, refills).
-- **Day by day:** for a range, one row per day.
-- **Signals on one clock:** pick any signals; each gets its own chart on a shared time axis, and
-  hovering reads them all at the same moment. **Download CSV** saves exactly what's shown.
-
-How the signals are put on one clock (the same rules as `tools/interpolate.py`):
-
-| Signal | Example | Each step holds |
-|---|---|---|
-| Readings | heart rate, SpO₂, CO₂ | the **mean** of the real readings in it (the band shows their min and max); a step with none gets a straight line between the readings either side, but never across a pause of more than a minute |
-| State | the bottle's fill level | the **last value**, carried forward (a straight line would invent a slow drain that never happened) |
-| Events | sips | the **mL drunk** in that step, and "drunk so far today" as a running total |
-
-Estimates are drawn dashed, and the CSV has a `.n` column per signal: how many real readings went
-into that row (0 = estimate). Your recordings are only read, never changed.
-
-No recordings yet? Try it with made-up ones:
-
-```bash
-python3 analysis_dashboard/sample_data.py /tmp/biodash-demo --days 7
-BIODASH_DATA_DIR=/tmp/biodash-demo analysis_dashboard/run_dashboard.sh
-```
-
-### ECG view (Polar, Omni)
-
-The ECG card has a **🩺 Monitor / 📈 Classic** switch. **Monitor** is the bedside-style sweep display; **Classic** is the original scrolling line. Each dashboard remembers your choice. Beat detection and the QRS beep keep working in both views; the gain control only applies to Monitor.
-
-### Tile trends (all dashboards)
-
-Tap any reading tile to open a live line graph of it under the tiles, with a 1 / 5 / 15 / 60 min window and min / avg / max. Tap the tile again, ✕, or Esc to close.
-
-![Omni tile trend](docs/omni_tile_trend.png)
-
-| Dashboard | Tiles | History source |
-|---|---|---|
-| Polar H10 | Heart rate, **ECG amplitude** (peak-to-peak per second; drops when electrode contact degrades), RMSSD | Pre-filled from this session's CSV logs |
-| Viatom O2 | SpO₂, pulse, battery | Pre-filled from the daily CSV log (one row / 5 s) |
-| Atmos | CO₂, PM2.5, **Climate** (temp + RH, two axes), VOC, NOx, HCHO, **Particulates** (PM1 / 4 / 10), plus a tile per unrecognised field | Pre-filled from the logs |
-| Omni | SpO₂, ring HR, ECG HR, R-R, RMSSD, SDNN | Pre-filled from the newest recording of each device |
-
-- **Drawing:** whole-number readings are drawn as steps, curves use monotone interpolation (no overshoot past real values), and each reading has a sensible minimum y-range. SpO₂ is fixed at 90–100%, battery at 0–100%.
-- **Code:** it's one shared module (`static/js/tile_trends.js`), configured per dashboard at the end of each `dashboard.js`.
-
-### Radio selection (all dashboards)
-
-The Polar H10 keeps its radio on a tight connection schedule while streaming, which can starve other Bluetooth links on the same radio. With two radios (e.g. the built-in card plus a USB dongle), give the H10 one to itself:
-
-- **Auto (default):** the Polar and Hydro dashboards prefer an **external** radio (a USB dongle hears the bottle far more reliably than a laptop's shared Wi-Fi / Bluetooth card), and Viatom and Atmos prefer an **internal** one. Run them side by side and they split correctly however the radios were numbered. With a single radio, everything uses the system default.
-- **Pinning:** set it in each dashboard's debug panel (**D**), under **Radio for this dashboard**. The choice is saved to that dashboard's `radio_config.json` **by adapter address**, so hci renumbering doesn't matter. A pinned radio that's unplugged falls back to auto. It applies on the next scan; a live connection isn't dropped.
-
-### Omni radio routing
-
-While the Polar H10 streams ECG + ACC it keeps its radio on a tight connection schedule, which can starve every other Bluetooth link on that radio. Omni routes each device to a radio:
-
-![Omni debug panel with radio routing](docs/omni_debug_panel.png)
-
-- **Auto (default):**
-  - **Two or more radios:** the H10 gets an **external** radio (a USB dongle) to itself, and the O2 plus scanning use another. With no external radio, it takes the first one.
-  - **One radio:** everything shares it, and scanning pauses while the H10 streams.
-- **Pinning:** in the debug panel (**D**), choose a radio for the *Polar H10* and for *O2 + scanning*. Each card shows its current role (**POLAR** / **O2 + SCAN**).
-  - Choices are saved to `radio_config.json` **by adapter address**, so they survive hci renumbering. A pinned radio that's unplugged falls back to auto.
-  - Changes apply on the next connection. A live link isn't dropped.
-- **Scanning:** pauses only if it would share the Polar's radio. On a separate radio it keeps going while the H10 streams.
-
-### Where recordings are saved
-
-Every dashboard saves its data to your **Documents** folder, organised by dashboard, then device, then date:
+Unchanged. Every device saves to your **Documents** folder, by device, then unit, then date:
 
 ```
 ~/Documents/Bio-dash/
-├── Polar H10/
-│   └── Polar H10 D793BB2E/
-│       └── 2026-09-30/
-│           ├── 14-05-12_ecg.csv        ECG, 130 Hz (mV)
-│           ├── 14-05-12_acc.csv        accelerometer, 200 Hz (mG)
-│           └── 14-05-12_rr.csv         R-R interval per beat
-├── Viatom O2/
-│   └── Band-WU 0347/2026-09-30/14-05-12_vitals.csv       SpO₂, HR, battery every 5 s
-├── Atmos/
-│   ├── Atmos-Sphere-S4 (XX-XX-XX-XX-XX-XX)/2026-09-30/14-05-12_readings.csv
-│   └── Wi-Fi 192.168.0.50-8080/…
-├── Omni/
-│   ├── Polar H10 D793BB2E/2026-09-30/   _ecg · _acc · _rr · _hrv (HR, RMSSD, SDNN at 1 Hz)
-│   └── Band-WU 0347/2026-09-30/         _vitals (SpO₂, HR at 1 Hz)
-├── HidrateSpark/
-│   └── h2o 3F2A/2026-09-30/             _sips · _status · _events · _raw (every notification)
-└── Muse/
-    └── MuseS-1A2B/2026-09-30/           _eeg · _optics · _imu · _bands · _heart · _fnirs · _battery
+├── Polar H10/Polar H10 D793BB2E/2026-09-30/14-05-12_ecg.csv · _acc · _rr
+├── Viatom O2/Band-WU 0347/2026-09-30/14-05-12_vitals.csv          SpO₂, HR, battery every 5 s
+├── Atmos/Atmos-Sphere-S4 (XX-XX-XX-XX-XX-XX)/2026-09-30/14-05-12_readings.csv
+├── Muse/MuseS-1A2B/2026-09-30/         _eeg · _optics · _imu · _bands · _heart · _fnirs · _battery
+├── HidrateSpark/h2o 3F2A/2026-09-30/   _sips · _status · _events · _raw
+└── Omni/…                               (V5 – V7 only; still read by Analysis)
 ```
 
-- **One set of files per session.** Files open when a device connects and close when it disconnects, so every file belongs to exactly one sensor. The file name is the time the session started.
-- **Device folder names:**
-  - A device folder is named after the device.
-  - When the name is shared by every unit of a model (`Atmos-Sphere-S4`, `Atmos-Mini`), its Bluetooth address is added so units never mix.
-  - Wi-Fi devices are named by their address.
-- **Location:** the Documents folder comes from your desktop's settings (`~/.config/user-dirs.dirs`), falling back to `~/Documents`, which suits a headless Orin. `BIODASH_DATA_DIR=/some/path` puts recordings anywhere else.
-- **In the dashboards:**
-  - Each debug panel (**D**) shows **Saving to**, the folder the current session is recording into.
-  - Trend history and chart pre-fill read from the newest recording of the connected device.
-- **Nothing is written inside the repo any more**, so recordings (including health data) can't be committed by accident. Logs from before this change stay in the old `logs_*` folders.
-- **Power cuts:**
-  - Recordings are pushed onto the disk every 10 seconds, so pulling the plug costs at most the last 10 seconds (`BIODASH_FSYNC_S` changes the interval).
-  - A cut while a file is being written can leave a run of zero bytes at its end. When a dashboard starts, it removes those from its recordings of the last three days (a file still being written is left alone), and prints which files it repaired.
-  - The analysis dashboard and the overnight report read past such zeros anyway.
-  - Shutting down from the sidebar, or stopping the dashboards first, avoids it altogether.
+- **One set of files per connection**, named by the time it started; timestamps are absolute.
+- **Location:** your desktop's Documents folder (`~/.config/user-dirs.dirs`), else `~/Documents`.
+  `BIODASH_DATA_DIR=/some/path` puts them anywhere else.
+- **Power cuts:** recordings are pushed to disk every 10 s (`BIODASH_FSYNC_S`), and zero bytes left
+  by a cut are cleaned up at the next start.
+- **Several people:** recordings stay per device, as above. Who wore which strap is in
+  `~/.config/bio-dash/` (`app.json`, `people/`), not in the recordings.
+- Nothing is written inside the repo, so recordings can't be committed by accident.
 
-### Running as a service (`biodash.py`)
+## Running it
 
-Run dashboards in the background, optionally from boot, without keeping a terminal open:
+| | |
+|---|---|
+| `./launch.sh` | In this terminal; Ctrl+C stops. `--port 8080`, `--demo` |
+| `./biodash.py` | Install the background service (questions), or `install` with `--port`, `--no-keep-awake`, `--lid`, `--no-reconnect`, `--allow-power`, `--boot` |
+| `./biodash.py status · start · stop · restart · logs [-f] · uninstall` | |
+| `./setup_env.sh [--fresh]` | Create or rebuild `.venv/` |
+
+- **Keeps the computer awake** while it runs (idle and suspend; `--lid` for lid-close too).
+- **Restart / shut down / updates** from Settings work from this computer; `--allow-power` allows
+  them from other devices too (e.g. your phone in a backpack setup).
+- **Updates:** Settings → Updates checks GitHub; *Apply fixes* updates this version in place,
+  *Upgrade* moves to a newer version folder with your settings. Needs a `git clone`.
+
+### Upgrading
+
+From an older dashboard: **Updates → Upgrade to V8.0**. Or by hand:
 
 ```bash
-./biodash.py                         # interactive picker (↑/↓, Space, A to apply, L for logs, Q to quit)
-./biodash.py install polar atmos     # or as a command: run exactly these (replaces the current set)
-./biodash.py status
-./biodash.py logs polar -f
-./biodash.py uninstall all
+cd V8.0_Dashboard && ./setup_env.sh && ./biodash.py install
 ```
 
-- **What it installs:** systemd *user* services (`~/.config/systemd/user/biodash-<name>.service`). No root is needed, stopping a service stops the whole dashboard, and a crashed dashboard restarts after 5 s.
-- **Picker options:**
-  - Keep the computer awake (on by default), optionally even with the lid closed.
-  - Auto-reconnect to the last device (on).
-  - Allow shutdown / reboot and updates from other devices, e.g. a phone (off; `--allow-power`). See below.
-  - Start at boot before anyone logs in (`loginctl enable-linger`).
-- **Omni** can't be combined with the standalone Polar/Viatom dashboards (same devices); the picker unticks the other side for you. Under a service, Omni skips its `sudo` Bluetooth restart, since there's no terminal to ask for a password.
+- The old per-dashboard services (`biodash-polar`, `biodash-muse`, `biodash-omni` …) are removed
+  and the devices they ran are turned on in the app; paired devices, radio pins, the Atmos profile,
+  the headband's preset and the bottle's goal and calibration carry over.
+- The app is on **port 5000**. Bookmarks to 5001 – 5006 stop working.
+- **Omni's people don't carry over** (V7.0): add them in Settings → People and connect each
+  person's strap and ring once. Omni's recordings still appear in Analysis.
 
-### Keeping things awake
+## Project layout
 
-- **The computer:** services and `./launch.sh` run under `systemd-inhibit`, which blocks suspend and idle sleep while dashboards run. `BIODASH_INHIBIT_LID=1` also blocks lid-close; `BIODASH_INHIBIT=0` turns it off. If the system doesn't allow it, the dashboards still start, with a warning.
-- **The screen:** **☀ Keep screen on** in the sidebar uses the browser's Wake Lock API. Browsers only allow this on `https://` or `http://localhost`, so on a LAN / Tailscale address the button is disabled and explains why.
+```
+V8.0_Dashboard/
+├── server.py            the app: worker supervisor, device APIs, people, live hub, the page
+├── web/                 the page: index.html, lab.html, css/app.css, js/ (app, store, ui, device,
+│                        plot, ecg, eeg, forecast, wake, pages/)
+├── bt_debug.py          shared: radios, auto-reconnect, recordings, shutdown, updates
+├── polar_dashboard/     Heart:  advanced_worker.py + api.py; forecast_service.py + forecast/ (models)
+├── viatom_dashboard/    Oxygen: ble_worker.py + api.py
+├── muse_dashboard/      Brain:  muse_worker.py + api.py + muse_protocol.py, muse_signal.py
+├── atmos_dashboard/     Air:    sensor_worker.py + api.py + atmos_parser.py
+├── hydro_dashboard/     Water:  hydro_worker.py + api.py + hydro_protocol.py, water.py
+├── analysis_dashboard/  Analysis: api.py + analysis_jobs.py + biodata.py + mcint.py, waves.py
+├── tools/               night_report · interpolate · export_mcint · export_ecg · export_waves ·
+│                        fleet · ble_scan · radio_compare · forecast_timing · demo_feed · orin_setup.sh
+├── biodash.py           the background service
+├── launch.sh · service_run.sh · setup_env.sh · updater.py · restart_all.py
+├── test_server.py       end to end with made-up devices (API, people, forecasts, recordings)
+├── test_web.py          every page in a real browser (Playwright)
+└── docs/ARCHITECTURE.md how it all fits, with diagrams
+```
 
-### Sidebar (all dashboards)
+Every device folder is the same pair: a **worker** (the Bluetooth program) and **api.py** (its
+web API, mounted by the server at `/api/d/<device>`).
 
-![Sidebar with the Updates section](docs/sidebar_updates.png)
+**Checks:** `python3 test_server.py`, `python3 test_web.py`, and each folder's `test_*.py`
+(`node hydro_dashboard/test_water_calc.js` for the pace maths).
 
-Everything that used to sit in the top bar lives in a sidebar, the same in every dashboard:
+## Troubleshooting
 
-- **Dashboards:** links to the others that are running, in port order. A dashboard that isn't running isn't listed.
-- **View:** the 🐞 debug panel (still **D**) and **☀ Keep screen on**.
-- **Theme:** see below.
-- **Updates** and **Power:** see the next two sections.
-
-It's closed when a page opens: **☰** in the header opens it (beside the page on wide screens,
-as a slide-over drawer on phones and narrow windows) and **«** hides it again. The header keeps only the
-dashboard's title and its connection status.
-
-### Themes (sidebar)
-
-![Hydro-dash in the five themes](docs/themes.png)
-
-Pick one under **Theme** in the sidebar; it applies to every dashboard at once (it's saved in a
-cookie, which all the dashboard ports on a computer share), and dashboards already open follow
-within a couple of seconds.
-
-| Theme | For |
-|---|---|
-| **Auto** (default) | Light or Dark, following the phone's or computer's own setting, and switching when it does |
-| **Dark** | the original slate look |
-| **Light** | bright rooms and daytime; the ECG monitor turns into red-gridded ECG paper |
-| **OLED black** | true black: OLED screens switch those pixels off, so it's easier on the battery and the eyes at night |
-| **High contrast** | bold borders, brighter text and accents, a yellow focus ring: readable at a glance or from across a room |
-| **Warm night** | dim amber over OLED black, easy on eyes adjusted to the dark (charts too) |
-
-Data colours keep their meaning in every theme (heart is still blue, oxygen orange, ...); only
-the page, text, borders and chart axes change.
-
-### Updates (sidebar)
-
-**Check for updates** asks GitHub what's new and offers up to two separate actions:
-
-| | What it is | What it does |
-|---|---|---|
-| **Apply patch** | New commits for the version you're running (same folder) | `git pull`, refresh `.venv` if the requirements changed, restart the services |
-| **Upgrade to Vx.y** | A newer `V*_Dashboard` folder exists | Pull, build the new folder's `.venv`, copy your saved settings across, re-point the services at it and restart. The old folder stays on disk, so you can go back with its `./biodash.py` |
-
-A patch never moves you to a new version, and each action needs a second tap to confirm.
-
-Each patch lists its **patch notes** under its title (from the release's `PATCH_NOTES.md`, which the push script writes into the commit), so you can see what it changes before applying it.
-
-- **Needs a git clone**, not an unzipped copy: `git clone https://github.com/Meapy011/Bio-dash`
-  and run the dashboards from the newest release folder (`Bio-dash/V5.8_Dashboard`).
-- **Only fast-forwards from the clone's own remote.** It refuses if tracked files were edited
-  locally or the branch has diverged, and says which files; nothing of yours is overwritten.
-- **Recordings and settings are safe.** Recordings live in `Documents/Bio-dash`; saved settings
-  (`*_settings.json`, `radio_config.json`, …) are git-ignored and are carried to a new version.
-- **Recording pauses** while the dashboards restart; a new session file starts on reconnect.
-- **Restarting needs the services** (`./biodash.py`). Without them the update is downloaded and
-  you restart the dashboards yourself.
-- **Who may press it:** same rule as shutdown / reboot: this computer only, unless
-  `BIODASH_ALLOW_POWER=1` / *Allow shutdown / reboot and updates from other devices*.
-- **From a terminal:** `./updater.py check`, `./updater.py patch`, `./updater.py upgrade`,
-  `./updater.py status`.
-
-### Shutdown and reboot (sidebar)
-
-Every dashboard's sidebar ends with a **Power** section: **⟳ Reboot** and **⏻ Shut down** for the
-computer the dashboards run on — handy for a headless Pi / Jetson. Each button takes **two taps**
-(the first arms it, red, for 4 s).
-
-- **Only from this computer by default.** To use it from another device (e.g. your phone on a
-  backpack setup), enable *Allow shutdown / reboot from other devices* in `./biodash.py`, or set
-  `BIODASH_ALLOW_POWER=1`. Requests also need a header other websites can't send, so a web page
-  open in your browser can't trigger it.
-- **Permissions:** in a normal desktop session it just works (`systemctl`). Headless / as a
-  service, the system may require a password; the card then shows a one-time command that adds a
-  `sudoers` rule for exactly `systemctl poweroff` and `systemctl reboot`.
-- **Recordings are safe:** every dashboard writes its CSVs as data arrives, so a shutdown loses
-  nothing already received (Hydro-dash's status / raw logs: at most the last 5 s).
-- **Testing:** `BIODASH_POWER_DRY_RUN=1` does everything except the actual shutdown.
-
-### Auto-reconnect
-
-Each dashboard remembers the last device it streamed from (`last_device.json`; Omni keeps one per device) and reconnects to it on its own:
-- **Bluetooth devices:** as soon as the device is advertising again, after a dropout or a restart.
-- **Atmos over Wi-Fi:** it retries the remembered address every 15 s.
-
-The scanner panel shows what it's waiting for, with **Pause** / **Resume** and **Forget**. A service installed with auto-reconnect off starts with it paused.
-
-### Troubleshooting
+A flowchart that walks from what you see to the fix: [docs/ARCHITECTURE.md section 10](docs/ARCHITECTURE.md#10-when-somethings-wrong).
 
 | Symptom | Likely cause |
 |---|---|
-| Scanner finds nothing | Device asleep, or still connected to a phone app or another host. Run `bluetoothctl devices Connected`. |
-| O2 Ultra never appears | It stops advertising shortly after the finger comes off. Keep it measuring while you scan. |
-| First Polar connect fails | Common BlueZ `le-connection-abort-by-local`. The worker retries 3× automatically. |
-| New Tailwind class does nothing | Rebuild the CSS: `./fetch_vendor.sh --tailwind` |
-| ECG drops or jumpy rates | Open the debug panel. Weak RSSI (< −85 dBm) or a non-zero **Dropped** count points to the radio link, so move closer or try the other adapter. |
-| O2 readings stall | Open the Viatom debug panel. A rising **Last reading** age with **Polls sent** still at ~0.5/s means the band stopped answering (probe off or asleep); **Write failures** point to the link itself. |
-| Atmos readings land on the wrong tiles | Bare CSV is being mapped by the wrong column order. Open the debug panel's **Device Profile**: check *Columns from*, then pick the right profile, set a custom column map, or have the firmware send a header line. Rising **Rejected lines** means lines can't be parsed at all; **Buffer overflows** mean line endings are missing. |
-| Other Bluetooth devices stall while the H10 streams | The H10 is monopolising its radio. Plug in a USB Bluetooth dongle; Omni's auto routing moves the H10 onto it. Check the debug panel: the dongle's card should show **POLAR**. |
-| A service won't start | `./biodash.py logs <name>`. If `systemctl --user` itself fails over SSH, log in locally once or enable lingering (`./biodash.py install … --boot`). |
-| Port already in use | Each dashboard has its own port now; an old copy is probably still running. `./launch.sh` stops everything it started on Ctrl+C. |
-| Atmos Wi-Fi connects, then drops back to scanning | The device closed the connection or sent nothing for 10 s. The S4 only serves one TCP client, so check its Python client isn't connected. |
+| A device is never found | Asleep, or connected to its phone app (close the app — each device talks to one thing at a time). The *Not showing up?* tips under each search list what to try. |
+| The O2 ring never appears | It stops advertising shortly after it comes off the finger. Keep it on while it searches. |
+| First Polar connect fails | Common BlueZ `le-connection-abort-by-local`; it retries 3× by itself. |
+| Heart says *the strap refused the … stream* | The page says why. *Invalid MTU*: the Bluetooth link's packet size is too small for ECG — check `ExchangeMTU` isn't set in `/etc/bluetooth/main.conf`, try the other radio, or `sudo systemctl restart bluetooth`. *Busy*: something else is streaming from the strap (a V5 dashboard still running, the Polar Beat app). Heart rate keeps recording either way. |
+| A device page says *Restarting…* | Its Bluetooth worker stopped. **Device → Troubleshooting** shows why (often BlueZ: `sudo systemctl restart bluetooth`). |
+| ECG drops, jumpy readings | Weak signal (under −85 dBm in the Device sheet): move closer, or pin the device to a USB dongle. |
+| Two people, one strap drops or stalls | Each streaming H10 wants a radio to itself. Settings → Bluetooth radios warns when there are more straps than radios: add a USB dongle per extra strap. |
+| Other devices stall while the H10 streams | The H10 is monopolising its radio. Plug in a USB dongle; *Automatic* moves the Polar onto it. |
+| Air readings in the wrong boxes | Air → *Device options* → pick the Atmos model. |
+| Bottle: see [hydro_dashboard/TROUBLESHOOTING.md](hydro_dashboard/TROUBLESHOOTING.md) | |
+| Live readings never arrive, but pages load | The WebSocket package is missing: `./setup_env.sh` (it installs `uvicorn[standard]`). |
+| Which strap / ring / bottle is mine? | Tap the tag next to a device (finder, page header, Device sheet) and name it, e.g. Mine or Boss's. Kept in `~/.config/bio-dash/device_names.json`. |
+| Bluetooth stuck ("device busy", won't reconnect), or an old version still running | Settings → This computer → **Restart Bio-dash** (or `./restart_all.py`): stops every Bio-dash process from any release, resets Bluetooth, starts again. `--dry-run` shows what it would do. |
+| The service won't start | `./biodash.py logs`. Over SSH, `systemctl --user` needs a login once, or `./biodash.py install --boot`. |
+| Orin won't boot with dongles plugged in | See [the boot catch](docs/ARCHITECTURE.md#the-boot-catch-whats-plugged-in-at-power-on). |
+
+## More tools
+
+- **Overnight SpO₂ report** — `python3 tools/night_report.py [2026-10-05]` writes
+  `Documents/Bio-dash/Reports/night_<date>.html` (also linked from Analysis → Nights).
+- **One table from every device** — `python3 tools/interpolate.py 2026-10-07 --step 1min --minmax`,
+  the command-line version of Analysis → *Download CSV*.
+- **For ReaLLM-Forge** — `python3 tools/export_mcint.py 2026-10-07 --step 10s` (or Analysis →
+  *For ReaLLM-Forge*) writes the same table as an integer CSV that ReaLLM-Forge's `data/csv_mc_int`
+  takes as it is: decimals kept by scaling (`temp_c_x10`), time as `minute_of_day` / `second`, a
+  fixed range per signal so different days share vocabularies, and `-1` where a device wasn't
+  recording. It comes with `<name>.columns.json` and `<name>.prepare.sh` (`get_dataset.sh` with every
+  `--range`); `--forge ~/ReaLLM-Forge` builds the datasets in one go, and
+  `tools/mcint_decode.py` turns sampled CSVs back into real units.
+- **Recordings from your other machines** — `./tools/fleet.py check` lists what each online Tailscale
+  machine (tagged `tag:ssh`) has recorded; `./tools/fleet.py pull` copies what's new into
+  `Documents/Bio-dash-machines/<machine>/`, or `--merge` into this computer's recordings without
+  overwriting anything (a clashing recording is kept as `<device> @<machine>`). `./tools/fleet.py push --to
+  gdrive:Bio-dash` uploads everything to any cloud rclone knows (new and grown files only; use an rclone
+  crypt remote to encrypt); `./tools/fleet.py schedule` does that by itself every 5 minutes (the ECG and motion
+  waveforms hourly). Plain ssh, nothing to install on the other side. Notes at the top of the file.
+- **Just the ECG** — `python3 tools/export_ecg.py 2026-10-07` writes the Polar H10's ECG on its own:
+  every sample with its timestamp (`_raw.csv`), and an even 200 Hz with no timestamp (`_200hz.csv`,
+  interpolated within each unbroken stretch; `_200hz_stretches.csv` says where the gaps were).
+  `--method cubic` follows QRS peaks more closely; `--uv` gives whole microvolts for csv_mc_int; `--with-acc` adds the strap's motion
+  (`ACC_X_mg,ACC_Y_mg,ACC_Z_mg`) on the same 200 Hz rows, plus `_acc_raw.csv`.
+- **Live forecasts** — the Heart page's *Forecast* buttons: a band (the range of 8 sampled futures)
+  and a dashed line ahead of the ECG pen and on the motion chart, and the next beats on the
+  beat-to-beat chart, each with its running error beside "repeat the last value". Research demos
+  trained on one person's data, not a medical device. `server.py` starts
+  `polar_dashboard/forecast_service.py` when a model is in `polar_dashboard/forecast/models/` and
+  Heart is on; it follows the first person's strap. It needs PyTorch and transformers in this
+  Python or in `BIODASH_FORECAST_PYTHON`, and a GPU to keep up (on a CPU the page says the
+  forecasts arrive too late). On a Jetson Orin, `tools/orin_setup.sh` installs it all.
+  `BIODASH_FORECAST=0` leaves it off; `python3 polar_dashboard/forecast_service.py --bench` times
+  it. **The model lab** (`/lab`, linked from the Heart page and Settings → Forecasts) is
+  ReaLLM-Forge's Stream Lane Lab viewer with the live strap as a source. Details:
+  `polar_dashboard/forecast/README.md`.
+- **The model's rows** — `tools/export_waves.py` writes the ECG (and `--with-acc` the motion) on the
+  125 Hz grid the models were trained on, as a csv_mc_int dataset; `analysis_dashboard/waves.py` is the
+  shared code, live and offline.
+- **Replaying a session** — `polar_dashboard/replay_session.py` plays a recording back as if the strap
+  were on, to test the forecast. It writes to a test folder (`BIODASH_DATA_DIR`), never into your
+  recordings unless told to, and replays are kept out of Analysis, the exporters and `fleet.py`.
+- **What's around** — `python3 tools/ble_scan.py` lists every Bluetooth LE device the radio hears
+  (Find My, Fast Pair, iBeacon, heart-rate straps …).
 
 ## Acknowledgements
 
 - **[klei22/viatom-ble](https://github.com/klei22/viatom-ble)** (forked from
   [ecostech/viatom-ble](https://github.com/ecostech/viatom-ble), MIT) — the Python script for reading
-  Viatom / Wellue oximeters over Bluetooth that the Viatom dashboard, and with it the whole Bio-dash
-  project, started from.
+  Viatom / Wellue oximeters that the Oxygen page, and with it the whole project, started from.
 - HidrateSpark protocol documentation from
   [loryanstrant/HidrateSpark-MQTT-bridge](https://github.com/loryanstrant/HidrateSpark-MQTT-bridge),
   [bditter/HA-Hidratespark](https://github.com/bditter/HA-Hidratespark) and
   [maxperron/HydroSync](https://github.com/maxperron/HydroSync) — see `hydro_dashboard/PROTOCOL.md`.
-- Muse S Athena protocol from **[DominiqueMakowski/OpenMuse](https://github.com/DominiqueMakowski/OpenMuse)**
-  (MIT), which credits [amused-py](https://github.com/Amused-EEG/amused-py) (MIT) for working out the
-  communication and [AbosaSzakal's MuseAthenaDataformatParser](https://github.com/AbosaSzakal/MuseAthenaDataformatParser) for the data format — see
-  `muse_dashboard/PROTOCOL.md`.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md).
-
-## Overnight SpO₂ report
-
-Wore the O2 band to bed? Turn the night's recording into a one-page report (no extra packages needed):
-
-```bash
-python3 tools/night_report.py                 # most recent night
-python3 tools/night_report.py 2026-10-05      # the night that started on that evening
-python3 tools/night_report.py --files a_vitals.csv b_vitals.csv
-```
-
-It reads the `_vitals.csv` files from `Documents/Bio-dash/Viatom O2/` (and Omni), joins every session
-between 18:00 and noon the next day, and writes `Documents/Bio-dash/Reports/night_<date>.html`:
-SpO₂ and pulse through the night, time below 95 / 92 / 90 / 88 %, dips of 3 % and 4 % per hour,
-the deepest dips, plus gaps and frozen (sensor not reading) stretches, which are left out of the numbers.
-Not a medical device or a sleep study. The analysis dashboard links to each night's report from its Oxygen card.
-
-## One table from every device
-
-Each device records at its own pace: heart rate about once a second, the O2 ring every second or
-so, the air monitor and the bottle every few seconds, sips whenever you drink. `tools/interpolate.py`
-puts them on one clock, one row per time step and one column per signal (no extra packages
-needed). It's the command-line version of the analysis dashboard's **Download CSV**, with the same rules:
-
-```bash
-python3 tools/interpolate.py                      # the most recent day with recordings, 1 s steps
-python3 tools/interpolate.py 2026-10-07 --step 1min --minmax
-python3 tools/interpolate.py --from "2026-10-07 09:00" --to "2026-10-07 12:30" --only hr,spo2
-python3 tools/interpolate.py --list               # show what would go in, and stop
-```
-
-It writes `Documents/Bio-dash/Exports/bio-dash_<day>_<step>.csv`. Columns are the signal names
-(`heart.hr`, `oxygen.spo2`, `air.co2@scd30`, `water.fill`, `water.sips`, `water.total`, and
-`raw.<dashboard>.<stream>.<column>` for everything else), each followed by `.n`, the number of real
-readings in that row.
-
-- **Readings** get the mean of each step (`--minmax` adds `.min` / `.max`), **state** is carried
-  forward, **sips** are mL per step plus a running daily total. See the table in *Analysis* above.
-- **Nothing is invented where there's no data:** empty before a signal's first reading, after its
-  last, and across any pause longer than `--max-gap` (60 s by default).
-- **Left out unless you `--include` them:** the fast waveforms (`ecg`, `acc`; use a matching step
-  such as `--step 8ms`).
-- `--curated` keeps only the named signals; `--complete` keeps only rows where every signal has a value.
-
-## For ReaLLM-Forge: an integer CSV for `csv_mc_int`
-
-ReaLLM-Forge's `data/csv_mc_int` makes one multicontext dataset per CSV column, each with its own
-vocabulary (`token_id = value - int_min`). It needs a whole number in every cell, nothing blank, and
-a range for every column. `tools/export_mcint.py` (or **For ReaLLM-Forge** on the analysis page)
-writes the one-clock table exactly that way:
-
-```bash
-python3 tools/export_mcint.py 2026-10-07 --step 10s            # one day, a row every 10 s
-python3 tools/export_mcint.py --from "2026-10-07 22:00" --to "2026-10-08 07:00" --only hr,spo2,rr
-python3 tools/export_mcint.py 2026-10-07 --forge ~/ReaLLM-Forge  # ...and build the datasets too
-```
-
-It writes a folder in `Documents/Bio-dash/Exports/` with three files:
-
-| File | |
-|---|---|
-| `<name>.csv` | `minute_of_day` (0-1439), `second` (0-59, when rows are under a minute apart), then one column per signal |
-| `<name>.columns.json` | each column's signal, unit, scale, range and "no reading" value |
-| `<name>.prepare.sh` | `bash <name>.prepare.sh ~/ReaLLM-Forge` runs `data/csv_mc_int/get_dataset.sh` with a `--range` for every column |
-
-- **Fixed ranges per signal,** so exports from different days share vocabularies and can be trained
-  together: `hr_bpm` 0-250, `rr_ms` 0-2500, `hrv_rmssd_ms` 0-500, `spo2_pct` 0-100, `pulse_bpm`
-  0-250, `bottle_ml` 0-5000, `sip_ml` 0-2000, `drunk_today_ml` 0-10000, `co2_ppm` 0-10000, PM
-  0-10000 (in 0.1 µg/m³), `temp_c_x10` -400-850, `rh_pct_x10` 0-1000, VOC / NOx index 0-500, `hcho_ppb`
-  0-2000. A reading outside its range is set to the nearest end and counted ("clipped").
-- **Decimals are kept by scaling:** 21.4 °C is `214` in `temp_c_x10`. Atmos columns carry the sensor
-  name (`co2_scd30_ppm`).
-- **No blanks:** after the usual filling (see above), a gap of up to `--hold` (2 min) in a reading is
-  held at its last value; anything still empty is `-1` (one below the column's range; `-401` for
-  temperature): the device wasn't recording. `--missing drop` leaves those rows out instead. A row
-  where no device was recording is never written.
-- `--real-flags` adds `<column>_real` (1 = a real reading in that step). `--raw` adds every other
-  numeric column, with a range from its own readings (so those can differ between days).
-- **Back to real units:** `python3 tools/mcint_decode.py sample.csv <name>.columns.json` turns a CSV
-  that `sample.py` wrote (or the export itself) back into °C, µg/m³ and so on, with blanks for `-1`.
-
-Then train and sample with ReaLLM-Forge's demo:
-`CSV_MC_OUTPUT_ROOT=bio_dash_mcint bash demos/csv_mc_int_demo.sh <name>.csv`
-(it uses the CSV as the sampling prompt, so a short export, an hour say, makes a better prompt).
-
-## Just the ECG
-
-`tools/export_ecg.py` writes the Polar H10's ECG on its own, nothing else from Bio-dash:
-
-```bash
-python3 tools/export_ecg.py 2026-10-07                    # one day
-python3 tools/export_ecg.py --from "2026-10-07 22:00" --to "2026-10-08 07:00" --method cubic
-python3 tools/export_ecg.py 2026-10-07 --uv               # whole microvolts, for ReaLLM-Forge csv_mc_int
-python3 tools/export_ecg.py 2026-10-07 --uv --with-acc    # plus the strap's motion on the same rows
-```
-
-| File | |
-|---|---|
-| `<name>_raw.csv` | `Timestamp_Epoch_ms,ECG_mV`: every sample as recorded (130 Hz), nothing changed. Polar-dash and Omni recordings merged in time order, the same strap's duplicate samples dropped |
-| `<name>_200hz.csv` | `ECG_mV` only, no timestamp: an even 200 Hz, interpolated, so row k is k/200 s into its stretch |
-| `<name>_acc_raw.csv` | with `--with-acc`: `Timestamp_Epoch_ms,X_mg,Y_mg,Z_mg`, the H10's accelerometer as recorded (200 Hz) |
-| `<name>_200hz_stretches.csv` | where each unbroken stretch starts in the 200 Hz file, its start time and the gap before it |
-
-- **Stretches:** a gap of more than 3 samples (~23 ms) ends one. Nothing is invented across a gap;
-  the stretches file shows where the 200 Hz file jumps. `--split` writes one file per stretch;
-  stretches under 10 s are left out (`--min-stretch`).
-- **How it's resampled:** the strap samples evenly on its own clock but the recorded timestamps are
-  whole milliseconds, so each sample's time comes from its position in the stretch (at the
-  stretch's measured rate), then `--method linear` (default) or `cubic` (Catmull-Rom; about three
-  times closer on a sharp QRS spike) gives 200 Hz. `--hz` for another rate.
-- **ECG + motion (`--with-acc`):** the 200 Hz file gets `ACC_X_mg,ACC_Y_mg,ACC_Z_mg` next to the
-  ECG, row for row: the accelerometer's times are corrected the same way, then it's interpolated
-  (linear) at each ECG row's moment. Rows are kept only where both were recording, so a motion gap
-  ends a stretch too. Motion is whole mg, clipped to ±16000; with `--uv` the printed
-  `get_dataset.sh` line has the ranges for all four columns. Files are named `..._ecg_acc_...`.
-- `--uv`: whole microvolts (what the H10 measures, so nothing is lost), clipped to ±10000 µV, with
-  the `--range` for csv_mc_int printed.
-
-## Naming your devices
-
-When more than one strap, ring, monitor or bottle is around (yours, a colleague's), click the
-🏷 tag next to a device, in the scanner list, the auto-reconnect bar or beside the status pill,
-and give it a name: "Mine", "Boss's", "Spare". The name shows wherever that dashboard lists the
-device, on every dashboard. It's kept by the name the device advertises (`Polar H10 0A1B2C3D`,
-`O2Ring 4F21`, the bottle's name), or its address when it has none, in
-`~/.config/bio-dash/device_names.json` on this computer (it carries across upgrades; copy the file
-to name them on another computer too). Recordings and their folders keep the device's own name.
-
-## Restart everything
-
-When Bluetooth gets stuck ("device busy", a worker that won't reconnect, an old release still
-holding a radio), **sidebar → Restart → Restart everything** clears it in one go. From a terminal:
-
-```bash
-./restart_all.py                 # stop everything, reset Bluetooth, start again
-./restart_all.py --stop          # stop everything and leave it stopped
-./restart_all.py --no-bluetooth  # leave Bluetooth alone
-./restart_all.py --dry-run       # show what it would stop and start
-```
-
-- **What it stops:** every `biodash-*` service, and every process running a script from any
-  `V*_Dashboard` folder (dashboards, Bluetooth workers, their helpers), whichever release and however
-  it was started. An editor or a terminal open in the folder is left alone, and so is the updater.
-- **Gently first:** Ctrl+C (recordings close properly), then SIGTERM after 6 s, then SIGKILL.
-- **Bluetooth:** restarts the bluetooth service if allowed without a password, otherwise disconnects
-  every connected device and switches each radio off and on. Headphones or a keyboard on Bluetooth
-  drop for a few seconds and reconnect. To let it restart the service, run once:
-  `echo "$USER ALL=(root) NOPASSWD: $(command -v systemctl) restart bluetooth" | sudo tee /etc/sudoers.d/biodash-bluetooth && sudo chmod 440 /etc/sudoers.d/biodash-bluetooth`
-- **Starting again:** services that were running are started; dashboards started by hand come back
-  in the background (output in `~/.cache/bio-dash/logs/`). Omni needs sudo, so start it yourself.
-- Same access rule as Reboot: from this computer only, unless the dashboards run with `BIODASH_ALLOW_POWER=1`.
-
-## Recordings from your other machines
-
-`tools/fleet.py` finds Bio-dash recordings on your other computers over Tailscale and SSH, pulls
-them here, and can push them to a cloud. Nothing is installed on the other machines (they need `python3`, which Ubuntu has).
-
-```bash
-./tools/fleet.py list                    # machines on your tailnet, and which are online
-./tools/fleet.py check                   # what each online machine has recorded
-./tools/fleet.py pull                    # copy what's new from all of them
-./tools/fleet.py pull roomba ubuntu-1 --since 2026-10-01 --only polar,hydro
-./tools/fleet.py pull --merge            # into this computer's own recordings folder
-```
-
-- **Which machines:** the online ones in `tailscale status` tagged `tag:ssh` (`--tag ""` for all of
-  them), or the ones you name (`user@host` works, and then Tailscale isn't needed). This computer is
-  skipped. It uses plain `ssh` (Tailscale SSH, a normal SSH server and `~/.ssh/config` all work);
-  `--user` if your user name differs there. If a machine asks you to log in or approve the
-  connection, run `ssh <machine>` once by hand.
-- **Where they go:** `Documents/Bio-dash-machines/<machine>/`, laid out like a recordings folder, so
-  `BIODASH_DATA_DIR=~/Documents/Bio-dash-machines/roomba python3 tools/interpolate.py --list` (or the
-  analysis dashboard with the same variable) reads one machine. `--merge` puts them in this computer's
-  own recordings folder instead: a file already here is only replaced by a longer copy of itself (a
-  recording that kept growing, checked byte for byte), and a different recording with the same name
-  goes in a device folder of its own, `<device> @<machine>`, so nothing here is overwritten.
-- **Only what's new or has grown is copied** (rsync when both sides have it, otherwise tar over
-  ssh), so running it again is quick. `--dry-run` shows what it would copy; `Exports/` and
-  `Reports/` are left out.
-- **Pushing online:** `./tools/fleet.py push --to gdrive:Bio-dash` uploads the raw recordings with
-  [rclone](https://rclone.org), so any cloud it knows works (Google Drive, Dropbox, OneDrive, S3,
-  Backblaze B2, Nextcloud ...). Set one up once with `rclone config` (`sudo apt install rclone`); the
-  name you give it goes before the colon. This computer's recordings go to `<dest>/<this computer>/`
-  and each pulled machine to `<dest>/<machine>/`. Only new and grown files go up, nothing online is
-  ever deleted, and `--to` is remembered, so later it's just `./tools/fleet.py push --pull-first`
-  (pull from every machine, then upload). These are health recordings: put an rclone **crypt**
-  remote on top of the cloud one and they're encrypted, names included, before they leave.
-- **Uploading by itself:** `./tools/fleet.py schedule` sets up two timers (systemd, your user):
-  every 5 minutes everything except the ECG and motion waveforms, and every hour everything. A
-  recording grows for as long as its session lasts and a grown file goes up whole again, so a
-  night's ECG (~11 MB an hour) every 5 minutes would be gigabytes an hour; heart rate, SpO₂, air and
-  water are small. `--every 10min`, `--full-every 6h`, `--skip ""` (everything every time) change
-  that; `schedule --off` stops it. Run `sudo loginctl enable-linger $USER` once so it keeps going
-  when you're logged out, and run `schedule` again from the new folder after an upgrade.
-
-## Live forecasts (Polar-dash)
-
-The **🔮 Forecast** pills on Polar-dash's ECG and accelerometer cards show the next second predicted
-by the H10 models: a band (8 sampled futures) and a dashed line ahead of the live trace, with the
-running error beside the "repeat the last value" baseline. A research demo, not a medical device.
-
-- **Needs PyTorch.** The models are included from V6.0 (`polar_dashboard/forecast/models/{ecg,ecg_acc}`,
-  49 + 69 MB); PyTorch is not. On a Jetson Orin, `tools/orin_setup.sh` sets it up (it reuses a system-wide
-  Jetson PyTorch when there is one). Without it the pills say so and the dashboard runs as before.
-- **`forecast_service.py`** runs beside `app.py` (`run_dashboard.sh` starts it); `--bench` times it.
-- **Testing without the strap:** `polar_dashboard/replay_session.py` plays a recording back. It
-  writes to a test folder (`BIODASH_DATA_DIR`), never into your recordings unless told to.
-- **Datasets:** `tools/export_waves.py` writes the same 125 Hz rows for ReaLLM-Forge.
-
-- **Prediction and reality together:** the forecast stays under the live ECG after the pen passes, and the
-  🔮 Inference strip under the monitor shows it alone, lined up with the ECG. The same values are logged to
-  `Documents/Bio-dash/Forecasts/<day>/<session time>_forecast_ecg.csv` (`t_ms`, `lead_ms`, the line drawn,
-  median, band; `BIODASH_FORECAST_LOG=0` turns it off).
-- **For other tools:** `GET /api/models` and `POST /api/forecast` (stream-lane-lab's API, ReaLLM-Forge
-  PR #924): send recent rows in mV on the 8 ms grid, get the next rows back. Details in `CHANGELOG.md`.
-- **Sharing it with the team:** `tailscale serve --bg --https=443 localhost:5001` (add `sudo` if it asks),
-  then send `https://<this computer>.<tailnet>.ts.net`; `tailscale serve reset` stops it. Only people on
-  your tailnet can open it. Visitors count as other devices; install the services without `--allow-power`
-  first if they shouldn't get the shutdown / reboot buttons.
-- **Changing straps:** ⏏ Disconnect (header, tap twice) ends the session and waits for you to pick a device.
-- **Is it working?** `tools/score_forecast.py` scores the model offline on your recordings against
-  repeating the last value, at 0.25 / 0.5 / 1 s ahead, as the dashboard runs it and with the ECG's
-  baseline offset removed. Run it with the forecast Python:
-  `~/.local/share/bio-dash/forecast-venv/bin/python tools/score_forecast.py <…/*_ecg.csv>`.
-
-Full details: `polar_dashboard/forecast/README.md`.
-
-## Which radio hears better: `tools/radio_compare.py`
-
-Compares two Bluetooth dongles (stock vs one with an antenna, a new one vs the old one) on the
-devices around you: how strong each one hears them and how many adverts it catches. The fair way is
-one dongle at a time in the same port, alternating, then `--report`:
-
-```bash
-./restart_all.py --stop --no-bluetooth                     # Bio-dash off while measuring
-python3 tools/radio_compare.py                              # list the radios (note the end of each address)
-python3 tools/radio_compare.py 12:38 --label stock   --seconds 90 --results run.json
-python3 tools/radio_compare.py 10:21 --label antenna --seconds 90 --results run.json   # swapped into the same port
-# ... two or three rounds each ...
-python3 tools/radio_compare.py --report --results run.json
-./restart_all.py                                            # Bio-dash back on
-```
-
-Both at once (`radio_compare.py hci1 hci2 --labels stock antenna`) is quicker but measures the
-ports as much as the dongles. Tips and how to read the numbers are at the top of the file.
-
-## What's around: a standalone Bluetooth scanner
-
-`tools/ble_scan.py` lists every Bluetooth LE device the radio hears, with its signal, address type
-and a plain reading of what it's advertising: Apple Find My (AirTags, Find My-enabled accessories
-such as the HidrateSpark PRO 2, iPhones' offline-finding beacons), other Apple messages, Google Fast
-Pair, Eddystone, iBeacon, heart-rate straps, and the maker of anything else. It needs only `bleak`.
-
-```bash
-python3 tools/ble_scan.py                         # 30 s live table of everything
-python3 tools/ble_scan.py --find-my               # only Apple Find My traffic
-python3 tools/ble_scan.py --name h2o --adapter hci0
-python3 tools/ble_scan.py --services h2o00001234  # connect and list its services (0xFD44 = Find My)
-python3 tools/ble_scan.py --log scan.csv          # also save every advertisement
-```
-
-Stop the dashboards first if you want to connect to one of their devices (each device takes one
-connection at a time). Use the release's `.venv` if `bleak` isn't installed system-wide:
-`../.venv/bin/python3 tools/ble_scan.py`.
-
+- Weather for the water goal: [Open-Meteo](https://open-meteo.com).

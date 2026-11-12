@@ -32,6 +32,7 @@ import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(1, os.path.dirname(HERE))   # the shared bt_debug.py, in the release folder
 import bt_debug  # noqa: E402
 
 STREAMS = {   # the worker's columns (advanced_worker.SESSION_STREAMS)

@@ -1,13 +1,12 @@
 # Muse-dash (Muse S Athena)
 
 Live EEG, brain-wave band powers, sensor contact, fNIRS (blood oxygenation on the forehead), heart rate
-from the forehead PPG, head motion and battery from a **Muse S Athena** headband, on port **5006**. The page
-(**Brain**) is drawn in the V6 design (`static/css/v6.css`, from the redesign's stylesheet), in every theme
-from the sidebar.
+from the forehead PPG, head motion and battery from a **Muse S Athena** headband: the Brain page of the app (`#/brain`). The page is
+`../web/js/pages/brain.js`, in every theme.
 
 ```bash
-./run_dashboard.sh                  # then open http://localhost:5006
-MUSE_FAKE=1 ./run_dashboard.sh      # the stand-in headband: everything runs, no Muse or Bluetooth needed
+../launch.sh                        # then open http://localhost:5000/#/brain (turn Brain on in Settings)
+python3 fake_muse.py                # the worker against a stand-in headband: no Muse or Bluetooth needed
 ```
 
 Switch the headband on (it allows **one connection at a time**, so close the Muse phone app), pick it in
@@ -31,13 +30,12 @@ the scanner and press **Connect Headband**. Later it reconnects by itself when i
 | **fNIRS** | Oxy- (HbO) and deoxy-haemoglobin (HbR) change on each side, from the 730 and 850 nm light (modified Beer-Lambert), outer optodes when the preset has them, against the first 10 s. **⟲ Zero** takes a new 10 s baseline (e.g. after settling in, before a task). The path length isn't measured, so it assumes 3 cm × DPF 6: read the direction and shape, not the µM. |
 | **Pulse** | The PPG channel the heart rate comes from, high-passed and flipped (more blood, less light back). |
 | **Head motion** | Accelerometer (g), tilt forward / back and left / right from gravity, turning (°/s), still / moving. |
-| **Device panel** (D, or Debug in the sidebar) | Radio (and which to use), link, rates against 256 / 64 / 52 Hz, dropped samples, clock restarts, firmware and battery, contact, the pulse channel, fNIRS optodes, versions, and the **preset**. |
-
-Tap the heart-rate, alpha or battery tile for its trend (1 min to 1 hour, pre-filled from the session's files).
+| **Device** sheet | Disconnect, auto-reconnect, the radio, and under *Troubleshooting* the worker's numbers: rates against 256 / 64 / 52 Hz, dropped samples, clock restarts, firmware, versions. |
+| **What the headband sends** | The **preset**. |
 
 ## Presets
 
-What the headband sends, chosen in the debug panel; default **p1041** (everything). See `PROTOCOL.md` for
+What the headband sends, chosen at the bottom of the page; default **p1041** (everything). See `PROTOCOL.md` for
 the table. `p21` sends EEG and motion only, with no light on the forehead. A new preset starts a new
 session, because the files' columns change.
 
@@ -64,10 +62,9 @@ Times come from the headband's own clock, mapped onto the computer's (see `PROTO
 | `muse_protocol.py` | Commands, packets, decoding, the clock (standard library only) |
 | `muse_signal.py` | Band powers and contact, the pulse and heart rate, fNIRS (numpy) |
 | `muse_worker.py` | Bluetooth (bleak): scan, connect, start the preset, decode, record, the once-a-second maths |
-| `app.py` | Web server: follows the session's files and sends new rows to the page |
-| `fake_muse.py` | The stand-in headband (a fake bleak), for `MUSE_FAKE=1` and the tests |
-| `static/js/eeg_view.js` | The EEG traces with their display filters |
-| `static/css/v6.css` | The V6 design: the redesign's tokens and components, plus this page's pieces |
+| `api.py` | Web API (mounted by `../server.py` at `/api/d/brain`): follows the session's files and hands new rows to the page |
+| `fake_muse.py` | The stand-in headband (a fake bleak), for the tests |
+| `../web/js/pages/brain.js`, `../web/js/eeg.js` | The page; the EEG traces with their display filters |
 
 ## Tests
 
@@ -81,13 +78,13 @@ python3 test_muse_dashboard.py    # everything with the stand-in: worker, files,
 
 1. **It's listed.** The scanner lists names containing "Muse". If it isn't listed, the name may differ:
    send the name `tools/ble_scan.py` shows.
-2. **It streams.** In the debug panel: EEG near 256 Hz, optics near 64 Hz, motion near 52 Hz, firmware and
+2. **It streams.** Under Device → Troubleshooting: EEG near 256 Hz, optics near 64 Hz, motion near 52 Hz, firmware and
    battery filled in. If the rates stay at 0 after connecting, send the worker's log (it prints what the
    headband sent that it couldn't use).
 3. **Contact.** All four dots green once it sits well (wet the sensors behind the ears). Eyes closed for 10 s
    should push the alpha share up: the classic check that the EEG is real.
 4. **Pulse.** The heart rate should match a Polar H10 worn at the same time within a few bpm once you keep
-   still (the debug panel says which optical channel it's using).
+   still (the Pulse card says which optical channel it's using).
 5. **fNIRS.** Holding your breath for ~20 s should move HbO and HbR on both sides; press **⟲ Zero** first.
 6. **Head position.** Tilt forward: "Tilt forward / back" should go one way and come back. If it reads
    reversed, or left / right is swapped, say so: the axes are set from OpenMuse's channel order, not checked

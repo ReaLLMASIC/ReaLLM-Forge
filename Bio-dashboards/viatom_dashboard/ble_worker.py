@@ -12,6 +12,8 @@ from bleak.backends.scanner import AdvertisementData
 from bleak.backends.device import BLEDevice
 from importlib.metadata import version as _pkg_version
 
+import os as _os, sys as _sys
+_sys.path.insert(1, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the shared bt_debug.py, in the release folder
 import bt_debug
 
 logging.basicConfig(
@@ -25,7 +27,7 @@ KNOWN_MAC = os.environ.get("BIODASH_VIATOM_MAC", "").strip()
 HEALTH_SERVICE_UUID = "14839ac4-7d7e-415c-9a42-167340cf2339"
 WRITE_CHAR_UUID = "8b00ace7-eb0a-49b0-b977-10a8d4d5e82f" 
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = bt_debug.state_dir(os.path.dirname(os.path.abspath(__file__)))   # one more per extra person: see bt_debug.state_dir
 DATA_FILE = os.path.join(BASE_DIR, "data.json")
 DEVICES_FILE = os.path.join(BASE_DIR, "devices.json")
 COMMAND_FILE = os.path.join(BASE_DIR, "command.json")
@@ -62,7 +64,7 @@ debug = {
     "versions": {},
     "radio": {"config": "auto", "hci": None, "reason": None},
 }
-for _pkg in ("bleak", "dbus-fast", "flask"):
+for _pkg in ("bleak", "dbus-fast", "fastapi"):
     try:
         debug["versions"][_pkg] = _pkg_version(_pkg)
     except Exception:
@@ -310,6 +312,7 @@ async def run():
                 last_device.remember(selected_target_mac, (debug.get("device") or {}).get("name"))
                 session.start((debug.get("device") or {}).get("name"), selected_target_mac, SESSION_STREAMS)
                 debug["recording"] = session.dir
+                debug["files"] = dict(session.paths)          # the API follows these, not "the newest recording"
                 logging.info(f"Recording to {session.dir}")
                 write_bytes = bytearray([0xAA, 0x17, 0xE8, 0x00, 0x00, 0x00, 0x00, 0x1B])
                 
@@ -341,6 +344,7 @@ async def run():
         debug["connected_at"] = None
         session.close()                    # a session's file ends with its connection
         debug["recording"] = None
+        debug["files"] = None
 
 if __name__ == "__main__":
     try: asyncio.run(run())

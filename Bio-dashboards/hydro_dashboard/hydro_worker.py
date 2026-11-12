@@ -19,10 +19,12 @@ from importlib.metadata import version as _pkg_version
 
 from bleak import BleakClient, BleakScanner
 
+import os as _os, sys as _sys
+_sys.path.insert(1, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the shared bt_debug.py, in the release folder
 import bt_debug
 import hydro_protocol as hp
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = bt_debug.state_dir(os.path.dirname(os.path.abspath(__file__)))
 LOGS_DIR = os.path.join(BASE_DIR, "logs_hydro")       # runtime state only; recordings go to Documents
 os.makedirs(LOGS_DIR, exist_ok=True)
 DEVICES_FILE = os.path.join(LOGS_DIR, "devices.json")
@@ -145,6 +147,7 @@ def reset_session_state():
     live.update(fill_ml=None, fill_pct=None, weight_raw=None, weight_stable=None, battery=None,
                 cap_open=None, last_sip=None, serial=None, firmware=None, last_notify_at=None,
                 fill_from=None, capacity_from=None, can_glow=None, synced_at=None, reminders_set=None, can_upload_glow=None, hardware=None, glow_upload=None, family=None, drain_mode=None, cal_min=None, cal_max=None)
+    live["cal_pending"] = load_settings().get("cal_pending")     # the page's "now tap It's full" banner
     counters.clear()
     counters.update(notifications=0, sip_frames=0, sips_live=0, sips_replayed=0, duplicates=0,
                     unknown_frames=0, drain_writes=0, drain_acks=0, drain_paused=0, drain_fallback=0, skipped_records=0,
@@ -172,6 +175,7 @@ def set_cal_pending(value, why):
         return
     s["cal_pending"] = value
     save_settings(s)
+    live["cal_pending"] = value
     event("calibration_pending" if value else "calibration_pending_cleared", why)
 
 

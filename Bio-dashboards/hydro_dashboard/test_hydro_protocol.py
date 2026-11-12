@@ -1,6 +1,7 @@
 """Tests for hydro_protocol.py.  Run:  python3 -m pytest hydro_dashboard   (or: python3 hydro_dashboard/test_hydro_protocol.py)"""
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(1, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # the shared bt_debug.py
 import hydro_protocol as hp
 
 NOW = 1790000000.0      # fixed clock

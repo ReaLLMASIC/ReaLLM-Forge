@@ -3,15 +3,16 @@
 Flow diagrams for the whole suite, from the devices to the files on disk. GitHub renders the
 diagrams below; elsewhere, paste a block into <https://mermaid.live>.
 
-1. [The big picture](#1-the-big-picture) — devices, radios, workers, web apps, recordings
-2. [Inside one dashboard](#2-inside-one-dashboard) — how a worker and its web app talk
+1. [The big picture](#1-the-big-picture) — devices, radios, the one server, recordings
+2. [Inside the server](#2-inside-the-server) — how a worker, its API and the page talk; several people; forecasts
 3. [A device's life cycle](#3-a-devices-life-cycle) — scan, connect, record, reconnect
 4. [Hydro-dash: the bottle protocol](#4-hydro-dash-the-bottle-protocol)
 5. [Atmos: from any sensor format to tiles](#5-atmos-from-any-sensor-format-to-tiles)
 6. [Starting and running everything](#6-starting-and-running-everything)
 7. [Hydro-dash: which Bluetooth radio](#7-hydro-dash-which-bluetooth-radio) — the old-dongle catch
-8. [Analysis: from recordings to one clock](#8-analysis-from-recordings-to-one-clock) — the sixth dashboard
+8. [Analysis: from recordings to one clock](#8-analysis-from-recordings-to-one-clock)
 9. [Radios on the Orin: what plugs in where](#9-radios-on-the-orin-what-plugs-in-where) — every adapter tried, and the boot catch
+10. [When something's wrong](#10-when-somethings-wrong) — a troubleshooting flowchart
 
 **Colour key** (same in every diagram):
 
@@ -35,41 +36,51 @@ flowchart LR
 
 ## 1. The big picture
 
-Each device has its own dashboard: a **worker** that talks Bluetooth (or Wi-Fi) and records, and
-a **web app** that serves the page. Omni runs both body sensors in one process.
+**One app.** A single server (`server.py`, one port, one service) runs a Bluetooth **worker** for
+each device you turned on, serves each device's API, and sends live readings to every open page
+over one WebSocket. The workers are the same programs as in the separate dashboards (V5 – V7) and
+write the same recordings.
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph DEV["Devices"]
+        direction LR
         H10["Polar H10<br/>ECG · ACC · HR · R-R"]
-        O2["Viatom O2 band<br/>SpO₂ · pulse · battery"]
-        ATM["Atmos sensors<br/>Mini · Sphere S4/S5 · SEN69C"]
-        HS["HidrateSpark PRO 2<br/>sips · weight · cap"]
+        O2["Checkme O2 ring<br/>SpO₂ · pulse · battery"]
+        MU["Muse S Athena<br/>EEG · fNIRS · PPG · motion"]
+        HS["HidrateSpark<br/>sips · weight · cap"]
+        ATM["Atmos sensors<br/>Mini · Sphere S4/S5"]
     end
 
     subgraph RAD["Bluetooth radios (BlueZ)"]
-        EXT["External USB dongle<br/>preferred by Polar"]
-        INT["Internal radio<br/>preferred by the others"]
+        direction LR
+        EXT["USB dongle<br/>preferred by the Polar"]
+        INT["Built-in radio<br/>preferred by the others"]
     end
 
-    subgraph SUITE["Bio-dash (one process pair per dashboard)"]
-        PW["Polar worker"] --- PA["Polar app :5001"]
-        VW["Viatom worker"] --- VA["Viatom app :5003"]
-        AW["Atmos worker"] --- AA["Atmos app :5002"]
-        HW["Hydro worker"] --- HA["Hydro app :5004"]
-        OM["Omni :5000<br/>Polar + O2 together"]
+    subgraph SRV["server.py · port 5000"]
+        subgraph WK[" "]
+            direction LR
+            PW["Heart worker<br/>advanced_worker.py"]
+            VW["Oxygen worker<br/>ble_worker.py"]
+            MW["Brain worker<br/>muse_worker.py"]
+            HW["Water worker<br/>hydro_worker.py"]
+            AW["Air worker<br/>sensor_worker.py"]
+        end
+        API["Device APIs<br/>/api/d/heart · oxygen · brain · air · water · analysis"]
+        FC["forecast_service.py<br/>(optional: PyTorch)"]
+        HUB["Live hub<br/>one WebSocket /ws"]
     end
 
-    H10 --> EXT
-    O2 --> INT
+    H10 --> EXT --> PW
+    O2 & HS & MU --> INT
     ATM -->|BLE| INT
+    INT --> VW & HW & AW & MW
     ATM -.->|Wi-Fi TCP :8080| AW
-    HS --> INT
-    EXT --> PW & OM
-    INT --> VW & AW & HW & OM
-
-    PA & VA & AA & HA & OM --> BR["Browser<br/>localhost or phone"]
-    PW & VW & AW & HW & OM --> REC[("~/Documents/Bio-dash<br/>CSV per connection")]
+    WK --> REC[("~/Documents/Bio-dash<br/>CSV per connection")]
+    REC --> API --> HUB
+    REC --> FC -->|"the next second"| API
+    API & HUB --> BR["The app in a browser<br/>computer · phone (installable)"]
 
     classDef device fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:2px
     classDef radio fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:2px
@@ -81,40 +92,48 @@ flowchart LR
     classDef decision fill:#FFEDD5,stroke:#EA580C,color:#7C2D12,stroke-width:2px
     classDef warn fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px
     classDef start fill:#1E293B,stroke:#94A3B8,color:#F8FAFC,stroke-width:2px
-    class H10,O2,ATM,HS device
+    class H10,O2,ATM,HS,MU device
     class EXT,INT radio
-    class PW,VW,AW,HW,OM worker
-    class PA,VA,AA,HA app
+    class PW,VW,AW,HW,MW,FC worker
+    class API,HUB app
     class BR ui
     class REC store
     style DEV fill:none,stroke:#F59E0B,stroke-width:1.5px
     style RAD fill:none,stroke:#8B5CF6,stroke-width:1.5px
-    style SUITE fill:none,stroke:#94A3B8,stroke-width:1.5px
+    style SRV fill:none,stroke:#94A3B8,stroke-width:1.5px
+    style WK fill:none,stroke:#2563EB,stroke-width:1px,stroke-dasharray:4 3
 ```
 
-- **Radio routing:** each dashboard picks a radio by its *address* (stable across reboots) from
-  `radio_config.json`, or automatically: Polar prefers the external dongle, the rest the internal radio.
-- **Omni and the standalone Polar / Viatom dashboards are alternatives** — both would try to own
-  the same devices (`biodash.py` won't install them together).
+- **Only the devices you own run.** The first-run setup (or Settings → Devices) turns each one on
+  or off; that starts or stops its worker. The choice lives in `~/.config/bio-dash/app.json`.
+- **A worker that crashes is restarted** after 2 s, then 4, 8 … up to 60 s; a run that lasted two
+  minutes resets the pause. Its last 400 lines are kept for the Device sheet's *Troubleshooting*.
+- **Radio routing:** each device picks a radio by its *address* (stable across reboots) from
+  `radio_config.json`, or automatically: the Polar prefers a USB dongle, the rest the built-in radio.
+- **Several people** (up to three) each get a Heart and an Oxygen worker of their own; see section 2.
+  This replaces Omni, whose old recordings still show up in Analysis.
+- **Forecasts** are a separate process (`polar_dashboard/forecast_service.py`), started when a model
+  is installed: it reads the first person's ECG as it is recorded and posts the next second to the
+  Heart API, which passes it to the open Heart pages.
 
 ---
 
-## 2. Inside one dashboard
+## 2. Inside the server
 
-The worker and the web app are separate processes that share a few small files, so either can
-restart without taking the other down.
+Workers are separate processes that share a few small files with the server, so a stuck Bluetooth
+stack can be restarted without taking the app down.
 
 ```mermaid
 flowchart TB
     DEV(("Device")) <-->|Bluetooth / TCP| W
 
     subgraph D["e.g. hydro_dashboard/"]
-        W["Worker<br/>hydro_worker.py · advanced_worker.py<br/>ble_worker.py · sensor_worker.py"]
-        S[/"status.json<br/>live values · debug info"/]
-        DV[/"devices.json<br/>last scan results"/]
-        C[/"command.json<br/>connect · calibrate"/]
-        CFG[/"radio_config.json · last_device.json<br/>settings / profile"/]
-        A["Web app<br/>app.py (FastAPI / Flask)"]
+        W["Worker<br/>hydro_worker.py"]
+        S[/"logs_hydro/status.json<br/>state · live values · debug"/]
+        DV[/"devices.json<br/>last scan"/]
+        C[/"command.json<br/>connect · calibrate · glow"/]
+        CFG[/"radio_config.json · last_device.json"/]
+        A["api.py<br/>(FastAPI, mounted at /api/d/water)"]
         W -->|every second| S
         W -->|after each scan| DV
         C -->|picked up within 1 s| W
@@ -124,9 +143,12 @@ flowchart TB
         A <--> CFG
     end
 
-    A <-->|"/api/… · WebSocket or SSE"| P["Page in the browser<br/>tiles · charts · debug panel (D)"]
-    W -->|"CSV rows"| R[("Documents/Bio-dash/&lt;dashboard&gt;/&lt;device&gt;/&lt;date&gt;/")]
-    R -->|"/api/history"| A
+    S -->|"read once a second;<br/>pushed only when it changes"| HUB["Live hub (server.py)"]
+    A -->|"Heart, Air: rows tailed from the CSV<br/>Oxygen: data.json"| HUB
+    HUB <-->|"/ws: status · latest (1/s) · live (subscribed)"| P["The app<br/>web/ (no build step)"]
+    A <-->|"/api/d/water/api/…"| P
+    W -->|"CSV rows"| R[("Documents/Bio-dash/&lt;device&gt;/&lt;unit&gt;/&lt;date&gt;/")]
+    R -->|"history · summaries"| A
 
     classDef device fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:2px
     classDef radio fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:2px
@@ -141,18 +163,38 @@ flowchart TB
     class DEV device
     class W worker
     class S,DV,C,CFG file
-    class A app
+    class A,HUB app
     class P ui
     class R store
     style D fill:none,stroke:#94A3B8,stroke-width:1.5px
 ```
 
-- **Live data:** Polar and Atmos push over a WebSocket, Viatom and Omni over Server-Sent Events,
-  Hydro-dash polls (its data changes a few times an hour).
-- **History:** tile trends and Hydro-dash's totals are read back from the CSV recordings, so they
-  survive restarts.
-- **Shared code** (identical copies in every dashboard): `bt_debug.py` (radios, auto-reconnect,
-  recordings, shutdown/reboot, updates) and the page scripts `sidebar.js`, `tile_trends.js`, `reconnect.js`.
+- **One WebSocket per page.** Every page gets each device's status when it changes and a summary
+  of the newest readings once a second (Home and the nav dots need nothing else). A device page
+  *subscribes* to that device's full stream (130 Hz ECG, every air row) and unsubscribes when you
+  leave, so a phone on Home isn't sent the ECG.
+- **Nothing is parsed for nobody:** with no page open, the server stops tailing the ECG.
+- **Analysis runs apart:** its summaries, charts and export run in a separate process that exits
+  a minute after the last request, so a week of parsed recordings doesn't stay in the server.
+- **History** (trends, today's water, Analysis) is read back from the recordings, so it survives
+  restarts. Finding the newest recording only looks in the newest date folders.
+- **Several people.** A worn device (strap, ring) exists once per person. The first person's are
+  `heart` and `oxygen`, with their state files in the device folder as always. Each extra person
+  (`p2`, `p3`) gets one more worker and one more copy of the same `api.py`, as `heart-p2`,
+  `oxygen-p2` …, with `BIODASH_STATE_DIR` pointing at `~/.config/bio-dash/people/<id>/<device>/`
+  for their status, command, last-device and radio files (`bt_debug.state_dir`). Nothing else
+  differs: the same scan → connect → record loop, the same recordings by device.
+  - A worker only ever connects to the device it was told to (or last used), so two workers never
+    grab the same strap. Connecting a device for one person first makes whoever had it let go
+    (`POST /api/app/claim`).
+  - An API follows *its own worker's* recording (the worker lists its files in its status), not
+    "the newest file", so two people's live charts and history never cross.
+  - With two or more people the server shares the radios out every 10 s: straps take the USB
+    dongles first, rings start from the other end; each worker reads its share from its
+    `radio_config.json` and follows it unless you pinned a radio.
+- **Shared code:** one `bt_debug.py` in the release folder (radios, auto-reconnect, recordings,
+  shutdown/reboot, updates). The page is plain ES modules in `web/`: a 7 kB (compressed) canvas chart
+  (`plot.js`) replaces Chart.js + luxon + the streaming plugin.
 
 ---
 
@@ -193,7 +235,7 @@ flowchart TD
 
 - **One CSV set per connection.** A dropout ends the set; the reconnect starts a new one in the
   same date folder. Timestamps are absolute, so sets line up.
-- **Auto-reconnect** can be paused or forgotten from the reconnect bar on each page
+- **Auto-reconnect** can be switched off, or the device forgotten, from each device's **Device** sheet
   (`BIODASH_AUTORECONNECT=0` turns it off by default).
 
 ---
@@ -312,19 +354,17 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    U(["You"]) --> L["./launch.sh polar atmos …<br/>foreground, Ctrl+C stops all"]
-    U --> B["./biodash.py<br/>menu or CLI"]
-    U --> R["&lt;dashboard&gt;/run_dashboard.sh<br/>one dashboard"]
-    B -->|install| SVC["systemd user services<br/>biodash-&lt;name&gt;.service"]
+    U(["You"]) --> L["./launch.sh<br/>in a terminal, Ctrl+C stops"]
+    U --> D["./launch.sh --demo<br/>made-up readings, no Bluetooth"]
+    U --> B["./biodash.py<br/>a few questions, or CLI"]
+    B -->|install| SVC["systemd user service<br/>biodash-app.service"]
     SVC --> SR["service_run.sh"]
-    L --> RD["run_dashboard.sh (each)"]
-    SR --> RD
-    R --> RD
-    RD --> VENV{".venv present?"}
+    L & D --> SR
+    SR --> VENV{".venv present?"}
     VENV -->|yes| PY1["use .venv/bin/python3"]
     VENV -->|no| PY2["system python3"]
-    PY1 & PY2 --> PROC["start worker + web app"]
-    L & SR -.->|"systemd-inhibit"| AWAKE["keep the computer awake<br/>(optional: lid close too)"]
+    PY1 & PY2 --> PROC["server.py<br/>→ a worker per device that's on"]
+    PROC -.->|"systemd-inhibit, held while it runs"| AWAKE["keep the computer awake<br/>(optional: lid close too)"]
     SVC -.->|"--boot (linger)"| BOOT["start at power-on, no login"]
 
     classDef device fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:2px
@@ -338,18 +378,20 @@ flowchart LR
     classDef warn fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px
     classDef start fill:#1E293B,stroke:#94A3B8,color:#F8FAFC,stroke-width:2px
     class U start
-    class L,B,R ui
-    class SVC,SR,RD file
+    class L,D,B ui
+    class SVC,SR file
     class VENV decision
     class PY1,PY2,PROC worker
     class AWAKE,BOOT app
 ```
 
 - **`./setup_env.sh`** creates the `.venv` once; everything else uses it automatically.
-- **Service options** (`biodash.py`): keep awake, lid close, auto-reconnect, shutdown/reboot from
-  other devices, start at boot.
-- **On the page:** ☀ *Keep screen on* (localhost or HTTPS), 🐞 debug panel with the System card
-  (shutdown / reboot), header links between dashboards.
+- **Service options** (`biodash.py install`): `--port`, keep awake, `--lid`, `--no-reconnect`,
+  `--allow-power` (shut down / update from other devices), `--boot`.
+- **Stopping** sends the server SIGTERM (`KillMode=mixed`); it gives each worker Ctrl+C so the
+  recordings are closed properly, then exits.
+- **From the separate dashboards (V5 – V7):** `biodash.py install` removes the old `biodash-<dashboard>` services and turns on the
+  devices they ran, which is exactly what their *Upgrade* button runs.
 
 ---
 
@@ -408,7 +450,7 @@ flowchart TB
   pieces, and this bottle doesn't send it at all. With small messages every reply fits.
 - **The bottle's address changes** from time to time. Each change makes the computer read the
   service list afresh, so this can appear on a setup that worked earlier the same day.
-- **Choosing the radio:** debug panel (D) → Bluetooth Radio. The choice is saved by the radio's
+- **Choosing the radio:** the device's **Device** sheet → Bluetooth radio. The choice is saved by the radio's
   address, so it survives reboots (when hci numbers shuffle) and upgrades. Without a choice,
   Hydro-dash prefers a built-in radio; on boards whose USB ports don't say which radios are built in
   (the Orin Nano dev kit), that falls back to whichever radio is hci0.
@@ -419,7 +461,7 @@ flowchart TB
 
 ## 8. Analysis: from recordings to one clock
 
-The analysis dashboard (port 5005) has no worker and no radio: it reads the CSV recordings the other
+Analysis has no worker and no radio: it reads the CSV recordings the other
 dashboards wrote, so it runs anywhere those files are.
 
 ```mermaid
@@ -438,7 +480,7 @@ flowchart LR
     G --> P["Charts<br/>one per signal, shared time axis"]
     G --> C[/"CSV export<br/>page button or tools/interpolate.py"/]
     G --> MC[/"Integer CSV for ReaLLM-Forge csv_mc_int<br/>page button or tools/export_mcint.py"/]
-    SUM --> P2["Page<br/>port 5005"]
+    SUM --> P2["Analysis page<br/>/api/d/analysis"]
     P --> P2
     R --> N["tools/night_report.py"] --> NR[/"Overnight report<br/>linked from the Oxygen card"/]
 
@@ -467,7 +509,7 @@ flowchart LR
 - **Signals are merged across dashboards:** heart rate recorded by Polar-dash in the day and by
   Omni at night is one signal.
 - **Estimates are marked:** every value carries `n`, the number of real readings behind it;
-  0 means interpolated, carried forward, or "no sip in this step". Charts draw those dashed.
+  0 means interpolated, carried forward, or "no sip in this step" (exports keep the count in `.n` columns).
 - **The ReaLLM-Forge export** (`analysis_dashboard/mcint.py`) writes the same table as whole numbers:
   a fixed scale and range per signal, `minute_of_day` / `second` for the time, and one value below
   each range (`-1`) for "no reading", because `csv_mc_int` allows no blank cells.
@@ -666,8 +708,8 @@ flowchart LR
     ATM -.->|"or Wi-Fi,<br/>freeing a radio"| WIFI["Wi-Fi (TCP)"]
 
     UB --> HY["Hydro-dash"]
-    INT --> PO["Polar-dash / Omni"]
-    B1 --> VI["Viatom-dash / Omni"]
+    INT --> PO["Heart (Polar)"]
+    B1 --> VI["Oxygen (O2 ring)"]
     B2 --> AT["Atmos-dash"]
     WIFI --> AT
 
@@ -683,7 +725,7 @@ flowchart LR
 - **The bottle goes on the UB500 Plus.** It's the one device that needs a Bluetooth 5 radio
   (section 7). The O2 ring and the Atmos send small, slow packets that a 4.0 dongle handles fine.
 - **The Polar gets a modern radio to itself** because its ECG is the busiest stream.
-- **Each dashboard pins its radio by address** in its debug panel (D) → Bluetooth Radio
+- **Each device pins its radio by address** in its **Device** sheet → Bluetooth radio
   (saved in `radio_config.json`, carried across upgrades). The hci numbers shuffle whenever
   dongles are added or the Orin boots, and the address is what stays put.
 
@@ -724,9 +766,63 @@ flowchart TB
 |---|---|---|---|---|---|
 | **TP-Link UB500 Plus** | Realtek RTL8761BU · `2357:0604` (same ID as the plain UB500) | reports 5.1 (box says 5.3) | `rtl_bt/rtl8761bu_fw.bin` + `_config.bin`, loaded by the kernel itself on JetPack 6 (kernel 5.15); no `btusb new_id` needed | ✅ **Works.** 10 of 10 cold connects with all 5 HidrateSpark characteristics; heard 8 times in 25 s at −60 dBm; Hydro-dash picked it by itself after a reboot; no `ExchangeMTU` cap | Antenna plugs in with an **MHF4** connector (the small one, not U.FL): use an MHF4-to-SMA pigtail to move it outside a case |
 | **ASUS USB-BT400** | Broadcom BCM20702A1 · `0b05:17cb` | 4.0 | built-in "build 0000"; Linux needs `brcm/BCM20702A1-0b05-17cb.hcd` to bring it to **build 1467** (TROUBLESHOOTING 15) | ⚠ **Hears it instantly, then "connected, no services"**: 4.0 sends 27 bytes per packet and the bottle never sends its first large reply. Works only with `ExchangeMTU = 64`, which affects every device | Fine for the O2 ring and Atmos (small packets). **Stops the Orin booting** if attached together with a UB500 Plus at power-on (above) |
-| **Orin Nano built-in** | Realtek 8822-series combo card, Realtek's own `rtk_btusb` driver | 5.1 | built in | not tried with the bottle this round | Its USB port doesn't say it's built in, so the debug panel shows no internal/external badge |
+| **Orin Nano built-in** | Realtek 8822-series combo card, Realtek's own `rtk_btusb` driver | 5.1 | built in | not tried with the bottle this round | Its USB port doesn't say it's built in, so the app can't tell it's built in |
 | **Laptop built-in** (FW13) | combo card shared with Wi-Fi | 5.x | built in | ❌ **Often doesn't hear it**: the bottle only advertises for a few seconds after it moves, and the shared antenna misses those bursts | TROUBLESHOOTING 11 |
 
 **Powering the Orin:** a 12 V USB-C "trigger" board works only with chargers that offer 12 V,
 which USB Power Delivery doesn't require. Any charger over 45 W must offer 20 V, the Orin's normal
 input, so a 20 V trigger with a 65 W charger is the dependable choice.
+
+---
+
+## 10. When something's wrong
+
+Start at the top and follow what you see. Each answer points at the fix, and at the place in the
+app or the docs that says more.
+
+```mermaid
+flowchart TD
+    START(["Something isn't working"]) --> PAGE{"Does the app open?<br/>http://&lt;computer&gt;.local:5000"}
+    PAGE -- no --> SRV["Bio-dash isn't running<br/>./biodash.py status · ./biodash.py logs<br/>missing packages: ./setup_env.sh"]
+    PAGE -- yes --> LIVE{"Does anything update live?<br/>(top bar says Reconnecting…)"}
+    LIVE -- no --> WS["No live connection<br/>WebSocket package missing: ./setup_env.sh<br/>(installs uvicorn[standard])"]
+    LIVE -- yes --> PILL{"What does the device's status say?"}
+
+    PILL -- "Off" --> OFF["Turn it on<br/>Settings → Devices"]
+    PILL -- "Restarting…" --> CRASH["Its Bluetooth worker keeps stopping<br/>Device → Troubleshooting: recent messages<br/>often BlueZ: sudo systemctl restart bluetooth"]
+    PILL -- "Looking… (never found)" --> FIND{"Is it in the<br/>Find a device list?"}
+    FIND -- no --> AWAKE["Wake it and free it<br/>strap: wet the pads · ring: on a finger · bottle: tip it<br/>close its phone app (one connection at a time)<br/>still nothing: tools/ble_scan.py, try the other radio"]
+    FIND -- yes --> TAP["Tap Connect<br/>or turn on Reconnect automatically"]
+    PILL -- "Connecting (try N of 3) fails" --> LINK["Weak or busy radio<br/>signal under −85 dBm: move closer<br/>Device → Bluetooth radio: pin the USB dongle<br/>sudo systemctl restart bluetooth"]
+    PILL -- "Recording, with a warning" --> WARN{"What does the warning say?"}
+    WARN -- "invalid MTU" --> MTU["Packet size capped<br/>comment out ExchangeMTU in /etc/bluetooth/main.conf<br/>restart bluetooth · Device → Restart"]
+    WARN -- "busy" --> BUSY["Something else is streaming from the strap<br/>old V5 service: systemctl --user stop 'biodash-*'<br/>Polar Beat app, another computer"]
+    PILL -- "Recording, numbers look wrong" --> WRONG{"Which device?"}
+    WRONG -- Air --> PROF["Readings in the wrong boxes<br/>Air → Device options → pick the Atmos model"]
+    WRONG -- Water --> CAL["Fill level off<br/>Water → Bottle → Calibrate the level"]
+    WRONG -- "Heart: ECG signal low" --> PADS["Poor contact: wet the pads,<br/>tighten the strap"]
+
+    START --> BOOT{"Orin doesn't power on<br/>(no logo)?"}
+    BOOT -- yes --> CATCH["Unplug the ASUS dongles, boot,<br/>plug them in after · see the boot catch (section 9)"]
+
+    classDef device fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:2px
+    classDef radio fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:2px
+    classDef worker fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:2px
+    classDef app fill:#CCFBF1,stroke:#0D9488,color:#134E4A,stroke-width:2px
+    classDef file fill:#F1F5F9,stroke:#64748B,color:#1E293B,stroke-width:2px
+    classDef store fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:2px
+    classDef ui fill:#FCE7F3,stroke:#DB2777,color:#831843,stroke-width:2px
+    classDef decision fill:#FFEDD5,stroke:#EA580C,color:#7C2D12,stroke-width:2px
+    classDef warn fill:#FEE2E2,stroke:#DC2626,color:#7F1D1D,stroke-width:2px
+    classDef start fill:#1E293B,stroke:#94A3B8,color:#F8FAFC,stroke-width:2px
+    class START start
+    class PAGE,LIVE,PILL,FIND,WARN,WRONG,BOOT decision
+    class SRV,WS,CRASH,LINK,MTU,BUSY,CATCH warn
+    class OFF,TAP,PROF,CAL,PADS,AWAKE app
+```
+
+- **Every fix in the app is one or two taps from the device's page:** the status pill, the
+  *Connect your …* panel with its *Not showing up?* tips, and the **Device** sheet (radio,
+  reconnect, *Troubleshooting* with the worker's recent messages and *Copy details*).
+- **Device-specific detail:** the bottle has its own guide, `hydro_dashboard/TROUBLESHOOTING.md`;
+  the radios and the Orin's boot catch are in section 9.

@@ -59,7 +59,7 @@ the one with plausible values (they're mutually exclusive in practice — see th
 | 4–7 / 5–8 | Unix time, seconds (bytes 4–7) | seconds since the sip (bytes 5–8) |
 | 8–9 | sip volume mL (BE) | — |
 
-The layout used is recorded per sip (`Layout` column) and counted in the debug panel.
+The layout used is recorded per sip (`Layout` column) and counted under Device → Troubleshooting.
 
 ### PRO 2 layout (firmware 100.x, verified on real captures)
 
@@ -113,7 +113,7 @@ Either way only one request is ever in flight: the next goes out after the previ
 arrived (or 2 s passed), there's a 1.5 s wait after the handshake in case the bottle starts on its
 own, and the periodic re-check only runs when no drain is under way. If three acknowledged requests
 in a row get no answer while records are waiting, Hydro-dash switches to `0x57` for that
-connection. Skips are counted in the debug panel.
+connection. Skips are counted under Device → Troubleshooting.
 
 ## Bottle size and calibration commands
 

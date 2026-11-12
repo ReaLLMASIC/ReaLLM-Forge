@@ -1,9 +1,9 @@
-# Everything needed to run all seven dashboards.
-# Each dashboard folder also has its own requirements.txt if you only need one.
--r polar_dashboard/requirements.txt
--r atmos_dashboard/requirements.txt
--r viatom_dashboard/requirements.txt
--r Omni-dashboard/requirements.txt
--r hydro_dashboard/requirements.txt
--r analysis_dashboard/requirements.txt
--r muse_dashboard/requirements.txt
+# Everything Bio-dash needs (one app now). ./setup_env.sh installs it into .venv/.
+# Bluetooth Low Energy (BlueZ backend on Linux)
+bleak>=0.22.0,<4
+dbus-fast>=1.83.0; sys_platform == "linux"
+# Polar H10 driver -- 1.x API; needs Python >= 3.10
+polar-python>=1.1.0,<2
+# The web app: FastAPI + uvicorn with WebSockets (the [standard] extra brings websockets)
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0

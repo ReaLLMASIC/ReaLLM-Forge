@@ -1,5 +1,5 @@
-"""The whole dashboard with the stand-in headband (fake_muse.py): worker -> files -> app -> page.
-Run:  python3 muse_dashboard/test_muse_dashboard.py      (about a minute; the page check needs Playwright + Chromium)
+"""The headband end to end with the stand-in (fake_muse.py): worker -> files -> API.
+Run:  python3 muse_dashboard/test_muse_dashboard.py      (about a minute; the Brain page is checked by ../test_web.py)
 
 It runs in a scratch copy of this folder with its own HOME and data folder, so nothing here or in
 ~/Documents is touched."""
@@ -37,10 +37,10 @@ shutil.copytree(HERE, app_dir, ignore=shutil.ignore_patterns("__pycache__", "log
 data = os.path.join(tmp, "data")
 port = free_port()
 env = {**os.environ, "HOME": tmp, "XDG_CONFIG_HOME": os.path.join(tmp, ".config"), "BIODASH_DATA_DIR": data,
-       "BIODASH_MUSE_PORT": str(port), "PYTHONUNBUFFERED": "1"}
+       "PYTHONUNBUFFERED": "1", "PYTHONPATH": os.path.dirname(HERE)}          # the shared bt_debug.py
 log = open(os.path.join(tmp, "log.txt"), "w")
 procs = [subprocess.Popen([sys.executable, "fake_muse.py"], cwd=app_dir, env=env, stdout=log, stderr=subprocess.STDOUT),
-         subprocess.Popen([sys.executable, "app.py"], cwd=app_dir, env=env, stdout=log, stderr=subprocess.STDOUT)]
+         subprocess.Popen([sys.executable, "-c", f"import uvicorn, api; uvicorn.run(api.app, host='127.0.0.1', port={port}, log_level='warning')"], cwd=app_dir, env=env, stdout=log, stderr=subprocess.STDOUT)]
 base = f"http://127.0.0.1:{port}"
 
 
@@ -119,38 +119,6 @@ try:
     check(f"history for the heart-rate tile: {len(h or [])} points", h and abs(h[-1]["y"] - 66) <= 2)
     a = wait(lambda: get("/api/history?metric=alpha&minutes=5")["alpha"], 10)
     check(f"history for the alpha tile: {a and a[-1]['y']} %", a and 10 < a[-1]["y"] < 90)
-
-    # the page
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        sync_playwright = None
-        print("  (skipped the page: no Playwright)")
-    if sync_playwright:
-        with sync_playwright() as p:
-            br = p.chromium.launch()
-            pg = br.new_page()
-            errors = []
-            pg.on("pageerror", lambda e: errors.append(str(e)))
-            pg.on("console", lambda m: m.type == "error" and "ERR_CONNECTION_REFUSED" not in m.text and errors.append(m.text))
-            pg.goto(base + "/")
-            pg.wait_for_function("document.querySelector('#status').textContent.includes('Recording')", timeout=15000)
-            check("page: live", True)
-            pg.wait_for_function("/^\\d+$/.test(document.querySelector('#hr-val').textContent)", timeout=20000)
-            check(f"page: heart rate {pg.inner_text('#hr-val')}", abs(int(pg.inner_text("#hr-val")) - 66) <= 3)
-            pg.wait_for_function("/^\\d+$/.test(document.querySelector('#alpha-val').textContent)", timeout=10000)
-            check(f"page: alpha share {pg.inner_text('#alpha-val')} %, all four contacts", "all four in contact" in pg.inner_text("#contact-note"))
-            check("page: battery", pg.inner_text("#bat-val") in ("87", "88"))
-            drawn = pg.evaluate("""() => { const c = document.getElementById('eegCanvas'), g = c.getContext('2d');
-                const d = g.getImageData(0, 0, c.width, c.height).data; let n = 0;
-                for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 60) n++; return n; }""")
-            check(f"page: EEG traces drawn ({drawn} px)", drawn > 1500)
-            pg.keyboard.press("d")
-            pg.wait_for_timeout(1500)
-            dbg = pg.inner_text("#debug-panel")
-            check("page: debug panel (D) shows the rates and the preset", "256" in dbg and "p1041" in dbg and "STREAM RATES" in dbg.upper())
-            check("page: no script errors", not errors, errors)
-            br.close()
 
     # a new preset: the session restarts with its own files (EEG 4 channels, no optics)
     post("/api/preset", {"preset": "p21"})

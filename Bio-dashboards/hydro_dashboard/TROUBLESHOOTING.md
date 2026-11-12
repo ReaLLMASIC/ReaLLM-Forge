@@ -126,7 +126,7 @@ The bottle only advertises for a few seconds after it's moved, and BlueZ forgets
 seen recently, so the handle was stale.
 
 **Fix:** look the bottle up fresh before every connection attempt. The page now shows *"waiting
-for the bottle to advertise — shake or tip it"*, and the debug panel shows the last connection error.
+for the bottle to advertise — shake or tip it"*, and Device → Troubleshooting shows the last connection error.
 
 ### 4. Still "not found" — and the address keeps changing
 
@@ -217,7 +217,7 @@ bottle starting on its own after the handshake, plus our request, plus a retry f
 
 **Fix:** drain **strictly one request at a time** (the next only after a record arrives or 2 s pass),
 wait 1.5 s after the handshake in case the bottle starts by itself, never re-check mid-queue, and
-count any skips (*Skipped records* in the debug panel).
+count any skips (*Skipped records* under Device → Troubleshooting).
 
 ### 9. The worker crashed on Connect
 
@@ -248,7 +248,7 @@ listening often enough to catch the bottle's adverts. An old USB Bluetooth dongl
 up almost instantly.
 
 **Fix:** use a USB dongle for the bottle. Hydro-dash now prefers an external radio automatically
-when one is plugged in (pin it under *Radio for this dashboard* in the debug panel if you have
+when one is plugged in (pin it under *Radio for this dashboard* under Device → Troubleshooting if you have
 several); for the test script, `--adapter hci1`. `python3 hydro_test.py watch` prints one mark per
 second showing when the bottle was actually heard, which makes a deaf radio obvious.
 
@@ -386,7 +386,7 @@ in its name; the collection's `DEVICES.md` lists them.
 | Symptom | Check |
 |---|---|
 | Bottle not listed | Shake or tip the bottle right before / during the scan (it only advertises briefly); keep it within ~1 m; tick *Show all nearby devices* |
-| Bottle rarely seen, or seen but the connection times out | The radio isn't hearing it. Plug in a USB Bluetooth dongle and select it in the debug panel; check with `python3 hydro_test.py watch --adapter hci1` |
+| Bottle rarely seen, or seen but the connection times out | The radio isn't hearing it. Plug in a USB Bluetooth dongle and select it under Device → Troubleshooting; check with `python3 hydro_test.py watch --adapter hci1` |
 | `device … not found` | Use the current Hydro-dash (it follows the bottle by name and connects while scanning) |
 | Connects, fill level updates, but no sips since you pressed *It's empty now* | The bottle is waiting for the other half of its calibration: fill it, cap on, press **It's full now** (the banner at the top does the same). Sips drunk in between aren't recorded. |
 | Connects, but no sips | Debug panel: *Sync after connecting* = complete, *Sip records via* found; *Undecoded sip frames* rising → new firmware layout, send `_raw.csv` |

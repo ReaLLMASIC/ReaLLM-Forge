@@ -290,10 +290,25 @@ def _unit_of(column):
     return UNITS.get(tail, "")
 
 
-def load_signals(root, start_ms, end_ms, include=(), extras=True):
+WORN = ("heart", "oxygen")       # one unit per person: never merged across units when `units` is given
+
+
+def worn_units(root, start_ms, end_ms):
+    """{"heart": [unit folder, ...], "oxygen": [...]}: the straps and rings with recordings in the range."""
+    out = {f: [] for f in WORN}
+    for r in recordings(root, start_ms, end_ms):
+        if r.family in out and r.device not in out[r.family]:
+            out[r.family].append(r.device)
+    return out
+
+
+def load_signals(root, start_ms, end_ms, include=(), extras=True, units=None):
     """{id: Signal} in the range: the curated ones, Atmos metrics, and (extras) every other
-    numeric column as 'raw.<dashboard>.<stream>.<column>'."""
+    numeric column as 'raw.<dashboard>.<stream>.<column>'. units: the strap / ring folders to read
+    (one person's); other straps' and rings' recordings are left out. None: every unit, merged."""
     recs = recordings(root, start_ms, end_ms, include)
+    if units:
+        recs = [r for r in recs if r.family not in WORN or r.device in units]
     by_key = {}                    # (family, stream, column) -> [(device, points)]
     raw_cols = {}                  # (dashboard, stream, column) -> [(device, points)]
     hr_from_rr = []                # heart rate for recordings that only have R-R intervals (Omni)

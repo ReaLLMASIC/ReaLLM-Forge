@@ -1,6 +1,6 @@
 """A stand-in Muse S Athena: runs muse_worker.py with a fake bleak that "finds" one headband and streams
 packets in the real format (built with muse_protocol.build_packet), so the whole dashboard runs without
-the headband or Bluetooth:  MUSE_FAKE=1 ./run_dashboard.sh  (or: python3 fake_muse.py).
+the headband or Bluetooth:  python3 fake_muse.py  (test_muse_dashboard.py runs it with the API).
 
 What it sends, at the real rates and in the real packing:
   EEG 8 ch, 256 Hz   TP9 / TP10: 10 Hz alpha; AF7 / AF8: 18 Hz beta and a blink every ~4 s; 60 Hz mains

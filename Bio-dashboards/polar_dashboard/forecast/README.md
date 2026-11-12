@@ -1,11 +1,17 @@
-# Live forecasts in Polar-dash (Bio-dash V5.8)
+# Live forecasts in Polar-dash (Bio-dash V5.8; the R-R overlay from V6.3)
 
-The **🔮 Forecast** pills on the ECG card and the accelerometer card show the next second, predicted
-by the H10 models, ahead of the live trace:
+The **🔮 Forecast** pills on the ECG card, the accelerometer card and the R-R card show the next second,
+predicted by the H10 models, ahead of the live trace:
 
 - **ECG** (bedside-monitor view and classic view): a dashed line (one representative sample) and a
   shaded band (the range of the 8 samples) ahead of the pen. The pen then draws the real ECG over it.
 - **Accelerometer**: the same band and dashed line for X, Y and Z.
+- **R-R (V6.3, a proof of concept)**: on the Heart Rate Variability chart, the next beats the ECG + R-R model
+  forecasts in the coming second: a ring at each beat's time and R-R (the median of the samples), a bar from
+  the lowest to the highest R-R the samples gave, and small dots for the last beats as the model sees them.
+  Its status reads, for example, `next R-R 742 ms (81 bpm) · 731–750 · error 11.6 ms (hold 11.9) · 29 beats`:
+  the error is each beat's R-R against the last forecast made before the strap reported it, over the last 60
+  beats, next to repeating the last R-R. See "The R-R overlay" below.
 - **Status text** next to each pill, for example `1.0 s ahead · 8 samples · 140 ms · error 0.033 mV (hold 0.056)`.
   - The error is the mean |actual − forecast median| over the last 30 s.
   - "hold" is the same error for simply repeating the last value (the baseline to beat).
@@ -26,17 +32,17 @@ Polar H10 ──BLE──> advanced_worker.py ──> <Documents>/Bio-dash/Polar
                                                │                         │
                                                │ tail                    │ tail
                                                ▼                         ▼
-                                app.py (FastAPI :5001)      forecast_service.py  (own process, PyTorch)
+                                api.py (in server.py :5000) forecast_service.py  (own process, PyTorch)
                                   │   ▲                       waves.LiveAligner -> the 125 Hz model rows
                                   │   └── POST /api/forecast ─ FastForecaster (KV cache + CUDA graph)
                                   │       POST /api/forecast/heartbeat (state <-> pill settings)
                                   ▼
-                   websocket /ws: ecg / acc / ppi rows + ecg_forecast / acc_forecast
+                   websocket /ws: ecg / acc / ppi rows + ecg_forecast / acc_forecast / rr_forecast
                                   ▼
-                   browser: static/js/forecast.js (pills, bands, errors) + ecg_monitor.js (sweep overlay)
+                   browser: web/js/forecast.js (buttons, bands, errors) + web/js/ecg.js (sweep overlay)
 ```
 
-- `forecast_service.py` runs next to `app.py`. `run_dashboard.sh` starts it and restarts it if it stops.
+- `forecast_service.py` runs next to the server. `server.py` starts it (when a model is installed) and restarts it if it stops.
   - Because it is a separate process, torch never loads into the web server.
   - A crash or a GPU stall can't freeze the dashboard.
   - It follows the session the worker is recording and builds model rows with `analysis_dashboard/waves.py`
@@ -52,8 +58,10 @@ Polar H10 ──BLE──> advanced_worker.py ──> <Documents>/Bio-dash/Polar
   |---|---|---|---|---|
   | ECG | `models/ecg` | `hf_g125_ecg_d3_6L_384D_40k` | ECG | 2.4488 |
   | Accelerometer | `models/ecg_acc` | `hf_g125_ecg_acc_d4_6L_384D_40k` | ECG + acc X/Y/Z | 2.6472 |
+  | R-R | `models/ecg_rr` | `hf_g125_ecg_rr_d3_6L_384D_40k` | ECG + R-R | 1.3990 (ECG 2.584, R-R 0.214) |
 
-  Both models are 6 layers × 384 dims with a 256-row context (2.048 s). They have 12.5 M and 17.2 M parameters.
+  All three are 6 layers × 384 dims with a 256-row context (2.048 s). They have 12.5 M, 17.2 M and 13.5 M
+  parameters.
 - Without torch, transformers or the model folders, the service keeps running and reports why.
   The pills then show the reason, and everything else works as before.
 
@@ -66,10 +74,12 @@ Polar H10 ──BLE──> advanced_worker.py ──> <Documents>/Bio-dash/Polar
 | `check_replay.py` | Compares the service's context rows with the offline (training) rows of the replayed stretch |
 | `fast_forecast.py` | Fast sampler: static KV cache + one CUDA graph per decode step |
 | `modeling_csv_mc_int.py`, `configuration_csv_mc_int.py`, `processing_csv_mc_int.py` | The model code, copied from ReaLLM-Forge `hf_csv_mc_int/` |
-| `models/ecg`, `models/ecg_acc` | `config.json`, `model.safetensors` (in the repo from V6.0: 49 MB, 69 MB), `columns.json`, `training_state.json`, `RUN.txt` |
-| `../static/js/forecast.js` | Pills, chart bands, status text and running error |
-| `../static/js/ecg_monitor.js` | Bedside-monitor sweep, now with the forecast overlay canvas |
-| `../app.py` | `GET/POST /api/forecast/settings`, `POST /api/forecast/heartbeat`, `POST /api/forecast` |
+| `models/ecg`, `models/ecg_acc`, `models/ecg_rr` | `config.json`, `model.safetensors` (in the repo: 49 MB, 69 MB from V6.0; 52 MB from V6.3), `columns.json`, `training_state.json`, `RUN.txt` |
+| `../rr_lane.py` | The R-R lane built live from the strap's R-R messages, as the R-R model's training data made it |
+| `../test_rr_lane.py` | Its checks (standard library) |
+| `../../web/js/forecast.js` | The Forecast buttons, chart bands, status text and running error |
+| `../../web/js/ecg.js` | Bedside-monitor sweep, with the forecast overlay |
+| `../api.py` | `GET/POST /api/forecast/settings`, `POST /api/forecast/heartbeat`, `POST /api/forecast/live` (from the service); `GET /api/models`, `POST /api/forecast` (the lab's API), all under `/api/d/heart` |
 | `../forecast_settings.json` | The pill switches and settings (written by the page) |
 
 ## Setup
@@ -94,12 +104,12 @@ with torch 2.7.1 + CUDA 11.8 and transformers 4.53.3. CPU works, but slowly.
 
 3. Choose which Python runs the service. Either works:
    - **The dashboard's own venv** (the release folder's `.venv`, made by `setup_env.sh`): install torch and
-     transformers into it. `run_dashboard.sh` then uses it automatically.
+     transformers into it. `server.py` then uses it automatically.
    - **A separate env**: point the launcher at it.
 
      ```bash
      export BIODASH_FORECAST_PYTHON=/path/to/env/bin/python3
-     ./run_dashboard.sh
+     ../launch.sh
      ```
 
 4. Check it, without the dashboard or the strap:
@@ -112,7 +122,7 @@ with torch 2.7.1 + CUDA 11.8 and transformers 4.53.3. CPU works, but slowly.
    - It should say `device: cuda (Orin)`, print the time per forecast for both models, and end with `OK`.
    - Both overlays together must fit well inside the 500 ms refresh.
    - Reference on nv03 (A100): see the numbers at the end of this file.
-5. Start the dashboard as usual, open `http://<orin>:5001`, and switch the 🔮 pills on.
+5. Start the dashboard as usual, open `http://<orin>:5000/#/heart`, and switch the *Forecast* buttons on.
 
 If the Orin is too slow:
 
@@ -124,7 +134,7 @@ If the Orin is too slow:
   - If compiling fails, the service logs it and uses the plain CUDA graph.
 
   ```bash
-  BIODASH_FORECAST_COMPILE=1 ./run_dashboard.sh
+  BIODASH_FORECAST_COMPILE=1 ../launch.sh
   $BIODASH_FORECAST_PYTHON forecast_service.py --bench --compile      # check it first
   ```
 
@@ -132,7 +142,7 @@ If the Orin is too slow:
 - Or ask for less work, such as a slower refresh or a shorter horizon:
 
   ```bash
-  curl -X POST localhost:5001/api/forecast/settings -H 'Content-Type: application/json' \
+  curl -X POST localhost:5000/api/d/heart/api/forecast/settings -H 'Content-Type: application/json' \
        -d '{"refresh_s": 1.0, "horizon_s": 0.5}'
   ```
 
@@ -143,7 +153,7 @@ If the Orin is too slow:
 
 | Key | Default | Range |
 |---|---|---|
-| `ecg`, `acc` | `false` | the pills |
+| `ecg`, `acc`, `rr` | `false` | the pills |
 | `horizon_s` | 1.0 | 0.25–1.0 (the 256-row context limit) |
 | `refresh_s` | 0.5 | 0.25–5 |
 | `samples` | 8 | 1–32 |
@@ -152,13 +162,13 @@ If the Orin is too slow:
 
 | Variable | Effect |
 |---|---|
-| `BIODASH_FORECAST=0` | `run_dashboard.sh` doesn't start the service |
+| `BIODASH_FORECAST=0` | `server.py` doesn't start the service |
 | `BIODASH_FORECAST_PYTHON` | The Python that has torch (default: `python3` from the release `.venv` / PATH) |
 | `BIODASH_FORECAST_DEVICE` | `auto` (default), `cuda` or `cpu` |
 | `BIODASH_FORECAST_COMPILE=1` | torch.compile the decode step (see above) |
 | `BIODASH_FORECAST_MODELS` | Models folder (default `polar_dashboard/forecast/models`) |
-| `BIODASH_FORECAST_URL` | Dashboard address for the service (default `http://127.0.0.1:5001`) |
-| `BIODASH_FORECAST_REMOTE=1` | (for `app.py`) Accept forecasts / heartbeats from another computer |
+| `BIODASH_FORECAST_URL` | Dashboard address for the service (default `http://127.0.0.1:5000/api/d/heart`; `server.py` passes its own) |
+| `BIODASH_FORECAST_REMOTE=1` | (for the server) Accept forecasts / heartbeats from another computer |
 | `BIODASH_DATA_DIR` | Where recordings live (default `<Documents>/Bio-dash`); used by the worker, app, service and replay |
 
 ## Testing without the strap: replay
@@ -172,13 +182,13 @@ If the Orin is too slow:
   from the strap's 1 Hz HR file, so the HR tiles work.
 
 Use a separate data folder, so the test stays out of your recordings and a connected strap can't take
-over. Start `app.py` on its own: `run_dashboard.sh` also starts the Bluetooth worker.
+over. Start the Heart API on its own (the server would also start the Bluetooth worker).
 
 ```bash
 cd polar_dashboard
 export BIODASH_DATA_DIR=/tmp/biodash_test
-python3 app.py &                                    # the dashboard: http://localhost:5001
-python3 forecast_service.py --record /tmp/contexts.jsonl --seed 1 &
+python3 -c "import uvicorn, api; uvicorn.run(api.app, port=5001)" &   # just the Heart API, on a spare port
+python3 forecast_service.py --url http://127.0.0.1:5001 --record /tmp/contexts.jsonl --seed 1 &
 curl -X POST localhost:5001/api/forecast/settings -H 'Content-Type: application/json' -d '{"ecg": true, "acc": true}'
 python3 replay_session.py "<Drive export>.zip" --member "Polar H10 <strap ID>/<date>/<HH-MM-SS>" \
         --start-s 600 --duration-s 100
@@ -189,6 +199,32 @@ python3 forecast/check_replay.py /tmp/contexts.jsonl \
 
 The session 2026-10-14 14-42-36 is in both models' held-out split, so its forecasts are a fair test.
 `check_replay.py` exits non-zero if the live rows aren't the training rows.
+
+## The R-R overlay (V6.3, proof of concept)
+
+The ECG + R-R model (`models/ecg_rr`, the R-R plan v2 proof of concept, 2026-11-05) forecasts the ECG and an
+`rr_ms` lane together. `rr_lane.py` builds that lane from the session's `_rr.csv` exactly as the training export
+(ReaLLM-Forge `rr_poc/export_ecg_rr.py`) did:
+
+- **Beats.** Rows with the same timestamp came in one strap message. A message's beats continue the chain from
+  the previous beat when that fits (the last one no later than the message's arrival and at most 2 s before it);
+  otherwise they're placed back from the arrival, spaced by their R-R.
+- **The lane.** A straight line between the beats either side of each row, in whole ms. After the newest beat
+  known, its R-R is held ("hold" live mode: in training the line already ran on to the next beat, which a live
+  forecast can't know yet). Rows before the first beat aren't used.
+- **The next beats.** From the newest known beat, the next beat is the first row whose distance from it reaches
+  the lane's value there, and that value is its R-R (the PoC's `rr_infer_demo.py` rule), per sample. A beat is
+  shown while at least half the samples have it.
+
+Checked against the PoC's own code: the beats and every lane value match on 300 random message streams (fed one
+row at a time), and on a replay every context the service fed the model had the ECG of the recording and the
+R-R lane of the messages known by then (37 of 37).
+
+**What to expect.** On held-out data the PoC's R-R forecast was no better than repeating the last R-R (live-like
+test: 9.31 vs 9.48 ms), and its rebuilt beats sit a median 456 ms after the ECG's R peaks. The overlay is there to
+watch the model live and to try plan v2's models in place of this one (same folder, same lanes), not to beat the
+baseline yet. Its rings sit at the beats' rebuilt times; the chart's own dots sit at when the strap reported them,
+usually about half a second later.
 
 ## Known limits
 
@@ -210,7 +246,7 @@ The session 2026-10-14 14-42-36 is in both models' held-out split, so its foreca
 
 End-to-end test setup:
 
-- `app.py` + `forecast_service.py` + a websocket client + headless Chrome.
+- `api.py` + `forecast_service.py` + a websocket client + headless Chrome.
 - Replay of 100 s of the held-out session 2026-10-14 14-42-36 (from 600 s).
 - Default settings: 1 s ahead, every 0.5 s, 8 samples.
 

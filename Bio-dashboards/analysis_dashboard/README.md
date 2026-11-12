@@ -1,11 +1,11 @@
 # Analysis — what every device recorded
 
-The sixth Bio-dash dashboard (port **5005**). It reads the recordings the other dashboards save
+The Analysis page of the app (`#/analysis`). It reads the recordings the other dashboards save
 in `Documents/Bio-dash/` and talks to no device, so it needs no Bluetooth and runs on any computer
 that has the recordings.
 
 ```bash
-./run_dashboard.sh                     # then open http://localhost:5005
+../launch.sh                           # then open http://localhost:5000/#/analysis
 ./launch.sh analysis                   # from the release folder, alongside others
 ```
 
@@ -29,7 +29,7 @@ README (*Analysis*) and `biodata.py`'s header.
 |---|---|
 | `biodata.py` | reads and merges the recordings, resampling, summaries, CSV (standard library only; also used by `tools/interpolate.py`) |
 | `mcint.py` | the integer CSV for ReaLLM-Forge `csv_mc_int`: fixed scales and ranges per signal (also used by `tools/export_mcint.py`) |
-| `app.py` | the web server (FastAPI) |
+| `api.py` | its web API (FastAPI), mounted by `../server.py` at `/api/d/analysis` |
 | `sample_data.py` | writes made-up recordings: `python3 sample_data.py /tmp/biodash-demo --days 7`, then run with `BIODASH_DATA_DIR=/tmp/biodash-demo` |
 | `test_biodata.py` | checks the resampling and summaries against hand-worked values: `python3 test_biodata.py` |
 | `test_mcint.py` | checks the integer export: `python3 test_mcint.py` (`FORGE=~/ReaLLM-Forge` also runs ReaLLM-Forge's own prepare script on it) |

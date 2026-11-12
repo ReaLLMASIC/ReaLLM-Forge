@@ -2,7 +2,7 @@
 # Sets up the live H10 forecasts on a Jetson Orin: PyTorch for the Jetson's GPU, transformers, the model
 # folders, then a timing check. Run it from the release folder, as yourself (no sudo):
 #
-#   ./tools/orin_setup.sh --models ~/Downloads/H10_hub_upload.zip   (or any zip / folder holding ecg/ (or ecg_only/) and ecg_acc/)
+#   ./tools/orin_setup.sh --models ~/Downloads/H10_hub_upload.zip   (or any zip / folder holding ecg/ (or ecg_only/), ecg_acc/, ecg_rr/)
 #   ./tools/orin_setup.sh                                         (models already in polar_dashboard/forecast/models)
 #
 # What it does:
@@ -203,8 +203,8 @@ if [ -n "$MODELS" ]; then
         TMP=$(mktemp -d); "$VPY" -m zipfile -e "$MODELS" "$TMP"; SRC="$TMP"
     fi
     [ -d "$SRC" ] || die "--models: $MODELS isn't a zip or a folder"
-    for m in ecg ecg_acc; do
-        # the folder named ecg / ecg_acc that has a config.json (anywhere inside, e.g. out/hf_models/best/ecg)
+    for m in ecg ecg_acc ecg_rr; do
+        # the folder named ecg / ecg_acc / ecg_rr that has a config.json (anywhere inside, e.g. out/hf_models/best/ecg)
         found=$(find "$SRC" -type f -name config.json -path "*/$m/config.json" | head -1)
         # the Hugging Face upload (H10_hub_upload*.zip) calls the ECG-only model ecg_only/
         [ -z "$found" ] && [ "$m" = ecg ] && found=$(find "$SRC" -type f -name config.json -path "*/ecg_only/config.json" | head -1)
@@ -237,7 +237,7 @@ sys.exit(keep(a) != keep(b))' "$src" "$DEST/$m"; then
     done
     [ -n "$TMP" ] && rm -rf "$TMP"
 fi
-for m in ecg ecg_acc; do
+for m in ecg ecg_acc ecg_rr; do
     if [ -f "$DEST/$m/pytorch_model.bin" ] || [ -f "$DEST/$m/model.safetensors" ]; then echo "  $m: weights OK"
     else echo "  $m: no weights yet (copy the model folder in, or rerun with --models)"; fi
 done
@@ -245,7 +245,7 @@ done
 # ---------------------------------------------------------------- 5. start at 4 samples on the Orin
 SETTINGS="$REL/polar_dashboard/forecast_settings.json"
 if [ "$JETSON" = 1 ] && [ ! -f "$SETTINGS" ]; then
-    echo '{"ecg": false, "acc": false, "horizon_s": 1.0, "refresh_s": 0.5, "samples": 4}' > "$SETTINGS"
+    echo '{"ecg": false, "acc": false, "rr": false, "horizon_s": 1.0, "refresh_s": 0.5, "samples": 4}' > "$SETTINGS"
     say "Forecasts start at 4 samples (change it on the page)"
 fi
 
@@ -253,9 +253,9 @@ fi
 if [ "$BENCH" = 1 ]; then
     DEV=cuda; [ "$JETSON" = 1 ] || DEV=cpu
     for n in 4 8; do
-        say "Timing both models at $n samples (forecast_service.py --bench)"
+        say "Timing the models at $n samples (forecast_service.py --bench)"
         (cd "$REL/polar_dashboard" && "$VPY" forecast_service.py --bench 10 --samples "$n" --device "$DEV") 2>&1 \
-            | grep -E "loaded|per forecast|both overlays|no weights|couldn't|Error" || true
+            | grep -E "loaded|per forecast|all overlays|no weights|couldn't|Error" || true
     done
 fi
 

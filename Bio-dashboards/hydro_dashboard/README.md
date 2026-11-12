@@ -2,7 +2,7 @@
 
 Live hydration dashboard for the **HidrateSpark** bottle (PRO / PRO 2): every sip with its time,
 today's intake against a goal, fill level from the bottle's weight sensor, refills, battery.
-Port **5004**.
+The Water page of the app (`#/water`).
 
 > 🧪 **Still being tested.** Hydro-dash has been run on one HidrateSpark PRO 2 so far. Working on
 > that bottle: connecting, live and replayed sips, battery, and new in V3.1 the fill level from the
@@ -17,9 +17,9 @@ Port **5004**.
 
 1. **No phone app needed.** The bottle accepts one connection at a time, so if the HidrateSpark
    app is installed on a nearby phone, force-quit it while Hydro-dash is in use.
-2. Start it: `./run_dashboard.sh` here, `./launch.sh hydro` from the release folder, or as a
+2. Start Bio-dash: `./launch.sh` from the release folder, or as a
    service via `./biodash.py`.
-3. Open <http://localhost:5004>, **shake or tip the bottle** to wake it, and click **Connect**.
+3. Open <http://localhost:5000/#/water>, **shake or tip the bottle** to wake it, and click **Connect**.
    If it isn't listed, tick **Show all nearby devices** — some firmware advertises another name.
 4. **Bottle Settings:** set your daily goal, or work one out in **How Much Should I Drink?** (below). The bottle size is read from the bottle ("Automatic"), or
    pick one of the sizes HidrateSpark sells (17 / 20 / 21 / 24 / 30 / 32 oz) from the list.
@@ -41,7 +41,7 @@ connection fails is passed over for 10 minutes, or for a week if the bottle's se
 empty through it (an old Bluetooth 4.0 dongle, TROUBLESHOOTING 12). A laptop's built-in radio
 shares its antenna with Wi-Fi and often misses the bottle's short adverts, so a Bluetooth 5 dongle
 still helps (tested: TP-Link UB500 Plus). To pin one radio anyway, pick it under *Radio for this
-dashboard* in the debug panel (D); *Any radio* undoes that. Pins saved by V5.2 and older don't
+dashboard* under Device → Troubleshooting; *Any radio* undoes that. Pins saved by V5.2 and older don't
 carry over: Hydro now starts unpinned.
 
 **If the fill level is wrong**, the bottle's own calibration is off. Stand it upright with the cap
@@ -96,7 +96,7 @@ dashboards).
 
 Totals and charts are computed from `_sips.csv`, so they survive restarts and include replayed sips.
 
-## Debug panel (D)
+## Device → Troubleshooting
 
 Radio and link (as in the other dashboards), **Bottle Protocol** (handshake, sip characteristic,
 live / replayed / duplicate / undecoded counts, bottle family, drain mode, requests / acks, skipped
@@ -113,11 +113,11 @@ How the PRO 2 was brought up, every problem hit on the way, and a quick checklis
 ## PRO 2 status
 
 Verified on a 21 oz PRO 2 (firmware 100.64); see [PROTOCOL.md](PROTOCOL.md). If another bottle
-differs, the debug panel shows it (handshake failed, *Undecoded sip frames* rising, or no sip
+differs, Device → Troubleshooting shows it (handshake failed, *Undecoded sip frames* rising, or no sip
 characteristic found), and `_raw.csv` already holds what's needed to adapt the decoder.
 
 **Draining stored sips.** Current bottles (firmware 100+) are drained the way the official app does
-it: each record is acknowledged, then the next is requested. *Skipped records* in the debug panel
+it: each record is acknowledged, then the next is requested. *Skipped records* under Device → Troubleshooting
 should stay at 0. If the bottle doesn't answer that way, Hydro-dash falls back to the V3.0 method
 for the connection and says so (*Drain mode: fast (fell back)*). To force the old method, start it
 with `BIODASH_HYDRO_DRAIN=fast`.
@@ -143,7 +143,7 @@ saves a capture to `Documents/Bio-dash/HidrateSpark/test-captures/`.
 ## Files
 
 `hydro_protocol.py` protocol + state machines (tests: `python3 test_hydro_protocol.py`) ·
-`water.py` goal maths and the Open-Meteo forecast (tests: `python3 test_water.py`, `python3 test_goal_settings.py`) · `static/js/water_calc.js` pace maths (tests: `node test_water_calc.js`) · `hydro_worker.py` Bluetooth worker · `hydro_test.py` standalone bottle test · `app.py` web server · `~/.config/bio-dash/hydro_settings.json` (kept across updates) capacity / goal /
+`water.py` goal maths and the Open-Meteo forecast (tests: `python3 test_water.py`, `python3 test_goal_settings.py`) · `../web/js/water_calc.js` pace maths (tests: `node test_water_calc.js`) · `hydro_worker.py` Bluetooth worker · `hydro_test.py` standalone bottle test · `api.py` web API (mounted at `/api/d/water`) · `~/.config/bio-dash/hydro_settings.json` (kept across updates) capacity / goal /
 the bottle's last known calibration (created on first save).
 
 ## Acknowledgements

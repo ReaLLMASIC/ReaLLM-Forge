@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Checks for the goal calculator's saved settings and the morning goal update in app.py.
+"""Checks for the goal calculator's saved settings and the morning goal update in api.py.
 Uses a throwaway settings folder and a canned forecast. Run: python3 test_goal_settings.py"""
 import datetime as dt
 import os
@@ -10,8 +10,9 @@ tmp = tempfile.mkdtemp()
 os.environ["XDG_CONFIG_HOME"] = tmp
 os.environ["BIODASH_DATA_DIR"] = tmp
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(1, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # the shared bt_debug.py
 import water
-import app
+import api as app
 
 ok = 0
 

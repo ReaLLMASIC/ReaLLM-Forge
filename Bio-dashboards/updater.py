@@ -15,7 +15,7 @@ Two kinds of update, kept apart on purpose:
 It needs a git clone (not an unzipped copy) and only ever fast-forwards from the clone's
 own upstream: it refuses when tracked files were edited locally or the branch has diverged,
 so nothing of yours is overwritten. Recordings live in Documents/Bio-dash and aren't touched.
-The sidebar's "Updates" section in every dashboard calls this script. Standard library only.
+Settings → Updates in the app calls this script. Standard library only.
 """
 import argparse
 import json

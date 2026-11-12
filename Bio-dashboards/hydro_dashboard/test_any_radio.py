@@ -11,6 +11,7 @@ tmp = tempfile.mkdtemp()
 os.environ["XDG_CONFIG_HOME"] = tmp
 os.environ["BIODASH_DATA_DIR"] = tmp
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(1, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # the shared bt_debug.py
 import hydro_worker as w  # noqa: E402
 
 ok = 0

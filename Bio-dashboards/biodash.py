@@ -1,149 +1,64 @@
 #!/usr/bin/env python3
-"""Bio-dash service manager: choose which dashboards run as background services.
+"""Run Bio-dash as a background service (one service for everything).
 
-    ./biodash.py                         interactive picker (TUI)
-    ./biodash.py status                  what's installed / running
-    ./biodash.py install polar atmos     run these as services (replaces the current set)
-          [--no-keep-awake] [--lid] [--no-reconnect] [--allow-power] [--boot | --no-boot]
-    ./biodash.py stop polar | all        stop (they start again at next login / boot)
-    ./biodash.py uninstall [names | all] stop and remove
-    ./biodash.py logs polar [-f]         the service's output
+    ./biodash.py                     set it up, answering a few questions
+    ./biodash.py install             install / update the service and start it
+          [--port 5000] [--no-keep-awake] [--lid] [--no-reconnect] [--allow-power] [--boot | --no-boot]
+    ./biodash.py status              is it running, and where to open it
+    ./biodash.py start | stop | restart
+    ./biodash.py logs [-f]           its output (every device's Bluetooth messages too)
+    ./biodash.py uninstall           stop and remove the service (recordings and settings stay)
 
-Services are systemd *user* units (~/.config/systemd/user/biodash-<name>.service): no
-root needed, and stopping one stops the whole dashboard (worker + web server).
-"Start at boot" turns on lingering (loginctl enable-linger) so they run without a login.
-Each service runs through service_run.sh, which keeps the computer awake while it runs.
-Standard library only (curses).
+The service is a systemd *user* unit (~/.config/systemd/user/biodash-app.service), so no root is
+needed. "Start at boot" turns on lingering (loginctl enable-linger) so it runs without a login.
+Which devices it looks for is chosen in the app (Settings, or the first-run setup).
+
+Upgrading from V5: `install` removes the old per-dashboard services (biodash-polar ... ) and
+turns on the devices they ran, so `./biodash.py install polar hydro` (what V5's updater runs)
+still does the right thing. Standard library only.
 """
 import argparse
-import curses
 import json
 import os
+import re
 import shlex
+import socket
 import subprocess
 import sys
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 UNIT_DIR = os.environ.get("BIODASH_UNIT_DIR") or os.path.expanduser("~/.config/systemd/user")
-DRY_RUN = os.environ.get("BIODASH_DRY_RUN") == "1"   # print systemctl/loginctl calls instead (testing)
-
-DASHBOARDS = [   # (key, label, folder, port)
-    ("polar",  "Polar H10",  "polar_dashboard",  5001),
-    ("atmos",  "Atmos",      "atmos_dashboard",  5002),
-    ("viatom", "Viatom O2",  "viatom_dashboard", 5003),
-    ("omni",   "Omni (Polar + O2 together)", "Omni-dashboard", 5000),
-    ("hydro",  "Hydro-dash (HidrateSpark)",  "hydro_dashboard",  5004),
-    ("analysis", "Analysis (reads recordings, no Bluetooth)", "analysis_dashboard", 5005),
-    ("muse",   "Muse S Athena (EEG, fNIRS, pulse)", "muse_dashboard", 5006),
-]
-KEYS = [d[0] for d in DASHBOARDS]
-INFO = {d[0]: d for d in DASHBOARDS}
-# Omni drives the Polar and the O2 itself: running it alongside the standalone
-# Polar / Viatom dashboards would have two programs fighting over the same devices.
-CONFLICTS = {"omni": {"polar", "viatom"}, "polar": {"omni"}, "viatom": {"omni"}, "atmos": set(), "hydro": set(), "analysis": set(), "muse": set()}
-
-DEFAULT_OPTS = {"keep_awake": True, "lid": False, "reconnect": True, "allow_power": False}
+DRY_RUN = os.environ.get("BIODASH_DRY_RUN") == "1"
+UNIT = "biodash-app.service"
+DEFAULT_PORT = 5000
+CONFIG_FILE = os.environ.get("BIODASH_APP_CONFIG") or os.path.join(
+    os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "bio-dash", "app.json")
+# the separate dashboards of V5 - V7 -> the devices they drove
+LEGACY = {"polar": ["heart"], "viatom": ["oxygen"], "omni": ["heart", "oxygen"], "muse": ["brain"], "atmos": ["air"],
+          "hydro": ["water"], "analysis": []}
+OLD_UNITS = [f"biodash-{k}.service" for k in LEGACY]
 
 
-# ---------------------------------------------------------------------------
-# systemd plumbing
-# ---------------------------------------------------------------------------
-def unit_name(key):
-    return f"biodash-{key}.service"
-
-
-def unit_path(key):
-    return os.path.join(UNIT_DIR, unit_name(key))
-
-
-def run(cmd, check=False):
-    """Runs a command; returns (ok, output). In dry-run mode just records it."""
+def run(cmd):
     if DRY_RUN:
         print("DRY-RUN:", " ".join(shlex.quote(c) for c in cmd))
         return True, ""
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         return False, str(e)
-    out = (p.stdout + p.stderr).strip()
-    if check and p.returncode != 0:
-        raise RuntimeError(f"{' '.join(cmd)}: {out}")
-    return p.returncode == 0, out
+    return p.returncode == 0, (p.stdout + p.stderr).strip()
 
 
 def systemctl(*args):
     return run(["systemctl", "--user", *args])
 
 
-def user_systemd_available():
-    if DRY_RUN:
-        return True, ""
-    ok, out = run(["systemctl", "--user", "show-environment"])
-    return ok, out
-
-
-def unit_text(key, opts):
-    _, label, folder, port = INFO[key]
-    env = {
-        "BIODASH_SERVICE": "1",
-        "BIODASH_INHIBIT": "1" if opts["keep_awake"] else "0",
-        "BIODASH_INHIBIT_LID": "1" if opts["lid"] else "0",
-        "BIODASH_AUTORECONNECT": "1" if opts["reconnect"] else "0",
-        "BIODASH_ALLOW_POWER": "1" if opts.get("allow_power") else "0",
-        "PYTHONUNBUFFERED": "1",
-    }
-    env_lines = "\n".join(f"Environment={k}={v}" for k, v in env.items())
-    return f"""# Installed by Bio-dash biodash.py -- edit with ./biodash.py, not by hand.
-[Unit]
-Description=Bio-dash {label} dashboard (http://localhost:{port})
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-WorkingDirectory={REPO}
-ExecStart=/usr/bin/env bash {shlex.quote(os.path.join(REPO, "service_run.sh"))} {folder}
-{env_lines}
-Restart=on-failure
-RestartSec=5
-KillMode=control-group
-TimeoutStopSec=15
-
-[Install]
-WantedBy=default.target
-"""
-
-
-def read_opts_from_units():
-    """Options of the currently installed services (so the TUI shows what's in effect)."""
-    for key in KEYS:
-        try:
-            text = open(unit_path(key)).read()
-        except OSError:
-            continue
-        get = lambda k, d: (f"Environment={k}=1" in text) if f"Environment={k}=" in text else d
-        return {"keep_awake": get("BIODASH_INHIBIT", True), "lid": get("BIODASH_INHIBIT_LID", False),
-                "reconnect": get("BIODASH_AUTORECONNECT", True), "allow_power": get("BIODASH_ALLOW_POWER", False)}
-    return dict(DEFAULT_OPTS)
-
-
-def installed():
-    return [k for k in KEYS if os.path.exists(unit_path(k))]
-
-
-def state(key):
-    """(installed, active_state, enabled_state)"""
-    if not os.path.exists(unit_path(key)):
-        return False, "-", "-"
-    if DRY_RUN:
-        return True, "unknown", "unknown"
-    _, active = systemctl("is-active", unit_name(key))
-    _, enabled = systemctl("is-enabled", unit_name(key))
-    return True, (active.splitlines() or ["?"])[0], (enabled.splitlines() or ["?"])[0]
+def unit_path(name=UNIT):
+    return os.path.join(UNIT_DIR, name)
 
 
 def current_user():
-    # not os.getlogin(): it fails without a controlling terminal (scripts, services)
     import pwd
     return pwd.getpwuid(os.getuid()).pw_name
 
@@ -151,323 +66,222 @@ def current_user():
 def linger_enabled():
     if DRY_RUN:
         return False
-    user = current_user()
-    ok, out = run(["loginctl", "show-user", user, "-p", "Linger", "--value"])
+    ok, out = run(["loginctl", "show-user", current_user(), "-p", "Linger", "--value"])
     return ok and out.strip() == "yes"
 
 
-def set_linger(on):
-    user = current_user()
-    return run(["loginctl", "enable-linger" if on else "disable-linger", user])
+def python():
+    venv = os.path.join(REPO, ".venv", "bin", "python3")
+    return venv if os.access(venv, os.X_OK) else "python3"
 
 
-def validate(selected):
-    sel = set(selected)
-    for k in sel:
-        clash = CONFLICTS[k] & sel
-        if clash:
-            names = ", ".join(INFO[c][1] for c in sorted(clash))
-            return f"{INFO[k][1]} can't run together with {names} (they'd fight over the same devices)."
-    return None
+def installed_opts():
+    """The options the installed service was set up with (so a reinstall keeps them)."""
+    try:
+        text = open(unit_path()).read()
+    except OSError:
+        return None
+    env = dict(re.findall(r"^Environment=(\w+)=(.*)$", text, re.M))
+    return {"keep_awake": env.get("BIODASH_INHIBIT", "1") == "1", "lid": env.get("BIODASH_INHIBIT_LID") == "1",
+            "reconnect": env.get("BIODASH_AUTORECONNECT", "1") == "1", "allow_power": env.get("BIODASH_ALLOW_POWER") == "1",
+            "port": int(env.get("BIODASH_PORT", DEFAULT_PORT))}
+
+
+def unit_text(o):
+    env = {"BIODASH_SERVICE": "1", "BIODASH_PORT": str(o["port"]),
+           "BIODASH_INHIBIT": "1" if o["keep_awake"] else "0", "BIODASH_INHIBIT_LID": "1" if o["lid"] else "0",
+           "BIODASH_AUTORECONNECT": "1" if o["reconnect"] else "0", "BIODASH_ALLOW_POWER": "1" if o["allow_power"] else "0",
+           "PYTHONUNBUFFERED": "1"}
+    lines = "\n".join(f"Environment={k}={v}" for k, v in env.items())
+    return f"""# Installed by Bio-dash biodash.py -- change it with ./biodash.py, not by hand.
+[Unit]
+Description=Bio-dash (http://localhost:{o['port']})
+After=network-online.target bluetooth.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory={REPO}
+ExecStart=/usr/bin/env bash {shlex.quote(os.path.join(REPO, 'service_run.sh'))}
+{lines}
+Restart=on-failure
+RestartSec=5
+# SIGTERM to the server only: it stops each device's Bluetooth worker cleanly (recordings closed)
+KillMode=mixed
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target
+"""
+
+
+def enable_devices(keys):
+    """Turn devices on in the app's settings (used when V5 services are carried over)."""
+    if not keys:
+        return
+    try:
+        cfg = json.load(open(CONFIG_FILE))
+    except Exception:
+        cfg = {"devices": {}, "setup_done": False}
+    for k in keys:
+        cfg.setdefault("devices", {})[k] = True
+    cfg["setup_done"] = True
+    if DRY_RUN:
+        print(f"DRY-RUN: devices on: {', '.join(keys)}")
+        return
+    os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+    with open(CONFIG_FILE + ".tmp", "w") as f:
+        json.dump(cfg, f, indent=2)
+    os.replace(CONFIG_FILE + ".tmp", CONFIG_FILE)
 
 
 def packages_problem():
-    """Each release folder has its own .venv; a freshly pulled release has none until
-    ./setup_env.sh has run, and its services would start and quit straight away."""
-    venv_py = os.path.join(REPO, ".venv", "bin", "python3")
-    py = venv_py if os.access(venv_py, os.X_OK) else "python3"
-    ok, _ = run([py, "-c", "import bleak"])
+    ok, _ = run([python(), "-c", "import bleak, fastapi, uvicorn"])
     if ok:
         return None
-    return ("The Python packages for this release aren't installed here. Run ./setup_env.sh in "
-            f"{REPO} first (each release has its own .venv), then Apply again.")
+    return f"The Python packages aren't installed for this release. Run ./setup_env.sh in {REPO} first, then install again."
 
 
-def apply(selected, opts, boot=None, log=print):
-    """Make the installed services exactly `selected`. Returns list of problems."""
-    problems = []
-    err = validate(selected) or (packages_problem() if selected else None)
-    if err:
-        return [err]
-    os.makedirs(UNIT_DIR, exist_ok=True)
-    # remove what's no longer wanted
-    for key in installed():
-        if key not in selected:
-            systemctl("disable", "--now", unit_name(key))
-            try:
-                os.remove(unit_path(key))
-            except OSError:
-                pass
-            log(f"removed {unit_name(key)}")
-    for key in selected:
-        with open(unit_path(key), "w") as f:
-            f.write(unit_text(key, opts))
-    ok, out = systemctl("daemon-reload")
-    if not ok:
-        problems.append(f"systemctl --user daemon-reload failed: {out}")
-    for key in selected:
-        # restart so changed options take effect; enable so it starts at login/boot
-        ok1, out1 = systemctl("enable", unit_name(key))
-        ok2, out2 = systemctl("restart", unit_name(key))
-        if ok1 and ok2:
-            log(f"running {unit_name(key)} -> http://localhost:{INFO[key][3]}")
-        else:
-            problems.append(f"{unit_name(key)}: {(out1 + ' ' + out2).strip()}")
-    if boot is not None:
-        ok, out = set_linger(boot)
-        if not ok:
-            problems.append(f"loginctl {'enable' if boot else 'disable'}-linger failed: {out} "
-                            f"(try: sudo loginctl {'enable' if boot else 'disable'}-linger $USER)")
-    return problems
+def url(port):
+    return f"http://{socket.gethostname()}.local:{port}  (or http://localhost:{port} on this computer)"
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-def cmd_status(_args):
-    ok, why = user_systemd_available()
-    if not ok:
-        print(f"⚠ systemd user session not available: {why}")
-    print(f"{'dashboard':28s} {'port':>5s}  {'installed':9s} {'running':9s} {'at login':9s}")
-    for key in KEYS:
-        inst, active, enabled = state(key)
-        print(f"{INFO[key][1]:28s} {INFO[key][3]:5d}  {('yes' if inst else 'no'):9s} {active:9s} {enabled:9s}")
-    o = read_opts_from_units()
-    print(f"\nkeep computer awake: {'on' if o['keep_awake'] else 'off'}{' (incl. lid close)' if o['lid'] else ''}"
-          f" · auto-reconnect: {'on' if o['reconnect'] else 'off'} · start at boot: {'on' if linger_enabled() else 'off'}"
-          f" · shutdown/reboot/updates from other devices: {'on' if o.get('allow_power') else 'off'}")
-
-
-def names_from(args_names):
-    if not args_names or args_names == ["all"]:
-        return installed() if args_names == ["all"] else []
-    bad = [n for n in args_names if n not in KEYS]
+# ---------------------------------------------------------------------------------- commands
+def cmd_install(a):
+    names = [n for n in a.names if n != "app"]
+    bad = [n for n in names if n not in LEGACY]
     if bad:
-        sys.exit(f"Unknown dashboard(s): {', '.join(bad)}. Choose from: {', '.join(KEYS)}")
-    return args_names
-
-
-def cmd_install(args):
-    names = names_from(args.names)
-    if not names:
-        sys.exit("Name at least one dashboard: " + ", ".join(KEYS))
-    opts = {"keep_awake": not args.no_keep_awake, "lid": args.lid, "reconnect": not args.no_reconnect,
-            "allow_power": args.allow_power}
-    boot = True if args.boot else False if args.no_boot else None
-    problems = apply(names, opts, boot)
+        sys.exit(f"Unknown name(s): {', '.join(bad)}. (Devices are chosen in the app now; just run ./biodash.py install.)")
+    err = packages_problem()
+    if err:
+        sys.exit(err)
+    o = installed_opts() or {"keep_awake": True, "lid": False, "reconnect": True, "allow_power": False, "port": DEFAULT_PORT}
+    if a.port: o["port"] = a.port
+    if a.no_keep_awake: o["keep_awake"] = False
+    if a.lid: o["lid"] = True
+    if a.no_reconnect: o["reconnect"] = False
+    if a.allow_power: o["allow_power"] = True
+    # carry the separate dashboards' services over: their devices are turned on, the old units removed
+    devices = sorted({d for n in names for d in LEGACY[n]})
+    for old in OLD_UNITS:
+        if os.path.exists(unit_path(old)):
+            devices = sorted(set(devices) | set(LEGACY[old[len('biodash-'):-len('.service')]]))
+            systemctl("disable", "--now", old)
+            if not DRY_RUN:
+                os.remove(unit_path(old))
+            print(f"removed the old service {old}")
+    enable_devices(devices)
+    os.makedirs(UNIT_DIR, exist_ok=True)
+    if DRY_RUN:
+        print(unit_text(o))
+    else:
+        with open(unit_path(), "w") as f:
+            f.write(unit_text(o))
+    problems = []
+    for args in (("daemon-reload",), ("enable", UNIT), ("restart", UNIT)):
+        ok, out = systemctl(*args)
+        if not ok:
+            problems.append(f"systemctl --user {' '.join(args)}: {out}")
+    if a.boot is not None:
+        ok, out = run(["loginctl", "enable-linger" if a.boot else "disable-linger", current_user()])
+        if not ok:
+            problems.append(f"start at boot: {out} (try: sudo loginctl {'enable' if a.boot else 'disable'}-linger $USER)")
     for p in problems:
-        print("✗", p)
-    sys.exit(1 if problems else 0)
+        print("⚠ " + p)
+    if not problems:
+        print(f"✅ Bio-dash is running. Open {url(o['port'])}")
+    return 1 if problems else 0
 
 
-def cmd_stop(args):
-    for key in names_from(args.names) or installed():
-        ok, out = systemctl("stop", unit_name(key))
-        print(("stopped " if ok else "✗ ") + unit_name(key) + ("" if ok else f": {out}"))
+def cmd_status(_a):
+    o = installed_opts()
+    if not o:
+        print("Not installed as a service. Run ./biodash.py to set it up (or python3 server.py to try it in this terminal).")
+        return 0
+    _, active = systemctl("is-active", UNIT)
+    _, enabled = systemctl("is-enabled", UNIT)
+    print(f"Bio-dash service: {active or '?'} (starts at login: {enabled or '?'}; at boot: {'yes' if linger_enabled() else 'no'})")
+    print(f"Open: {url(o['port'])}")
+    print(f"Keep the computer awake: {'yes' if o['keep_awake'] else 'no'}{' (lid closed too)' if o['lid'] else ''} · "
+          f"auto-reconnect: {'on' if o['reconnect'] else 'off'} · shut down / update from other devices: {'yes' if o['allow_power'] else 'no'}")
+    left = [u for u in OLD_UNITS if os.path.exists(unit_path(u))]
+    if left:
+        print(f"⚠ Old V5 services are still installed ({', '.join(left)}): run ./biodash.py install to replace them.")
+    return 0
 
 
-def cmd_uninstall(args):
-    keep = [k for k in installed() if k not in (names_from(args.names) or installed())]
-    problems = apply(keep, read_opts_from_units())
-    for p in problems:
-        print("✗", p)
+def cmd_simple(verb):
+    def f(_a):
+        ok, out = systemctl(verb, UNIT)
+        print(out or (f"{verb}ed" if ok else "failed"))
+        return 0 if ok else 1
+    return f
 
 
-def cmd_logs(args):
-    cmd = ["journalctl", "--user", "-u", unit_name(args.name), "-n", "80", "--no-pager"]
-    if args.follow:
-        cmd.append("-f")
-    os.execvp(cmd[0], cmd)
+def cmd_uninstall(_a):
+    for u in [UNIT] + OLD_UNITS:
+        if os.path.exists(unit_path(u)):
+            systemctl("disable", "--now", u)
+            if not DRY_RUN:
+                os.remove(unit_path(u))
+            print(f"removed {u}")
+    systemctl("daemon-reload")
+    print("Recordings and settings are untouched.")
+    return 0
 
 
-# ---------------------------------------------------------------------------
-# TUI
-# ---------------------------------------------------------------------------
-class Tui:
-    def __init__(self, scr):
-        self.scr = scr
-        self.selected = set(installed())
-        self.opts = read_opts_from_units()
-        self.boot = linger_enabled()
-        self.cursor = 0
-        self.message = ""
-        self.sysd_ok, self.sysd_why = user_systemd_available()
-        self.states = {}
-        self.refresh_states()
+def cmd_logs(a):
+    cmd = ["journalctl", "--user", "-u", UNIT, "-n", "200", "--no-pager"] + (["-f"] if a.follow else [])
+    if DRY_RUN:
+        print("DRY-RUN:", " ".join(cmd))
+        return 0
+    return subprocess.call(cmd)
 
-    # rows: the dashboards, then the options, then 2 actions
-    def rows(self):
-        r = [("dash", k) for k in KEYS]
-        r += [("opt", "keep_awake"), ("opt", "lid"), ("opt", "reconnect"), ("opt", "allow_power"), ("opt", "boot")]
-        r += [("act", "apply"), ("act", "quit")]
-        return r
 
-    def refresh_states(self):
-        self.states = {k: state(k) for k in KEYS}
+def ask(q, default):
+    try:
+        a = input(f"{q} [{'Y/n' if default else 'y/N'}] ").strip().lower()
+    except EOFError:
+        return default
+    return default if not a else a.startswith("y")
 
-    def color(self, n):
-        return curses.color_pair(n) if curses.has_colors() else 0
 
-    def draw(self):
-        s = self.scr
-        s.erase()
-        h, w = s.getmaxyx()
-        put = lambda y, x, text, attr=0: s.addnstr(y, x, text, max(0, w - x - 1), attr) if 0 <= y < h else None
-        put(0, 2, "Bio-dash services", curses.A_BOLD | self.color(1))
-        put(1, 2, "Choose which dashboards run in the background as systemd user services.", self.color(4))
-        y = 3
-        if not self.sysd_ok:
-            put(y, 2, f"⚠ No systemd user session: {self.sysd_why[:w - 30]}", self.color(3)); y += 2
-        put(y, 4, f"{'Dashboard':30s} {'port':>5s}   {'status':22s}", curses.A_UNDERLINE); y += 1
-        rows = self.rows()
-        for i, (kind, key) in enumerate(rows):
-            sel = i == self.cursor
-            attr = curses.A_REVERSE if sel else 0
-            if kind == "dash":
-                inst, active, enabled = self.states[key]
-                box = "[x]" if key in self.selected else "[ ]"
-                status = ("running" if active == "active" else active) if inst else "not installed"
-                if inst and enabled == "enabled":
-                    status += " · at login"
-                col = self.color(2) if active == "active" else self.color(4)
-                put(y, 2, f"{box} {INFO[key][1]:28s} {INFO[key][3]:5d}   ", attr)
-                put(y, 44, f"{status:24s}", attr | col)
-                y += 1
-                if key == KEYS[-1]:
-                    y += 1
-                    put(y, 2, "Options", curses.A_UNDERLINE); y += 1
-            elif kind == "opt":
-                label, on = {
-                    "keep_awake": ("Keep this computer awake while a dashboard runs", self.opts["keep_awake"]),
-                    "lid":        ("   …even with the laptop lid closed", self.opts["lid"]),
-                    "reconnect":  ("Auto-reconnect to the last device", self.opts["reconnect"]),
-                    "allow_power": ("Allow shutdown / reboot / updates from other devices (e.g. a phone)", self.opts.get("allow_power", False)),
-                    "boot":       ("Start at boot, before anyone logs in (linger)", self.boot),
-                }[key]
-                put(y, 2, f"{'[x]' if on else '[ ]'} {label}", attr); y += 1
-                if key == "boot":
-                    y += 1
-            else:
-                label = {"apply": "Apply", "quit": "Quit"}[key]
-                put(y, 2, f"  {label}  ", attr | curses.A_BOLD); y += 1
-        y += 1
-        put(y, 2, "↑/↓ move · Space toggle · Enter apply / choose · L logs for the dashboard under the cursor · Q quit", self.color(4))
-        if self.message:
-            for j, line in enumerate(self.message.splitlines()[:max(1, h - y - 3)]):
-                put(y + 2 + j, 2, line, self.color(3) if line.startswith("✗") else self.color(2))
-        s.refresh()
-
-    def toggle(self, kind, key):
-        if kind == "dash":
-            if key in self.selected:
-                self.selected.discard(key)
-            else:
-                dropped = CONFLICTS[key] & self.selected
-                self.selected -= dropped
-                self.selected.add(key)
-                if dropped:
-                    self.message = (f"{INFO[key][1]} can't run with " + ", ".join(INFO[d][1] for d in sorted(dropped))
-                                    + " (same devices) -- unticked " + ("it." if len(dropped) == 1 else "them."))
-                    return
-            self.message = ""
-        elif kind == "opt":
-            if key == "boot":
-                self.boot = not self.boot
-            else:
-                self.opts[key] = not self.opts[key]
-                if key == "keep_awake" and not self.opts[key]:
-                    self.opts["lid"] = False
-                if key == "lid" and self.opts[key]:
-                    self.opts["keep_awake"] = True
-
-    def do_apply(self):
-        lines = []
-        problems = apply(sorted(self.selected, key=KEYS.index), self.opts,
-                         boot=self.boot if self.boot != linger_enabled() else None, log=lines.append)
-        lines += [f"✗ {p}" for p in problems]
-        if not self.selected and not problems:
-            lines.append("No dashboards selected -- all Bio-dash services removed.")
-        self.message = "\n".join(lines) or "Nothing to change."
-        self.refresh_states()
-
-    def show_logs(self, key):
-        if DRY_RUN:
-            self.message = f"(dry run) would show: journalctl --user -u {unit_name(key)}"; return
-        _, out = run(["journalctl", "--user", "-u", unit_name(key), "-n", "300", "--no-pager"])
-        lines = out.splitlines() or ["(no output yet)"]
-        top = max(0, len(lines) - 1)
-        while True:
-            self.scr.erase()
-            h, w = self.scr.getmaxyx()
-            self.scr.addnstr(0, 2, f"{unit_name(key)} -- ↑/↓/PgUp/PgDn scroll · any other key returns", w - 3, curses.A_BOLD)
-            view = lines[max(0, top - (h - 3)):top + 1]
-            for i, l in enumerate(view):
-                self.scr.addnstr(2 + i, 1, l, w - 2)
-            self.scr.refresh()
-            c = self.scr.getch()
-            if c == curses.KEY_UP: top = max(0, top - 1)
-            elif c == curses.KEY_DOWN: top = min(len(lines) - 1, top + 1)
-            elif c == curses.KEY_PPAGE: top = max(0, top - (h - 3))
-            elif c == curses.KEY_NPAGE: top = min(len(lines) - 1, top + (h - 3))
-            else: return
-
-    def loop(self):
-        curses.curs_set(0)
-        if curses.has_colors():
-            curses.start_color(); curses.use_default_colors()
-            curses.init_pair(1, curses.COLOR_CYAN, -1); curses.init_pair(2, curses.COLOR_GREEN, -1)
-            curses.init_pair(3, curses.COLOR_YELLOW, -1); curses.init_pair(4, curses.COLOR_WHITE, -1)
-        self.scr.timeout(3000)            # redraw every 3 s so the status column stays live
-        while True:
-            self.draw()
-            c = self.scr.getch()
-            rows = self.rows()
-            kind, key = rows[self.cursor]
-            if c == -1:
-                self.refresh_states()
-            elif c in (curses.KEY_UP, ord("k")):
-                self.cursor = (self.cursor - 1) % len(rows)
-            elif c in (curses.KEY_DOWN, ord("j"), 9):
-                self.cursor = (self.cursor + 1) % len(rows)
-            elif c == ord(" "):
-                if kind in ("dash", "opt"):
-                    self.toggle(kind, key)
-            elif c in (curses.KEY_ENTER, 10, 13):
-                if kind == "act" and key == "quit":
-                    return
-                if kind in ("dash", "opt"):
-                    self.toggle(kind, key)
-                else:
-                    self.do_apply()
-            elif c in (ord("a"), ord("A")):
-                self.do_apply()
-            elif c in (ord("l"), ord("L")) and kind == "dash":
-                self.show_logs(key)
-            elif c in (ord("q"), ord("Q")):     # not Esc: a stray escape sequence mustn't quit
-                return
+def cmd_wizard(_a):
+    print("Bio-dash: set up the background service.\n")
+    o = installed_opts() or {}
+    ns = argparse.Namespace(names=[], port=None, no_keep_awake=not ask("Keep this computer awake while it records?", o.get("keep_awake", True)),
+                            lid=False, no_reconnect=False, allow_power=False, boot=None)
+    if not ns.no_keep_awake:
+        ns.lid = ask("…even with the laptop lid closed?", o.get("lid", False))
+    ns.boot = ask("Start at boot, before anyone logs in (good for a headless Orin / Pi)?", linger_enabled())
+    ns.allow_power = ask("Allow shut down, restart and updates from other devices (your phone)?", o.get("allow_power", False))
+    return cmd_install(ns)
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Run Bio-dash dashboards as background services.")
+    ap = argparse.ArgumentParser(description="Run Bio-dash as a background service.")
     sub = ap.add_subparsers(dest="cmd")
-    sub.add_parser("status")
-    p = sub.add_parser("install"); p.add_argument("names", nargs="+")
-    p.add_argument("--no-keep-awake", action="store_true"); p.add_argument("--lid", action="store_true")
+    p = sub.add_parser("install")
+    p.add_argument("names", nargs="*", help=argparse.SUPPRESS)        # V5 dashboard names (upgrades)
+    p.add_argument("--port", type=int)
+    p.add_argument("--no-keep-awake", action="store_true")
+    p.add_argument("--lid", action="store_true")
     p.add_argument("--no-reconnect", action="store_true")
-    p.add_argument("--allow-power", action="store_true", help="allow the sidebar's shutdown / reboot / updates from other devices")
-    g = p.add_mutually_exclusive_group(); g.add_argument("--boot", action="store_true"); g.add_argument("--no-boot", action="store_true")
-    p = sub.add_parser("stop"); p.add_argument("names", nargs="*")
-    p = sub.add_parser("uninstall"); p.add_argument("names", nargs="*")
-    p = sub.add_parser("logs"); p.add_argument("name", choices=KEYS); p.add_argument("-f", "--follow", action="store_true")
-    args = ap.parse_args()
-    if args.cmd is None:
-        if not sys.stdin.isatty():
-            sys.exit("The picker needs a terminal; see ./biodash.py --help for commands.")
-        curses.wrapper(lambda scr: Tui(scr).loop())
-        return
-    {"status": cmd_status, "install": cmd_install, "stop": cmd_stop,
-     "uninstall": cmd_uninstall, "logs": cmd_logs}[args.cmd](args)
+    p.add_argument("--allow-power", action="store_true")
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--boot", dest="boot", action="store_true", default=None)
+    g.add_argument("--no-boot", dest="boot", action="store_false")
+    sub.add_parser("status")
+    for v in ("start", "stop", "restart"):
+        sub.add_parser(v)
+    sub.add_parser("uninstall")
+    p = sub.add_parser("logs"); p.add_argument("-f", "--follow", action="store_true"); p.add_argument("name", nargs="?", help=argparse.SUPPRESS)
+    a = ap.parse_args()
+    if a.cmd is None:
+        return cmd_wizard(a) if sys.stdin.isatty() else cmd_status(a)
+    return {"install": cmd_install, "status": cmd_status, "start": cmd_simple("start"), "stop": cmd_simple("stop"),
+            "restart": cmd_simple("restart"), "uninstall": cmd_uninstall, "logs": cmd_logs}[a.cmd](a) or 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

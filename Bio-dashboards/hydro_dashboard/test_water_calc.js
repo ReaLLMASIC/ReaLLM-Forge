@@ -1,5 +1,5 @@
-// Checks for the pace maths in static/js/water_calc.js (the goal itself: test_water.py) with values worked out by hand. Run: node test_water_calc.js
-const W = require('./static/js/water_calc.js');
+// Checks for the pace maths in web/js/water_calc.js (the goal itself: test_water.py) with values worked out by hand. Run: node test_water_calc.js
+const W = require('../web/js/water_calc.js');
 let ok = 0;
 function check(name, got, want) {
     if (JSON.stringify(got) !== JSON.stringify(want)) throw new Error(`${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);

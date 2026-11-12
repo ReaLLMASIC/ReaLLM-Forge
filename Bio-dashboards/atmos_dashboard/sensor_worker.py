@@ -10,12 +10,14 @@ from importlib.metadata import version as _pkg_version
 
 from bleak import BleakScanner, BleakClient
 
+import os as _os, sys as _sys
+_sys.path.insert(1, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the shared bt_debug.py, in the release folder
 import bt_debug
 from atmos_parser import LineParser, PROFILES, is_canonical
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = bt_debug.state_dir(os.path.dirname(os.path.abspath(__file__)))
 LOGS_DIR = os.path.join(BASE_DIR, "logs_atmos")
 os.makedirs(LOGS_DIR, exist_ok=True)
 

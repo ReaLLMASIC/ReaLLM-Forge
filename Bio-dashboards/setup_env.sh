@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # Creates an isolated Python environment for Bio-dash in .venv/
 #
-#   ./setup_env.sh                    all seven dashboards
-#   ./setup_env.sh polar_dashboard    just one dashboard's requirements
-#   ./setup_env.sh --fresh            delete .venv and rebuild from scratch
+#   ./setup_env.sh            install / update
+#   ./setup_env.sh --fresh    delete .venv and rebuild from scratch
 #
-# Then:  source .venv/bin/activate   (run_dashboard.sh scripts use it automatically once active)
+# launch.sh and the service (./biodash.py) use .venv automatically.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -21,10 +20,6 @@ if ! "$PY" -c 'import venv, ensurepip' 2>/dev/null; then
 fi
 
 REQ=requirements.txt
-if [[ -n "${1:-}" ]]; then
-  REQ="$1/requirements.txt"
-  [[ -f "$REQ" ]] || { echo "❌ no $REQ"; exit 1; }
-fi
 
 [[ -d "$VENV" ]] || { echo "🐍 Creating $VENV with $("$PY" --version)..."; "$PY" -m venv "$VENV"; }
 "$VENV/bin/python" -m pip install -q --upgrade pip
@@ -35,8 +30,8 @@ echo "🔎 Checking imports..."
 "$VENV/bin/python" - << 'PY'
 import importlib.util
 from importlib.metadata import version, PackageNotFoundError
-for mod, dist in [("bleak", "bleak"), ("polar_python", "polar-python"), ("numpy", "numpy"),
-                  ("fastapi", "fastapi"), ("uvicorn", "uvicorn"), ("flask", "Flask")]:
+for mod, dist in [("bleak", "bleak"), ("polar_python", "polar-python"),
+                  ("fastapi", "fastapi"), ("uvicorn", "uvicorn"), ("websockets", "websockets")]:
     if importlib.util.find_spec(mod) is None:
         print(f"  ·  {dist:13s} (not in this requirements set)")
         continue
@@ -46,4 +41,4 @@ for mod, dist in [("bleak", "bleak"), ("polar_python", "polar-python"), ("numpy"
         print(f"  ✅ {dist:13s}")
 PY
 echo
-echo "Done. Activate with:  source $VENV/bin/activate"
+echo "Done. Start it with ./launch.sh (or ./biodash.py for a background service)."

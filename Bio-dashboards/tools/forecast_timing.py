@@ -25,6 +25,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "polar_dashboard"))
+sys.path.insert(1, os.path.dirname(HERE))          # the shared bt_debug.py
 
 LEAD_BINS = [(0, 100), (100, 200), (200, 300), (300, 400), (400, 500), (500, 10 ** 9)]
 MATCH_MS = 350          # a forecast peak further than this from every real one is a miss (half a beat at ~85 bpm)

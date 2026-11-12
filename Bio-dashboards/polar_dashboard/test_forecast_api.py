@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""The stream-lane-lab API (ReaLLM-Forge PR #924) through Polar-dash: GET /api/models and POST /api/forecast,
-end to end (app.py + forecast_service.py on spare ports, a scratch data folder). Needs PyTorch, transformers
+"""The stream-lane-lab API (ReaLLM-Forge PR #924) through the Heart API: GET /api/models and POST /api/forecast,
+end to end (api.py + forecast_service.py on spare ports, a scratch data folder). Needs PyTorch, transformers
 and the model weights (run it with the forecast Python); skips otherwise. CPU is fine (slow)."""
 import json
 import os
@@ -27,7 +27,7 @@ APP, API = 5091, 5092
 tmp = tempfile.mkdtemp()
 env = dict(os.environ, BIODASH_DATA_DIR=os.path.join(tmp, "data"), BIODASH_FORECAST_API_PORT=str(API),
            BIODASH_FORECAST_LOG="0", BIODASH_FORECAST_DEVICE="cpu")
-app = subprocess.Popen([sys.executable, "-c", f"import uvicorn, app; uvicorn.run(app.app, host='127.0.0.1', port={APP}, log_level='warning')"],
+app = subprocess.Popen([sys.executable, "-c", f"import uvicorn, api; uvicorn.run(api.app, host='127.0.0.1', port={APP}, log_level='warning')"],
                        cwd=HERE, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 svc = subprocess.Popen([sys.executable, "forecast_service.py", "--url", f"http://127.0.0.1:{APP}", "--device", "cpu"],
                        cwd=HERE, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -86,6 +86,14 @@ try:
     check("wrong column count -> 422", call("/api/forecast", {"model_id": "ecg", "history": [[0.1, 0.2]]})[0] == 422)
     check("horizon over 128 -> 422", call("/api/forecast", {"model_id": "ecg", "history": hist, "horizon": 500})[0] == 422)
     check("non-finite history -> 422", call("/api/forecast", {"model_id": "ecg", "history": [["nan"]]})[0] == 422)
+    if "rr" in ids:                                         # V6.3: the ECG + R-R model
+        check("the R-R model is listed with ECG (mV) and R-R (ms) columns",
+              [c["name"] for c in ids["rr"]["columns"]] == ["ecg_mV", "rr_ms"]
+              and ids["rr"]["columns"][1]["maximum"] == 2500, ids["rr"])
+        code, out = call("/api/forecast", {"model_id": "rr", "history": [[h[0], 800.0] for h in hist], "horizon": 8,
+                                           "mode": "mean"})
+        check("POST /api/forecast with the R-R model: rows of [mV, ms]", code == 200 and len(out["predictions"]) == 8
+              and all(len(r) == 2 and 0 <= r[1] <= 2500 for r in out["predictions"]), out)
 finally:
     for p in (svc, app):
         p.terminate()

@@ -1,32 +1,35 @@
 #!/usr/bin/env python3
-"""Live ECG / accelerometer forecasts for Polar-dash (Bio-dash V5.8).
+"""Live ECG / accelerometer / R-R forecasts for Polar-dash (Bio-dash V6.3).
 
-Runs next to app.py as its own process, so a crash or a GPU stall can't freeze the dashboard and torch
+Runs next to the server as its own process, so a crash or a GPU stall can't freeze the dashboard and torch
 stays out of the web server:
 
   * follows the session the Bluetooth worker is recording
-    (<Documents>/Bio-dash/Polar H10/<device>/<date>/<time>_{ecg,acc}.csv) and tails the accelerometer and
-    ECG files, accelerometer first;
+    (<Documents>/Bio-dash/Polar H10/<device>/<date>/<time>_{ecg,acc,rr}.csv) and tails the accelerometer,
+    ECG and R-R files, accelerometer first;
   * builds model rows with waves.LiveAligner, exactly like the training data (the 125 Hz grid; the settings
     come from each model folder's config.json);
   * every refresh (0.5 s) and for each overlay that is switched on, forecasts the next second as 8 samples
     with the fast loop (KV cache + CUDA graph) and POSTs the band, the median and one representative sample
-    to app.py's /api/forecast/live, which broadcasts them to the browsers;
+    to the Heart API's /api/forecast/live (api.py), which passes them on to the open pages;
   * answers stream-lane-lab's API (ReaLLM-Forge PR #924: GET /api/models, POST /api/forecast, GET /api/signal,
-    plus GET /rows: the strap's latest rows for the /lab viewer) on
-    127.0.0.1:5011, which app.py passes on;
+    plus GET /rows: the strap's latest rows for the Lab viewer) on
+    127.0.0.1:5011, which api.py passes on;
   * sends a heartbeat once a second (state, device, timings) and gets the overlay switches back.
 
-Two models: forecast/models/ecg (ECG only; the ECG overlay) and forecast/models/ecg_acc (ECG +
-accelerometer; the accelerometer overlay). Each is loaded the first time its overlay is switched on.
+Three models: forecast/models/ecg (ECG only; the ECG overlay), forecast/models/ecg_acc (ECG +
+accelerometer; the accelerometer overlay) and forecast/models/ecg_rr (ECG + R-R, a proof of concept; the R-R
+overlay, with the R-R lane rebuilt live from the strap's R-R messages by rr_lane.py). Each is loaded the first
+time its overlay is switched on.
 Without torch / transformers / the model folders the service keeps running and reports why, so the
 dashboard can show it. Run the models on a GPU with bfloat16 autocast, as trained (CPU works, slowly).
 
-    python3 forecast_service.py [--url http://127.0.0.1:5001] [--models forecast/models] [--device auto]
+    python3 forecast_service.py [--url http://127.0.0.1:5000/api/d/heart] [--models forecast/models] [--device auto]
     python3 forecast_service.py --bench          (no dashboard: load the models, time forecasts, GPU memory)
     python3 forecast_service.py --session <.../HH-MM-SS_ecg.csv> --record contexts.jsonl --seed 1   (checks)
 """
 import argparse
+import bisect
 import collections
 import csv
 import json
@@ -42,14 +45,18 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FC_DIR = os.path.join(HERE, "forecast")
-for p in (HERE, os.path.join(HERE, "..", "analysis_dashboard"), FC_DIR):
+for p in (HERE, os.path.join(HERE, "..", "analysis_dashboard"), FC_DIR, os.path.dirname(HERE)):   # last: the shared bt_debug.py
     if p not in sys.path:
         sys.path.insert(0, p)
 
 import bt_debug  # noqa: E402  (session folders, standard library only)
+import rr_lane  # noqa: E402  (the R-R lane, as the ECG + R-R model's training data made it)
 import waves  # noqa: E402  (the shared interpolation: the same rows as the training data)
 
-DEFAULTS = {"ecg": False, "acc": False, "horizon_s": 1.0, "refresh_s": 0.5, "samples": 8}
+KINDS = ("ecg", "acc", "rr")
+DEFAULTS = {"ecg": False, "acc": False, "rr": False, "horizon_s": 1.0, "refresh_s": 0.5, "samples": 8}
+RR_BEATS = 3             # next beats read out of an R-R forecast
+RR_SCORED = 60           # the R-R overlay's running error: over the last this many beats
 STALE_MS = 5000          # no new rows for this long: waiting for data
 MIN_CONTEXT = 64         # rows (0.5 s) before the first forecast after a gap
 TOP_K, TEMPERATURE = 100, 1.0   # as in the held-out evaluation (calibrated band)
@@ -107,17 +114,30 @@ def parse(line, n):
         return None
 
 
-def newest_session(fixed=None):
-    """(ecg csv, acc csv or None) of the session being recorded (the newest ECG file)."""
-    if fixed:
-        ecg = fixed
-    else:
+def get_json(url, timeout=2.0):
+    with _opener.open(url, timeout=timeout) as r:
+        return json.loads(r.read().decode() or "null")
+
+
+def newest_session(fixed=None, url=None):
+    """(ecg csv, acc csv or None, rr csv or None) of the session being recorded: the one the Heart API says its
+    worker is writing (so, with several people recording, the first person's), else the newest ECG file."""
+    ecg = fixed
+    if not ecg and url:
+        try:
+            ecg = (get_json(url + "/api/session") or {}).get("ecg")
+        except (urllib.error.URLError, OSError, ValueError, AttributeError):
+            ecg = None
+        if not ecg:
+            return None, None, None
+    if not ecg:
         files = bt_debug.latest_session_files("Polar H10", "ecg", limit=1)
         if not files:
-            return None, None
+            return None, None, None
         ecg = files[0]
-    acc = ecg[: -len("_ecg.csv")] + "_acc.csv" if ecg.endswith("_ecg.csv") else None
-    return ecg, (acc if acc and os.path.exists(acc) else None)
+    stem = ecg[: -len("_ecg.csv")] if ecg.endswith("_ecg.csv") else None
+    acc, rr = (stem + "_acc.csv", stem + "_rr.csv") if stem else (None, None)
+    return ecg, (acc if acc and os.path.exists(acc) else None), (rr if rr and os.path.exists(rr) else None)
 
 
 def to_real(lane, v):
@@ -239,7 +259,7 @@ API_MAX_HORIZON = 128     # rows, as PR #924's API
 
 
 def start_api(svc, port):
-    """The PR #924 API for app.py to pass on: GET /models, POST /forecast on 127.0.0.1 only."""
+    """The PR #924 API for api.py to pass on: GET /models, POST /forecast on 127.0.0.1 only."""
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     class Handler(BaseHTTPRequestHandler):
@@ -335,8 +355,31 @@ class ForecastLog:
             pass
 
 
+def next_beats(times, rr_ctx, samples_rr, beat_t, dt, grid_ms, max_beats=RR_BEATS):
+    """The next beats an R-R forecast holds. times / rr_ctx: the context's grid instants and rr_ms lane;
+    samples_rr: each sample's forecast rr_ms rows (after the context); beat_t: the newest beat known.
+    Read per sample from the row of that beat on (rr_lane.read_beats), then the samples' median per beat while at
+    least half of them have it. -> [{"t": ms, "rr": ms, "lo": ms, "hi": ms, "of": samples with it}]."""
+    p = bisect.bisect_right(times, beat_t) - 1             # the beat's row (the grid instant at or before it)
+    if p < 0:
+        return []
+    tail = list(rr_ctx[p + 1:])
+    per = [rr_lane.read_beats(tail + list(s), -1, max_beats, grid_ms) for s in samples_rr]
+    out = []
+    for j in range(max_beats):
+        got = [b[j] for b in per if len(b) > j]
+        if 2 * len(got) < len(per):
+            break
+        out.append({"t": round(times[p] + statistics.median(g[0] + 1 for g in got) * dt, 1),
+                    "rr": round(statistics.median(g[1] for g in got), 1),
+                    "lo": min(g[1] for g in got), "hi": max(g[1] for g in got), "of": len(got)})
+    return out
+
+
 class Overlay:
-    """One overlay (ecg | acc): its model folder, LiveAligner and context ring."""
+    """One overlay (ecg | acc | rr): its model folder, LiveAligner and context ring. The ring holds the
+    LiveAligner's rows (ECG, plus the accelerometer for acc); the rr overlay adds its R-R lane from its beats when
+    it makes a context (model_rows), so the lane always uses every beat known by then."""
 
     def __init__(self, kind, model_dir):
         self.kind, self.model_dir = kind, model_dir
@@ -375,13 +418,50 @@ class Overlay:
         self.model = self.fc = None
         self.load_error = None
         self.compute_ms, self.count, self.posted = None, 0, 0
+        self.beats = rr_lane.LiveBeats() if "rr_ms" in self.names else None
+        self.rr_open = {}                # beat index known when forecast -> (predicted next R-R, last R-R)
+        self.rr_scores = collections.deque(maxlen=RR_SCORED)   # (|model - actual|, |last - actual|) per beat
 
     @property
     def needs_acc(self):
         return bool(self.settings.with_acc)
 
+    @property
+    def needs_rr(self):
+        return self.beats is not None
+
+    def model_rows(self, times, rows):
+        """The rows as the model takes them: for rr, each with its rr_ms appended, from the first beat on."""
+        if not self.needs_rr:
+            return times, rows
+        lane = self.beats.lane(times)
+        start = next((i for i, v in enumerate(lane) if v is not None), len(lane))
+        return times[start:], [list(r) + [v] for r, v in zip(rows[start:], lane[start:])]
+
+    def score_beats(self):
+        """The R-R overlay's live error: each beat, once its R-R is known, against the last forecast made before
+        it (its first predicted beat), next to holding the last R-R."""
+        if not self.needs_rr:
+            return
+        n = len(self.beats)
+        for idx in sorted(k for k in self.rr_open if k + 1 < n):
+            pred, last = self.rr_open.pop(idx)
+            actual = self.beats.rrs[idx + 1]
+            self.rr_scores.append((abs(pred - actual), abs(last - actual)))
+
+    def rr_score(self):
+        if not self.rr_scores:
+            return None
+        m = len(self.rr_scores)
+        return {"n": m, "model_ms": round(sum(a for a, _ in self.rr_scores) / m, 1),
+                "hold_ms": round(sum(b for _, b in self.rr_scores) / m, 1)}
+
     def reset(self):
         self.aligner.reset()
+        if self.beats is not None:
+            self.beats.reset()
+            self.rr_open.clear()
+            self.rr_scores.clear()
         with self.lock:
             self.ring.clear()
             self.times.clear()
@@ -407,11 +487,24 @@ class Overlay:
 
     def snapshot(self):
         with self.lock:
-            return list(self.times), list(self.ring), self.piece
+            times, rows, piece = list(self.times), list(self.ring), self.piece
+        times, rows = self.model_rows(times, rows)
+        return times, rows, piece
+
+    def usable_rows(self):
+        """How many rows a context could have now (for rr: from the first beat on)."""
+        if not self.needs_rr:
+            return len(self.ring)
+        if len(self.beats) < 2:
+            return 0
+        with self.lock:
+            first = bisect.bisect_left(list(self.times), self.beats.times[0])
+            return len(self.times) - first
 
     def status(self, on):
         return {"on": on, "model": self.run, "loaded": self.model is not None,
                 "error": self.cfg_error or self.load_error, "rows": len(self.ring),
+                **({"beats": len(self.beats), "rr_score": self.rr_score()} if self.needs_rr else {}),
                 "compute_ms": None if self.compute_ms is None else round(self.compute_ms, 1),
                 "forecasts": self.count, "last_t": self.last_t}
 
@@ -424,7 +517,8 @@ class Service:
         self.url = a.url.rstrip("/")
         self.settings = dict(DEFAULTS)
         self.overlays = {"ecg": Overlay("ecg", a.ecg_model or os.path.join(a.models, "ecg")),
-                         "acc": Overlay("acc", a.acc_model or os.path.join(a.models, "ecg_acc"))}
+                         "acc": Overlay("acc", a.acc_model or os.path.join(a.models, "ecg_acc")),
+                         "rr": Overlay("rr", a.rr_model or os.path.join(a.models, "ecg_rr"))}
         self.session = None
         self.tails = {}
         self.state, self.detail = "starting", ""
@@ -658,8 +752,8 @@ class Service:
 
     # ---------------- data
     def follow(self):
-        ecg, acc = newest_session(self.a.session)
-        if ecg == self.session and (acc is None or "acc" in self.tails):
+        ecg, acc, rr = newest_session(self.a.session, None if self.a.bench else self.url)
+        if ecg == self.session and (acc is None or "acc" in self.tails) and (rr is None or "rr" in self.tails):
             return
         if ecg != self.session:
             for t in self.tails.values():
@@ -673,6 +767,8 @@ class Service:
                 self.tails["ecg"] = Tail(ecg, 48 * 1024)
         if acc and "acc" not in self.tails and self.session:
             self.tails["acc"] = Tail(acc, 64 * 1024)
+        if rr and "rr" not in self.tails and self.session:
+            self.tails["rr"] = Tail(rr, 4 * 1024)            # ~2 minutes of beats
 
     def read(self):
         if "acc" in self.tails:            # accelerometer first, so ECG rows don't wait for it
@@ -682,6 +778,13 @@ class Service:
                     for ov in self.overlays.values():
                         if ov.needs_acc:
                             ov.aligner.push_acc(r[0], r[1], r[2], r[3])
+        if "rr" in self.tails:
+            for line in self.tails["rr"].lines():
+                r = parse(line, 2)
+                if r:
+                    for ov in self.overlays.values():
+                        if ov.needs_rr:
+                            ov.beats.push(r[0], r[1])
         if "ecg" in self.tails:
             for line in self.tails["ecg"].lines():
                 r = parse(line, 2)
@@ -690,6 +793,7 @@ class Service:
                         ov.aligner.push_ecg(r[0], r[1])
         for ov in self.overlays.values():
             ov.take_rows()
+            ov.score_beats()
 
     # ---------------- models
     def ensure_model(self, ov):
@@ -741,8 +845,10 @@ class Service:
         horizon = max(1, int(round(float(self.settings["horizon_s"]) * 1000.0 / ov.dt_ms)))
         horizon = min(horizon, ov.block - MIN_CONTEXT + 1)
         samples = max(1, min(32, int(self.settings["samples"])))
-        T = min(len(ov.ring), ov.block - horizon + 1)
-        rows, times = list(ov.ring)[-T:], list(ov.times)[-T:]
+        with ov.lock:
+            times, rows = ov.model_rows(list(ov.times), list(ov.ring))
+        T = min(len(rows), ov.block - horizon + 1)
+        rows, times = rows[-T:], times[-T:]
         ctx = torch.tensor([[r[k] - ov.lanes[k]["int_min"] for r in rows] for k in range(len(ov.lanes))],
                            dtype=torch.long)
         fc = self.forecaster(ov, samples)
@@ -757,6 +863,16 @@ class Service:
             prefer = rhythm_pick([r[0] for r in ov.ring], [v[0] for v in vals])   # all 2 s: more beats than the context
         out = summarize(vals, ov.lanes, prefer)
         out["rep_pick"] = "rhythm" if prefer is not None else "median"
+        if ov.needs_rr:
+            k = ov.names.index("rr_ms")
+            beats = next_beats(times, [r[k] for r in rows], [v[k] for v in vals], ov.beats.times[-1], ov.dt_ms,
+                               ov.settings.grid_ms or rr_lane.GRID_MS)
+            out["beats"] = beats
+            out["last_beat"] = {"t": ov.beats.times[-1], "rr": ov.beats.rrs[-1], "index": len(ov.beats) - 1}
+            out["known"] = [[t, r] for t, r in zip(ov.beats.times[-8:], ov.beats.rrs[-8:])]   # as the model sees them
+            if beats:
+                ov.rr_open[len(ov.beats) - 1] = (beats[0]["rr"], ov.beats.rrs[-1])   # the latest one counts
+            out["rr_score"] = ov.rr_score()
         t0_new = times[-1] + ov.dt_ms
         self.keep(ov, t0_new)
         ov.prev = {"t0": t0_new, "dt": ov.dt_ms, "from": times[-1], **{k: out[k] for k in ("rep", "median", "lo", "hi")}}
@@ -802,7 +918,7 @@ class Service:
             except OSError as e:
                 log(f"read: {e}")
                 self.session = None
-            on = [k for k in ("ecg", "acc") if self.settings.get(k)]
+            on = [k for k in KINDS if self.settings.get(k)]
             for k, ov in self.overlays.items():
                 if k not in on and ov.prev is not None:      # switched off: the page dropped it too
                     ov.prev = None
@@ -811,7 +927,7 @@ class Service:
             if self.torch is None:
                 self.state, self.detail = "unavailable", self.torch_error
             elif not on:
-                self.state, self.detail = "idle", "both overlays are off"
+                self.state, self.detail = "idle", "the overlays are off"
             elif not self.session:
                 self.state, self.detail = "waiting for data", "no Polar H10 recording yet"
             elif stale:
@@ -822,7 +938,7 @@ class Service:
                 next_fc = now + max(0.1, float(self.settings["refresh_s"]))
                 for k in on:
                     ov = self.overlays[k]
-                    if len(ov.ring) >= MIN_CONTEXT and ov.fresh > 0 and self.ensure_model(ov):
+                    if ov.usable_rows() >= MIN_CONTEXT and ov.fresh > 0 and self.ensure_model(ov):
                         try:
                             with self.gpu:
                                 self.forecast(ov)
@@ -831,6 +947,8 @@ class Service:
                             log(ov.load_error)
                     elif ov.cfg_error or ov.load_error:
                         self.detail = ov.cfg_error or ov.load_error
+                    elif ov.needs_rr and len(ov.beats) < 2:
+                        self.detail = "R-R: waiting for the strap's beats"
             time.sleep(0.02)
         for t in self.tails.values():
             t.close()
@@ -843,8 +961,8 @@ class Service:
 
 
 def bench(svc, repeats):
-    """Time warm forecasts for both models at the dashboard settings and report GPU memory (the Orin check:
-    both overlays together must fit well inside the refresh interval)."""
+    """Time warm forecasts for every model at the dashboard settings and report GPU memory (the Orin check:
+    the overlays together must fit well inside the refresh interval)."""
     torch = svc.torch
     if torch is None:
         sys.exit(svc.torch_error)
@@ -880,17 +998,18 @@ def bench(svc, repeats):
             f"{first * 1000.0:.0f} ms){mem}")
     if total:
         budget = float(svc.settings["refresh_s"]) * 1000.0
-        log(f"both overlays: {total:.0f} ms of every {budget:.0f} ms refresh ("
+        log(f"all overlays: {total:.0f} ms of every {budget:.0f} ms refresh ("
             + ("OK" if total < 0.75 * budget else
                "tight: try --compile, a longer refresh_s or a shorter horizon_s; fewer samples barely help") + ")")
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--url", default=os.environ.get("BIODASH_FORECAST_URL", "http://127.0.0.1:5001"))
+    ap.add_argument("--url", default=os.environ.get("BIODASH_FORECAST_URL", "http://127.0.0.1:5000/api/d/heart"))
     ap.add_argument("--models", default=os.environ.get("BIODASH_FORECAST_MODELS", os.path.join(FC_DIR, "models")))
     ap.add_argument("--ecg-model", help="model folder for the ECG overlay (default <models>/ecg)")
     ap.add_argument("--acc-model", help="model folder for the accelerometer overlay (default <models>/ecg_acc)")
+    ap.add_argument("--rr-model", help="model folder for the R-R overlay (default <models>/ecg_rr)")
     ap.add_argument("--device", default=os.environ.get("BIODASH_FORECAST_DEVICE", "auto"), choices=("auto", "cuda", "cpu"))
     ap.add_argument("--compile", action="store_true", default=os.environ.get("BIODASH_FORECAST_COMPILE") == "1",
                     help="torch.compile the decode step (~2.3x faster on an A100; needs Triton; compiles for "
@@ -899,12 +1018,12 @@ def main():
     ap.add_argument("--record", help="append each forecast's context rows to this JSONL file (checks)")
     ap.add_argument("--seed", type=int, help="fixed sampling seed for every forecast (checks)")
     ap.add_argument("--api-port", type=int, default=int(os.environ.get("BIODASH_FORECAST_API_PORT", "5011")),
-                    help="local port for the PR #924 API that app.py passes on (0 = off; default 5011)")
+                    help="local port for the PR #924 API that api.py passes on (0 = off; default 5011)")
     ap.add_argument("--no-log", action="store_true", default=os.environ.get("BIODASH_FORECAST_LOG") == "0",
                     help="don't write the inference to Forecasts/<day>/<time>_forecast_<kind>.csv "
                          "(env BIODASH_FORECAST_LOG=0)")
     ap.add_argument("--bench", type=int, nargs="?", const=20, default=0, metavar="N",
-                    help="no dashboard: load both models, time N forecasts each (default 20) and exit")
+                    help="no dashboard: load the models, time N forecasts each (default 20) and exit")
     ap.add_argument("--samples", type=int, help="with --bench: samples per forecast (default: the dashboard's 8)")
     a = ap.parse_args()
     svc = Service(a)

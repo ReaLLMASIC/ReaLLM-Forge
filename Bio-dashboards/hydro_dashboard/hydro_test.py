@@ -26,6 +26,7 @@ import time
 from bleak import BleakClient, BleakScanner
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(1, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # the shared bt_debug.py
 try:
     import bt_debug              # noqa: E402
     import hydro_protocol as hp  # noqa: E402

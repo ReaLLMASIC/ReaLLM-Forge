@@ -12,6 +12,95 @@ from importlib.metadata import version as _pkg_version
 from bleak import BleakScanner
 from polar_python import PolarDevice
 
+# The strap answers each "start a stream" request on its control point. A refusal is a short,
+# 4-byte reply, which polar-python 1.x can't parse (IndexError: bytearray index out of range),
+# so the real reason was lost. Read the error code ourselves and give the parser a padded copy.
+PMD_ERRORS = {1: "invalid op code", 2: "invalid measurement type", 3: "not supported", 4: "invalid length",
+              5: "invalid parameter", 6: "already streaming", 7: "invalid resolution", 8: "invalid sample rate",
+              9: "invalid range", 10: "invalid MTU", 11: "invalid number of channels",
+              12: "busy (another connection is streaming)", 13: "in its charger"}
+last_pmd_error = None
+try:
+    from polar_python.models import measurement_settings as _ms
+    _orig_from_bytes = _ms.MeasurementSettings.from_bytes.__func__
+
+    def _from_bytes(cls, data):
+        global last_pmd_error
+        last_pmd_error = data[3] if len(data) > 3 else None
+        if len(data) < 5:
+            data = bytearray(data) + bytearray(5 - len(data))
+        return _orig_from_bytes(cls, data)
+
+    _ms.MeasurementSettings.from_bytes = classmethod(_from_bytes)
+except Exception as _e:          # a different polar-python: keep its own behaviour
+    print(f"note: couldn't hook polar-python's control-point parser ({_e!r})")
+
+
+class StreamRefused(Exception):
+    def __init__(self, name, code):
+        super().__init__(f"{name}: {PMD_ERRORS.get(code, code)}")
+        self.name, self.code = name, code
+
+
+async def start_pmd(name, start_fn, tries=3):
+    """Run one polar.start_*_stream() and say plainly if the strap refused it. "Invalid MTU" is
+    retried: the link's packet size is agreed just after connecting and can still be settling."""
+    global last_pmd_error
+    for attempt in range(1, tries + 1):
+        last_pmd_error = None
+        await start_fn()
+        code = last_pmd_error
+        if code in (None, 0, 6):        # 6: already streaming on this connection -> fine
+            return
+        if code == 10 and attempt < tries:
+            logging.info(f"The strap says the link's packet size (MTU) is too small for {name}; trying again...")
+            await asyncio.sleep(1.5)
+            continue
+        raise StreamRefused(name, code)
+
+
+def bluez_mtu_cap(path="/etc/bluetooth/main.conf"):
+    """The ExchangeMTU set under [GATT] in BlueZ's config, if any (None when it's the default)."""
+    import re
+    try:
+        section = None
+        for line in open(path):
+            line = line.strip()
+            if line.startswith("["):
+                section = line
+            elif section == "[GATT]" and re.match(r"ExchangeMTU\s*=", line):
+                return int(line.split("=", 1)[1].strip())
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def refusal_advice(refused, mtu):
+    """What to tell you, by the strap's reason."""
+    names = " and ".join(n for n, _ in refused)
+    codes = {c for _, c in refused}
+    head = f"The strap refused the {names} stream{'s' if len(refused) > 1 else ''}: " + \
+           ", ".join(sorted({PMD_ERRORS.get(c, f'error {c}') for c in codes})) + ". Recording heart rate and R-R"
+    head += " only." if len(refused) > 1 else " and the rest."
+    if 10 in codes:
+        cap = bluez_mtu_cap()
+        if cap:
+            return (head + f" /etc/bluetooth/main.conf caps the Bluetooth packet size (ExchangeMTU = {cap}, the old-dongle "
+                    "workaround from the bottle's TROUBLESHOOTING section 12), and the H10 needs more for ECG and motion. "
+                    "Comment that line out, run sudo systemctl restart bluetooth, then Device → Restart.")
+        return (head + f" The Bluetooth link's packet size (MTU) is {mtu or 'unknown'} bytes; the H10 needs a larger one "
+                "for ECG and motion. BlueZ normally agrees a bigger size when it connects: check that "
+                "/etc/bluetooth/main.conf doesn't set ExchangeMTU under [GATT], try the other radio "
+                "(Device → Bluetooth radio), or restart Bluetooth (sudo systemctl restart bluetooth).")
+    if codes & {12}:
+        return (head + " Usually something else is already streaming from the strap (it takes two connections): an "
+                "older Bio-dash still running, the Polar Beat app, or another computer. Stop it, then Device → Restart.")
+    if codes & {13}:
+        return head + " The pod is in its charger."
+    return head + " Unclip the pod for 10 seconds to reset the strap, then Device → Restart."
+
+import os as _os, sys as _sys
+_sys.path.insert(1, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the shared bt_debug.py, in the release folder
 import bt_debug
 from stream_clock import ClockAnchor, StreamClock
 
@@ -22,7 +111,7 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = bt_debug.state_dir(os.path.dirname(os.path.abspath(__file__)))   # one more per extra person: see bt_debug.state_dir
 LOGS_DIR = os.path.join(BASE_DIR, "logs_advanced")
 os.makedirs(LOGS_DIR, exist_ok=True)
 
@@ -294,18 +383,42 @@ async def stream_session(device):
         debug["connected_at"] = time.time()
         session.start(getattr(device, "name", None), device.address, SESSION_STREAMS)
         debug["recording"] = session.dir
+        debug["files"] = dict(session.paths)          # the API follows these, not "the newest recording"
         logging.info(f"Recording to {session.dir}")
 
         logging.info("Connected! Starting standard Heart Rate + HRV engine...")
         await polar.start_hr_stream(hr_callback)
         await asyncio.sleep(0.5)
 
-        logging.info(f"Initializing {ACC_HZ}Hz Accelerometer stream...")
-        await polar.start_acc_stream(acc_callback, ACC_HZ, 16, 8)
-        await asyncio.sleep(0.5)
+        debug["warning"] = None
+        # the link's packet size (MTU): the H10 needs a large one for ECG and motion
+        mtu = None
+        try:
+            backend = getattr(polar._client, "_backend", None)
+            if backend is not None and hasattr(backend, "_acquire_mtu"):
+                await backend._acquire_mtu()
+            mtu = polar._client.mtu_size
+            debug.setdefault("gatt", {})["mtu"] = mtu
+            logging.info(f"Link packet size (MTU): {mtu} bytes")
+        except Exception as e:
+            logging.info(f"Couldn't read the link's packet size ({e!r})")
 
+        # each stream on its own: one refused doesn't stop the other (or heart rate)
+        refused = []
+        logging.info(f"Initializing {ACC_HZ}Hz Accelerometer stream...")
+        try:
+            await start_pmd("motion", lambda: polar.start_acc_stream(acc_callback, ACC_HZ, 16, 8))
+        except StreamRefused as e:
+            refused.append((e.name, e.code))
+        await asyncio.sleep(0.5)
         logging.info(f"Initializing {ECG_HZ}Hz clean ECG stream...")
-        await polar.start_ecg_stream(ecg_callback, ECG_HZ, 14)
+        try:
+            await start_pmd("ECG", lambda: polar.start_ecg_stream(ecg_callback, ECG_HZ, 14))
+        except StreamRefused as e:
+            refused.append((e.name, e.code))
+        if refused:
+            debug["warning"] = refusal_advice(refused, mtu)
+            logging.warning(debug["warning"])
 
         set_status("streaming", device.address)
         last_device.remember(device.address, getattr(device, "name", None))
@@ -378,6 +491,7 @@ async def main():
                     finally:
                         session.close()          # a session's files end with its connection
                         debug["recording"] = None
+                        debug["files"] = None
                     break  # session ran and then went quiet -> rescan
                 except Exception as e:
                     logging.warning(f"\n⚠️ Link error on attempt {attempt}/{CONNECT_ATTEMPTS}: {e!r}")

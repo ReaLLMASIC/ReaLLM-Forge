@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The /lab viewer (ReaLLM-Forge PR #924's Stream Lane Lab, with the live strap as a source): the forecast
-service's GET /rows and GET /signal, then the page and both routes through app.py. Needs no PyTorch or model
-weights (the forecast itself is covered by test_forecast_api.py)."""
+service's GET /rows and GET /signal, then both routes through api.py (the Lab
+page itself is served by server.py: test_server.py). Needs no PyTorch or model weights (the forecast itself is covered by test_forecast_api.py)."""
 import json
 import os
 import socket
@@ -81,7 +81,7 @@ check("signal: `start` offsets the frames (seed 7 from frame 1000)",
       all(abs(a[0] - b) < 1e-6 for a, b in zip(s["values"], [-0.11872991919517517, -0.07611604034900665, -0.02816060185432434])))
 check("signal: limits -> 422", svc.api_signal({"frames": "0"})[0] == 422 and svc.api_signal({"channels": "9"})[0] == 422)
 
-# ---------------- end to end: the service's HTTP API + app.py
+# ---------------- end to end: the service's HTTP API + api.py
 API, APP = free_port(), free_port()
 server = fs.start_api(svc, API)
 check("service API listening", server is not None)
@@ -91,7 +91,7 @@ for i in range(10):
         ov.times.append(50000.0 + 8.0 * i)
 tmp = tempfile.mkdtemp()
 env = dict(os.environ, BIODASH_DATA_DIR=os.path.join(tmp, "data"), BIODASH_FORECAST_API_PORT=str(API))
-app = subprocess.Popen([sys.executable, "-c", f"import uvicorn, app; uvicorn.run(app.app, host='127.0.0.1', port={APP}, log_level='warning')"],
+app = subprocess.Popen([sys.executable, "-c", f"import uvicorn, api; uvicorn.run(api.app, host='127.0.0.1', port={APP}, log_level='warning')"],
                        cwd=HERE, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -106,12 +106,10 @@ def get(path):
 try:
     for _ in range(100):
         try:
-            code, page, headers = get("/lab")
+            code, _, _ = get("/api/status")
             break
         except OSError:
             time.sleep(0.2)
-    check("GET /lab serves the viewer", code == 200 and b"Stream Lane Lab" in page and b"/api/lab/rows" in page)
-    check("GET /lab is rechecked on every load (no stale page after an update)", "no-cache" in (headers.get("Cache-Control") or ""))
     code, body, _ = get("/api/lab/rows?model_id=ecg")
     r = json.loads(body)
     check("GET /api/lab/rows passes the live rows through", code == 200 and r["rows"] == [[0.0], [0.01], [0.02], [0.03], [0.04],
