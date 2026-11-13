@@ -239,7 +239,7 @@ async def scan():
             found[device.address] = {"name": name, "address": device.address, "rssi": adv.rssi if adv.rssi else -100}
 
     try:
-        async with BleakScanner(seen, **bt_debug.bluez_args(hci)):
+        async with bt_debug.scanning(seen, hci, scanner=BleakScanner):
             for _ in range(15):
                 await asyncio.sleep(0.2)
                 if os.path.exists(COMMAND_FILE):

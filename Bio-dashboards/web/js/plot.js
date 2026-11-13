@@ -7,8 +7,10 @@
 //   p.set('hr', [[ts, y], ...]);  p.push('hr', ts, y);
 //
 // series options: type 'line' | 'bar' | 'dots' | 'step', axis 'y' | 'y2', dp, width, fill, band (set lo/hi),
-//                 hidden, dash.   x: { window (ms, follows now), ahead (ms shown past now: forecasts), min, max,
-//                 format(x), step (bar width), kind 'time' | 'value' }      dots with lo/hi get range bars
+//                 hidden, dash, raw (every sample, no averaging: waveforms).   x: { window (ms, follows now), ahead (ms shown past now: forecasts), min, max,
+//                 format(x), step (bar width), kind 'time' | 'value', follow() -> the instant at the right edge
+//                 (instead of now: a live trace drawn a little behind, so data arriving in bursts scrolls smoothly) }
+//                 dots with lo/hi get range bars
 //                 y / y2: { min, max, zero, label, format }   refs: [{ y, label, color, axis, dash }]
 import { cssVar, hm, hms, esc } from './ui.js';
 
@@ -93,13 +95,14 @@ export class Plot {
         if (n && x < s.xs[n - 1]) return;               // history and live can overlap
         s.xs.push(x); s.ys.push(y);
         const w = this.o.x.window;
-        if (w && s.xs.length > 50 && s.xs[0] < Date.now() - w * 1.5) {
-            const cut = lowerBound(s.xs, Date.now() - w * 1.1);
+        if (w && s.xs.length > 50 && s.xs[0] < this.now() - w * 1.5) {
+            const cut = lowerBound(s.xs, this.now() - w * 1.1);
             s.xs.splice(0, cut); s.ys.splice(0, cut);
         }
         this.dirty = true; this.schedule();
     }
 
+    now() { return this.o.x.follow ? this.o.x.follow() : Date.now(); }
     setWindow(ms) { this.o.x.window = ms; this.dirty = true; this.schedule(); }
     setAhead(ms) { this.o.x.ahead = ms; this.dirty = true; this.schedule(); }
     setHidden(id, hidden) { const s = this.get(id); if (s) { s.hidden = hidden; this.dirty = true; this.schedule(); } }
@@ -130,7 +133,7 @@ export class Plot {
         const o = this.o, shown = this.series.filter(s => !s.hidden);
         // x range
         let x0, x1;
-        if (o.x.window) { x1 = (o.x.max ?? Date.now()) + (o.x.ahead || 0); x0 = x1 - o.x.window; }
+        if (o.x.window) { x1 = (o.x.max ?? this.now()) + (o.x.ahead || 0); x0 = x1 - o.x.window; }
         else {
             x0 = o.x.min ?? Math.min(...shown.map(s => s.xs[0] ?? Infinity));
             x1 = o.x.max ?? Math.max(...shown.map(s => s.xs[s.xs.length - 1] ?? -Infinity));
@@ -291,7 +294,7 @@ export class Plot {
             }
             // more points than pixels: draw each 4 px column's average, with its spread as a soft band
             let xs = s.xs, ys = s.ys, from = a, to = b;
-            if ((s.type === 'line' || s.type === 'step') && !s.lo && b - a > pw / 2) {
+            if ((s.type === 'line' || s.type === 'step') && !s.lo && !s.raw && b - a > pw / 2) {
                 const d = decimate(s.xs, s.ys, a, b, x0, x1, pw, 4);
                 ctx.fillStyle = col; ctx.globalAlpha = .1;
                 for (let i = 0; i < d.xs.length; i++) {
@@ -380,7 +383,8 @@ function decimate(xs, ys, a, b, x0, x1, pw, px) {
     for (let i = a; i < b; i++) {
         const y = ys[i];
         if (y == null) continue;
-        const c = Math.floor((xs[i] - x0) / span);
+        const c = Math.floor(xs[i] / span);           // columns fixed in time, not to the edge: a scrolling chart
+                                                      // keeps the same samples in each column, so it doesn't shimmer
         if (c !== col) { flush(); col = c; n = 0; sx = 0; sy = 0; lo = y; hi = y; }
         n++; sx += xs[i]; sy += y;
         if (y < lo) lo = y;

@@ -83,7 +83,12 @@ export function finder(el, key, { onlyLikely = true, extra = '' } = {}) {
         if (!alive) return;
         if (key === 'water' && !showAll) devices = devices.filter(x => x.bottle);
         const ld = (st.last_device || {}).address;
-        const html = devices.length ? devices.map(x => `
+        // a connected worker stops searching, so its list is from before it connected: say so
+        const stale = st.state === 'streaming' && devices.length
+            ? `<p class="small muted" style="margin:0 0 8px">Found before connecting: it doesn’t search while connected, so this list may be out of date.</p>` : '';
+        const tips = store.several() && store.app.devices[kindOf(key)].personal
+            ? [...d.notFound, 'Several people: each strap wants a Bluetooth radio of its own. Settings → Bluetooth radios shows who uses which.'] : d.notFound;
+        const html = devices.length ? stale + devices.map(x => `
             <div class="found ${x.address === ld ? 'current' : ''}">
               ${rssiBars(x.rssi)}
               <div class="grow"><div class="title">${esc(x.name || 'Unnamed device')}${Nick.tag(x.name, x.address)}</div>
@@ -91,8 +96,8 @@ export function finder(el, key, { onlyLikely = true, extra = '' } = {}) {
               <button class="btn sm ${ownerOf(key, x.address) ? '' : 'primary'}" data-connect="${esc(x.address)}" data-name="${esc(x.name || '')}">${ownerOf(key, x.address) ? 'Move here' : 'Connect'}</button>
             </div>`).join('')
             : `<div class="searching"><span class="radar"></span><div><b>Looking for your ${esc(d.product)}…</b><div class="small">${esc(d.find)}</div></div></div>
-               <details class="more"><summary>Not showing up?</summary><div class="body"><ul class="small muted" style="margin:0;padding-left:18px">${d.notFound.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div></details>`;
-        const key2 = devices.map(x => x.address + x.name + (ownerOf(key, x.address) || '')).join('|') + (devices.length ? '' : 'none');
+               <details class="more"><summary>Not showing up?</summary><div class="body"><ul class="small muted" style="margin:0;padding-left:18px">${tips.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div></details>`;
+        const key2 = devices.map(x => x.address + x.name + (ownerOf(key, x.address) || '')).join('|') + (devices.length ? '' : 'none') + (stale ? 'stale' : '');
         if (key2 !== sig) { list.innerHTML = html; sig = key2; }
         else devices.forEach(x => { const b = list.querySelector(`[data-connect="${CSS.escape(x.address)}"]`); if (b) b.parentElement.querySelector('.bars').outerHTML = rssiBars(x.rssi); });
     }

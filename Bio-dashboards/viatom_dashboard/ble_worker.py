@@ -224,7 +224,7 @@ async def scan_and_list_devices():
         resolve_radio()
         scan_hci = radio_hci
         logging.info(f"Scanning on {scan_hci or 'the default radio'}")
-        async with BleakScanner(detection_callback, **bt_debug.bluez_args(scan_hci)):
+        async with bt_debug.scanning(detection_callback, scan_hci, scanner=BleakScanner):
             while True:
                 await asyncio.sleep(1.0)
                 if radio_hci != scan_hci:

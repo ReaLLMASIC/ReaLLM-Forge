@@ -64,7 +64,12 @@ def people_checks():
     info = get("/api/app")
     check("one person to start with", [p["id"] for p in info["people"]] == ["p1"] and "heart-p2" not in info["instances"])
     check("add a person", get("/api/app/people", {"name": "  Sam  "})["id"] == "p2")
-    time.sleep(4)
+    # their strap's worker gets stuck in its first search (BIODASH_DEMO_STUCK); the server notices and restarts it
+    end = time.time() + 30
+    while time.time() < end and get("/api/d/heart-p2/api/status").get("state") != "streaming":
+        time.sleep(1)
+    log = [l[1] for l in get("/api/app/log/heart-p2")["lines"]]
+    check("a worker stuck in its search is started again", any("Bluetooth seems stuck" in l for l in log), log[-5:])
     info = get("/api/app")
     check("their strap and ring exist", info["instances"]["heart-p2"] == {"kind": "heart", "person": "p2", "enabled": True}
           and info["people"][1]["name"] == "Sam" and info["people"][1]["devices"]["oxygen"]["key"] == "oxygen-p2")
@@ -116,8 +121,9 @@ async def ws_checks():
         check("ws hello", hello["t"] == "hello" and "heart" in hello["status"])
         await ws.send(json.dumps({"sub": ["heart", "air"]}))
         seen, latest, checked, kinds = set(), None, set(), set()
-        end = time.time() + 15
-        while time.time() < end and not ({"heart", "air"} <= seen and latest and len(kinds) >= 6):
+        end = time.time() + 25
+        while time.time() < end and not ({"heart", "air"} <= seen and latest and len(kinds) >= 6
+                                         and latest.get("brain", {}).get("alpha") and latest.get("heart-p2", {}).get("hr")):
             m = json.loads(await asyncio.wait_for(ws.recv(), 10))
             if m["t"] == "live":
                 seen.add(m["d"])
@@ -154,7 +160,8 @@ def main():
     global BASE
     tmp = tempfile.mkdtemp(prefix="biodash-test-")
     env = dict(os.environ, BIODASH_DATA_DIR=os.path.join(tmp, "data"), BIODASH_APP_CONFIG=os.path.join(tmp, "app.json"),
-               XDG_CONFIG_HOME=os.path.join(tmp, "config"), BIODASH_DEMO="1", BIODASH_POWER_DRY_RUN="1")
+               XDG_CONFIG_HOME=os.path.join(tmp, "config"), BIODASH_DEMO="1", BIODASH_POWER_DRY_RUN="1",
+               BIODASH_DEMO_STUCK="heart-1", BIODASH_SCAN_STUCK_S="6")      # person 2's strap worker gets stuck once
     p = port()
     BASE = f"http://127.0.0.1:{p}"
     log = open(os.path.join(tmp, "server.log"), "w+")

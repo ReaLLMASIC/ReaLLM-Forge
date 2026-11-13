@@ -111,11 +111,12 @@ async def list_adapters():
         from dbus_fast import BusType, Message
         from dbus_fast.aio import MessageBus
 
-        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+        import asyncio
+        bus = await asyncio.wait_for(MessageBus(bus_type=BusType.SYSTEM).connect(), 8)
         try:
-            reply = await bus.call(Message(
+            reply = await asyncio.wait_for(bus.call(Message(          # a BlueZ that doesn't answer mustn't stall the worker
                 destination="org.bluez", path="/",
-                interface="org.freedesktop.DBus.ObjectManager", member="GetManagedObjects"))
+                interface="org.freedesktop.DBus.ObjectManager", member="GetManagedObjects")), 8)
             objects = reply.body[0] if reply and reply.body else {}
         finally:
             bus.disconnect()
@@ -500,6 +501,59 @@ class SessionFiles:
             except Exception:
                 pass
         self.files, self.writers, self.paths = {}, {}, {}
+
+
+# ---------------------------------------------------------------------------------- scanning
+SCAN_TIMEOUT_S = 10
+SCAN_HANGS_BEFORE_EXIT = 3
+_scan_hangs = 0
+
+
+class ScanHung(RuntimeError):
+    """BlueZ didn't answer a request to start or stop scanning."""
+
+
+class scanning:
+    """`async with bt_debug.scanning(callback, hci):` -- a BleakScanner whose start and stop can't hang.
+
+    Two workers starting a scan on the same radio at the same moment can leave one of them waiting for BlueZ's
+    answer forever (seen on an Orin: the second person's Heart worker sat in its first scan for two hours,
+    listing nothing). Here start and stop give up after SCAN_TIMEOUT_S with ScanHung; after
+    SCAN_HANGS_BEFORE_EXIT in a row the worker exits, and server.py starts it again with a fresh connection
+    to BlueZ."""
+
+    def __init__(self, callback, hci=None, timeout=SCAN_TIMEOUT_S, scanner=None):
+        if scanner is None:                   # the worker's own BleakScanner (its tests swap in a stand-in)
+            from bleak import BleakScanner as scanner
+        self.hci, self.timeout = hci, timeout
+        self.scanner = scanner(callback, **bluez_args(hci))
+
+    async def _call(self, what, coro):
+        import asyncio
+        global _scan_hangs
+        try:
+            await asyncio.wait_for(coro, self.timeout)
+        except asyncio.TimeoutError:
+            _scan_hangs += 1
+            msg = (f"Bluetooth didn't {what} scanning on {self.hci or 'the default radio'} within {self.timeout} s "
+                   f"({_scan_hangs} in a row)")
+            if _scan_hangs >= SCAN_HANGS_BEFORE_EXIT:
+                print(f"{msg}: restarting this worker", flush=True)
+                os._exit(75)                  # server.py starts it again; a stuck D-Bus call can't be cancelled cleanly
+            raise ScanHung(msg) from None
+        _scan_hangs = 0
+
+    async def __aenter__(self):
+        await self._call("start", self.scanner.__aenter__())       # the scanner's own enter/exit: start / stop
+        return self.scanner
+
+    async def __aexit__(self, *exc):
+        try:
+            await self._call("stop", self.scanner.__aexit__(None, None, None))
+        except ScanHung:
+            if exc[0] is None:
+                raise
+        return False
 
 
 def state_dir(folder):

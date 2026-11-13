@@ -64,8 +64,24 @@ def ecg_shape(phase):
     return g(0.18, 0.035, 0.12) + g(0.30, 0.010, -0.15) + g(0.32, 0.012, 1.25) + g(0.345, 0.012, -0.3) + g(0.56, 0.06, 0.3)
 
 
+def stuck_once(logs):
+    """BIODASH_DEMO_STUCK=heart-1: this worker (person index 1) gets stuck in its first search, once, like a BlueZ
+    scan that never answers, so test_server.py can check that server.py notices and starts it again."""
+    if os.environ.get("BIODASH_DEMO_STUCK") != f"{KEY}-{WHO}":
+        return
+    marker = os.path.join(logs, "demo-was-stuck")
+    if os.path.exists(marker):
+        return
+    write_json(os.path.join(logs, "status.json"), {"state": "scanning", "debug": {}})
+    write_json(marker, {"at": time.time()})
+    print("Radar active. Sweeping for Polar units... (demo: stuck)", flush=True)
+    while True:
+        time.sleep(60)
+
+
 def heart():
     logs = state("polar_dashboard", "logs_advanced")
+    stuck_once(logs)
     name, addr = f"Polar H10 DEMO{TAG}", f"DEMO-HEART-{WHO + 1}"
     base = 62 + 14 * WHO                                             # each person's own resting rate
     s = bt_debug.SessionFiles("Polar H10", repair=False)

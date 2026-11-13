@@ -170,8 +170,13 @@ export async function mount(el, { store }) {
                   <span class="small muted">${u.length ? 'Used by ' + esc(u.join(', ')) : ''}</span></div>`;
             }).join('')}</div>
             ${defaultUsers.length ? `<p class="small muted" style="margin-top:8px">${esc(defaultUsers.join(', '))} use${defaultUsers.length === 1 ? 's' : ''} the system’s default radio.</p>` : ''}
+            ${(() => {                                   // two straps on one radio while there's another free
+                const on = Object.entries(r.devices).filter(([k, x]) => kindOf(k) === 'heart' && x && x.hci).map(([k, x]) => [label(k), x.hci]);
+                const clash = on.filter(([, h], i) => on.some(([, h2], j) => j !== i && h2 === h));
+                return clash.length && r.adapters.length >= on.length ? `<div class="callout warn" style="margin-top:8px">${icon('warn')}<span>${esc(clash.map(c => c[0]).join(' and '))} share ${esc(clash[0][1])}. A streaming strap can starve the other’s searching: unless one is pinned there, Bio-dash moves the one still searching to a free radio within a few seconds.</span></div>` : '';
+            })()}
             ${straps > r.adapters.length ? `<div class="callout warn" style="margin-top:8px">${icon('warn')}<span>${straps} heart straps but ${r.adapters.length} radio${r.adapters.length > 1 ? 's' : ''}: a streaming strap can take a whole radio, so add a USB Bluetooth dongle per extra strap.</span></div>` : ''}
-            <p class="small muted" style="margin-top:8px">${several() ? 'With several people the radios are shared out: straps take the dongles first. ' : ''}To pin a device to a radio, open the device and tap <b>Device</b>.</p>`;
+            <p class="small muted" style="margin-top:8px">${several() ? 'With several people the radios are shared out: a connected device stays on its radio, and a strap still searching gets a radio no other strap uses. ' : ''}To pin a device to a radio, open the device and tap <b>Device</b>.</p>`;
         } catch (e) { box.textContent = 'Couldn’t list the radios.'; }
     }
     $('[data-radios-refresh]', el).addEventListener('click', paintRadios);

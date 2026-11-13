@@ -228,6 +228,10 @@ def _die_with_parent():
 class Worker:
     """Runs one device's Bluetooth program, restarting it (with a growing pause) if it stops."""
 
+    START_GAP_S = 1.5                 # between two workers starting: two scans asked of BlueZ at the same instant
+    _gate = None                      # can leave one of them waiting forever (see bt_debug.scanning)
+    _next_start = 0.0
+
     def __init__(self, device):
         self.d = device
         self.wanted = False
@@ -287,6 +291,15 @@ class Worker:
                    PYTHONPATH=os.pathsep.join(p for p in (HERE, os.environ.get("PYTHONPATH")) if p), **self.d.env())
         while self.wanted:
             self.state = "starting"
+            if not DEMO:
+                Worker._gate = Worker._gate or asyncio.Lock()
+                async with Worker._gate:
+                    wait = Worker._next_start - time.monotonic()
+                    if wait > 0:
+                        await asyncio.sleep(wait)
+                    Worker._next_start = time.monotonic() + self.START_GAP_S
+                if not self.wanted:
+                    break
             began = time.time()
             try:
                 # its own session: a Ctrl+C in the terminal reaches the server, which then stops
@@ -514,6 +527,9 @@ class Hub:
                         self.latest["water"]["last_sip"] = s["last_sip"]
                 except Exception:
                     pass
+            for inst in active():
+                with contextlib.suppress(Exception):
+                    await stuck_scan(inst)
             if now - self._radios_at > 10:
                 self._radios_at = now
                 with contextlib.suppress(Exception):
@@ -558,31 +574,79 @@ HUB = Hub()
 
 
 # ---------------------------------------------------------------------------------- people
+def plan_radios(worn, radios, status):
+    """Which radio each worn device's worker should use while several people are followed.
+    worn: [(key, kind)] in person order; radios: usable adapters ({name, address, placement});
+    status: {key: compact status}. -> {key: adapter address}
+
+    A device that is connected (or connecting) keeps the radio it is on: moving it would drop it, and the
+    radio it is on is busy, which is the whole point. A streaming H10 can starve scanning on its radio, so
+    each strap still looking gets a radio no other strap uses (USB dongles first), and only shares one when
+    there are more straps than radios. Rings, which barely use a radio, take the one with the fewest straps.
+    """
+    if not radios:
+        return {}
+    by_name = {a["name"]: a["address"] for a in radios}
+    plan, straps = {}, collections.Counter()
+    for key, kind in worn:                                    # 1. connected devices stay where they are
+        st = status.get(key) or {}
+        hci = (st.get("radio") or {}).get("hci")
+        if st.get("state") in ("streaming", "connecting") and hci in by_name:
+            plan[key] = by_name[hci]
+            if kind == "heart":
+                straps[plan[key]] += 1
+    dongles_first = sorted(radios, key=lambda a: a.get("placement") != "external")
+    for key, kind in worn:                                    # 2. straps still looking: the least busy radio
+        if key not in plan and kind == "heart":
+            plan[key] = min(dongles_first, key=lambda a: straps[a["address"]])["address"]
+            straps[plan[key]] += 1
+    builtin_first = dongles_first[::-1]
+    for key, kind in worn:                                    # 3. rings: away from the straps
+        if key not in plan:
+            plan[key] = min(builtin_first, key=lambda a: straps[a["address"]])["address"]
+    return plan
+
+
 async def share_radios():
-    """With two or more people, give each strap its own radio where there are enough (a streaming H10 can
-    monopolise one): straps take the USB dongles first, rings start from the other end. Each worker reads
-    its share from its radio_config.json and follows it unless you pinned a radio (bt_debug.RadioPin).
+    """With two or more people, share the radios out (plan_radios). Each worker reads its share from its
+    radio_config.json at every scan and follows it unless you pinned a radio (bt_debug.RadioPin).
     With one person nothing is shared out and "auto" works as it always has."""
     if DEMO:
         return
     worn = [i for i in active() if i.kind.personal and enabled(i.key)]
-    several = len({i.person for i in worn}) > 1
-    order = []
-    if several:
+    plan = {}
+    if len({i.person for i in worn}) > 1:
         radios = [a for a in await bt_debug.list_adapters()
                   if a.get("address") and a.get("powered", True) and not a.get("error")]
-        order = sorted(radios, key=lambda a: a.get("placement") != "external")       # dongles first
-    for kind, ranked in (("heart", order), ("oxygen", order[::-1])):
-        for n, inst in enumerate(i for i in worn if i.kind.key == kind):
-            share = ranked[n % len(ranked)]["address"] if ranked else None
-            bt_debug.RadioPin(os.path.join(inst.state_dir, RADIO_FILE)).set_share(share)
-    if not several:
-        for inst in INSTANCES.values():
-            if inst.kind.personal and inst not in worn and os.path.isdir(inst.state_dir):
-                bt_debug.RadioPin(os.path.join(inst.state_dir, RADIO_FILE)).set_share(None)
+        plan = plan_radios([(i.key, i.kind.key) for i in worn], radios, HUB.status)
+    for inst in INSTANCES.values():
+        if inst.kind.personal and (inst in worn or os.path.isdir(inst.state_dir)):
+            bt_debug.RadioPin(os.path.join(inst.state_dir, RADIO_FILE)).set_share(plan.get(inst.key))
 
 
 RADIO_FILE = "radio_config.json"
+SCAN_STUCK_S = float(os.environ.get("BIODASH_SCAN_STUCK_S", "90"))   # these workers rewrite their status at every 3 s sweep while searching
+WATCHED = ("heart", "brain", "air")
+
+
+async def stuck_scan(inst):
+    """A worker that says it's searching but hasn't finished a sweep for SCAN_STUCK_S is stuck in BlueZ
+    (bt_debug.scanning catches most of these itself): start it again."""
+    proc = inst.proc
+    if inst.kind.key not in WATCHED or not proc or proc.state != "running" or not enabled(inst.key):
+        return
+    path = getattr(inst.api, "STATUS_FILE", None)
+    if not path or time.time() - (proc.started_at or 0) < SCAN_STUCK_S:
+        return
+    try:
+        age = time.time() - os.stat(path).st_mtime
+        with open(path) as f:
+            searching = json.load(f).get("state") == "scanning"
+    except (OSError, ValueError):
+        age, searching = time.time() - proc.started_at, True       # never wrote a status at all
+    if searching and age > SCAN_STUCK_S:
+        proc._note(f"no search finished for {age:.0f} s: Bluetooth seems stuck, starting the worker again")
+        await proc.restart()
 
 
 async def release(inst):

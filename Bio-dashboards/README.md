@@ -191,6 +191,7 @@ V8.0_Dashboard/
 ├── launch.sh · service_run.sh · setup_env.sh · updater.py · restart_all.py
 ├── test_server.py       end to end with made-up devices (API, people, forecasts, recordings)
 ├── test_web.py          every page in a real browser (Playwright)
+├── test_radios.py · test_scan_hang.py   sharing radios between people; a Bluetooth scan that never answers
 └── docs/ARCHITECTURE.md how it all fits, with diagrams
 ```
 
@@ -212,6 +213,7 @@ A flowchart that walks from what you see to the fix: [docs/ARCHITECTURE.md secti
 | Heart says *the strap refused the … stream* | The page says why. *Invalid MTU*: the Bluetooth link's packet size is too small for ECG — check `ExchangeMTU` isn't set in `/etc/bluetooth/main.conf`, try the other radio, or `sudo systemctl restart bluetooth`. *Busy*: something else is streaming from the strap (a V5 dashboard still running, the Polar Beat app). Heart rate keeps recording either way. |
 | A device page says *Restarting…* | Its Bluetooth worker stopped. **Device → Troubleshooting** shows why (often BlueZ: `sudo systemctl restart bluetooth`). |
 | ECG drops, jumpy readings | Weak signal (under −85 dBm in the Device sheet): move closer, or pin the device to a USB dongle. |
+| One person's page stays on "Looking…" while the strap is on | Update to the latest V8.0 patch: a search that hangs in Bluetooth is now retried, and the worker restarted. Its messages are under Device → Troubleshooting. |
 | Two people, one strap drops or stalls | Each streaming H10 wants a radio to itself. Settings → Bluetooth radios warns when there are more straps than radios: add a USB dongle per extra strap. |
 | Other devices stall while the H10 streams | The H10 is monopolising its radio. Plug in a USB dongle; *Automatic* moves the Polar onto it. |
 | Air readings in the wrong boxes | Air → *Device options* → pick the Atmos model. |

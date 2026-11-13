@@ -343,7 +343,7 @@ async def scan_and_list_devices():
             }
 
     try:
-        async with BleakScanner(detection_callback, **bt_debug.bluez_args(radio_hci)):
+        async with bt_debug.scanning(detection_callback, radio_hci, scanner=BleakScanner):
             # Sweep for up to 3 s, but bail early the moment the UI picks a device
             for _ in range(15):
                 await asyncio.sleep(0.2)
@@ -352,6 +352,7 @@ async def scan_and_list_devices():
                     break
     except Exception as e:
         logging.error(f"Radar error: {e}")
+        await asyncio.sleep(2)                 # no Bluetooth (or it failed): don't spin
 
     # A sweep cut short by a Connect click is partial -- keep the last full list
     # instead of blanking the device cards the user is looking at.

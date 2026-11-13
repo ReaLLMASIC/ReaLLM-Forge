@@ -331,7 +331,7 @@ async def scan_and_list_devices():
             }
 
     try:
-        async with BleakScanner(detection_callback, **bt_debug.bluez_args(radio_hci)):
+        async with bt_debug.scanning(detection_callback, radio_hci, scanner=BleakScanner):
             for _ in range(15):  # up to 3 s, exit early once the UI picks something
                 await asyncio.sleep(0.2)
                 if os.path.exists(COMMAND_FILE):
@@ -339,6 +339,7 @@ async def scan_and_list_devices():
                     break
     except Exception as e:
         logging.error(f"Radar error: {e}")
+        await asyncio.sleep(2)                 # no Bluetooth (or it failed): don't spin
 
     # A sweep cut short by a Connect click is partial -- keep the last full list
     if not cut_short:

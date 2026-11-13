@@ -551,7 +551,7 @@ class Radios:
             hci = a["name"]
             sc = BleakScanner(self._heard_on(hci), **bt_debug.bluez_args(hci))
             try:
-                await sc.start()
+                await asyncio.wait_for(sc.start(), bt_debug.SCAN_TIMEOUT_S)     # a radio that doesn't answer is skipped
                 self.scanners[hci] = sc
             except Exception as e:
                 logging.warning(f"Couldn't scan on {hci}: {e!r}")
@@ -668,7 +668,7 @@ async def scan():
             finally:
                 await radios.stop()
         else:
-            async with BleakScanner(on_adv, **bt_debug.bluez_args(radio_hci)):
+            async with bt_debug.scanning(on_adv, radio_hci, scanner=BleakScanner):
                 await listen()
     except Exception as e:
         logging.error(f"Scan error: {e}")

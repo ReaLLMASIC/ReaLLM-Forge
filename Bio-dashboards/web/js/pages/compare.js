@@ -5,6 +5,10 @@ import { icon, esc, num, pill, dapi, seg, prefs, stateOf, PERSON_STYLE, $ } from
 import { Plot } from '../plot.js';
 
 const ECG_WINDOW = 6000;
+// A strap sends its ECG in bursts (about one every 0.5 s), so a strip whose right edge is "now" would have a
+// growing gap at the end that jumps closed at each burst: the trace wiggles. Like the Heart page's monitor,
+// each strip is drawn PLAY_DELAY_MS behind the strap's own clock instead, so there's always data to the edge.
+const PLAY_DELAY_MS = 900;
 const mark = (pid) => `<span class="pmark ${PERSON_STYLE[pid].mark}" style="--c:${PERSON_STYLE[pid].c}"></span>`;
 
 export async function mount(el, { store }) {
@@ -54,9 +58,11 @@ export async function mount(el, { store }) {
     const rmssd = trend('data-rmssd', hearts, 'ms', { series: { dp: 1 }, y: { minSpan: 10, zero: true } });
     const spo2 = trend('data-spo2', rings, '%', { y: { ceil: 101, minSpan: 6 }, refs: [{ y: 90, label: '90 %', color: 'var(--warn)' }], gap: 30e3 });
     const pulse = trend('data-pulse', rings, 'bpm', { gap: 30e3 });
+    const clock = {};                          // per strap: how far the browser's clock is ahead of the newest sample
     const ecg = Object.fromEntries(hearts.map(p => {
-        const plot = new Plot($(`[data-ecg="${p.id}"]`, el), { series: [{ id: 'ecg', label: p.name, color: p.style.c, unit: 'mV', dp: 2, width: 1.4 }],
-            x: { window: ECG_WINDOW, hideAxis: true }, y: { minSpan: 1 }, tick: 60, gap: 400, empty: 'Waiting for the ECG' });
+        const follow = () => clock[p.id] == null ? Date.now() : Date.now() - clock[p.id] - PLAY_DELAY_MS;
+        const plot = new Plot($(`[data-ecg="${p.id}"]`, el), { series: [{ id: 'ecg', label: p.name, color: p.style.c, unit: 'mV', dp: 2, width: 1.4, raw: true }],
+            x: { window: ECG_WINDOW, hideAxis: true, follow }, y: { minSpan: 1 }, tick: 40, gap: 400, empty: 'Waiting for the ECG' });
         plots.push(plot);
         return [p.id, plot];
     }));
@@ -81,7 +87,12 @@ export async function mount(el, { store }) {
     const offs = [];
     for (const p of hearts) {
         offs.push(store.on(`live:${p.heart}`, (msg) => {
-            if (msg.type === 'ecg') for (const [ts, mv] of msg.rows) ecg[p.id].push('ecg', ts, mv);
+            if (msg.type !== 'ecg' || !msg.rows.length) return;
+            // the smallest lag seen is the true clock difference (later bursts only add network delay);
+            // drift slowly toward the current one so a clock change is followed too
+            const lag = Date.now() - msg.rows[msg.rows.length - 1][0];
+            clock[p.id] = clock[p.id] == null || lag < clock[p.id] ? lag : clock[p.id] + (lag - clock[p.id]) * 0.02;
+            for (const [ts, mv] of msg.rows) ecg[p.id].push('ecg', ts, mv);
         }));
     }
     for (const p of rings) {
