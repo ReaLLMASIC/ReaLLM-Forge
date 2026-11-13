@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "source_archive": {
+    "filename": "pr926-dashboard.tar.gz",
+    "bytes": 11277564,
+    "sha256": "5beba78e1a674bc0cc8228e07ce805b88e2e64ad67c073b4df2aca65c52d31e3"
+  },
+  "measurement_scope": "Original PR #926 TED-2020 training checkpoints; 50-batch sampled validation; resumed ~3-epoch endpoints; not full-corpus or FLORES evaluation",
+  "source_training_commit": "96fbbf34c1265ab73429bcdd4cf6ea65b252b385",
+  "unchanged_source_files": {
+    "assets/plotly.min.js": {
+      "bytes": 4558696,
+      "sha256": "6d21266ce1bd7d9e5ab4e115989c70c20de0382fd973a8f26ab58619eba4d603"
+    },
+    "assets/style.css": {
+      "bytes": 5112,
+      "sha256": "85e67c88f5de73864134021cb3e67a49c3760e42faf817ce16b9893e0d1603b9"
+    },
+    "assets/evidence.js": {
+      "bytes": 12313,
+      "sha256": "a758762d2624c81e5f11e15db122c7988a8b7e7c7ac470df4ac8a41f622fbb79"
+    },
+    "assets/dashboard.js": {
+      "bytes": 27623,
+      "sha256": "5faa5b2bd1181e028f8a0b730de219981eff5c30441771c2db6e161438ed377b"
+    },
+    "assets/plotly.LICENSE.txt": {
+      "bytes": 1078,
+      "sha256": "67a26cf80f03ff388f26945dfc1f6caed1a0746ff43871190339b3aee49b94bb"
+    },
+    "data/ko_ipa_char_bpe.js": {
+      "bytes": 3671008,
+      "sha256": "a53854d9e326ad86af3ec8ce710ae728f7fc098c7b9fe7118800f52a09c1a7b4"
+    },
+    "data/zh_cn_original_char_bpe.js": {
+      "bytes": 2680775,
+      "sha256": "9e409ebe69c741f172fd97123ed25395dcf9940387a29d77b5b4e82ed422c8d9"
+    },
+    "data/token-evidence.js": {
+      "bytes": 3795,
+      "sha256": "0521e40a270500e3304c53a7e28bb55f038a5e30d019aaeea430afd572743958"
+    },
+    "data/ja_ipa_char_bpe.js": {
+      "bytes": 2965487,
+      "sha256": "ddd8460277d5684b1764312618d684379ea7044dc6c1a458775c2f5936c29401"
+    },
+    "data/comparisons_6_pairs.tsv": {
+      "bytes": 1138,
+      "sha256": "df8e32d18c9e28f79257d53b8b8810c738e5d56079c0ba20ae4094c750dda4ce"
+    },
+    "data/ja_original_char_bpe.js": {
+      "bytes": 2805567,
+      "sha256": "7e19d142d8f9e63dffb04e1240592de02cb30aa9fbf536b65ff68f6252884cbf"
+    },
+    "data/ko_ipa_char.js": {
+      "bytes": 202857,
+      "sha256": "fec1abf4eae9df075d44316d03afbd0b953216813bbec3cf9f90565edc02814c"
+    },
+    "data/zh_cn_ipa_char.js": {
+      "bytes": 490567,
+      "sha256": "dca929fb8f0b9e800b0780f8e3098a13c0eefe821d9b6134a04c7d40e91a9022"
+    },
+    "data/results_all_12_runs.tsv": {
+      "bytes": 4519,
+      "sha256": "3d741ed7606e2c604aafadc840f8600eacb06e6c5014fff749dbf38b7d80cefb"
+    },
+    "data/ko_original_char.js": {
+      "bytes": 1571025,
+      "sha256": "b15ca8fd4e9bcd515bda1f4ce1ca26e0b2a64eb16c661ac3971cd363d2311fda"
+    },
+    "data/ja_ipa_char.js": {
+      "bytes": 421832,
+      "sha256": "d911a05cd34de044cc09e551c4c579d2fb9c9277a03968e1a80ecb78876f44a3"
+    },
+    "data/ko_original_char_bpe.js": {
+      "bytes": 2797674,
+      "sha256": "71f55582d4f4241f3e4210606dc1f42408dc278686304b2ffcfb859894091364"
+    },
+    "data/summary.js": {
+      "bytes": 17424,
+      "sha256": "e4d6f2e9338ec824d46219075f82bc6cc8c1f44964499e809a72d4af70510d3d"
+    },
+    "data/ja_original_char.js": {
+      "bytes": 1664239,
+      "sha256": "12f6d18aebf811b8eeff6c3c1e48560f70bdc566bb26ecd5730f19f5e909c379"
+    },
+    "data/zh_cn_ipa_char_bpe.js": {
+      "bytes": 2886649,
+      "sha256": "48c1ca9202723b7453f18c35e9be8915454034f51141f2b523d6ed819190bca1"
+    },
+    "data/zh_cn_original_char.js": {
+      "bytes": 2462781,
+      "sha256": "8f4bd132bc7fc11bcfe2ffac86daccfa95081b71e0bdafc81a3b51331c21005b"
+    }
+  },
+  "integration_changes": [
+    "Added the snapshot scope label to index.html",
+    "Expanded README.md; added repository entry links and this provenance manifest"
+  ],
+  "runtime": "Relative local CSS and classic scripts; Plotly 2.35.2 bundled with its MIT license; no server or network required"
+}

@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PR #926 · Char vs. CharBPE</title>
+  <meta name="description" content="Explore and export Char and CharBPE validation and token diagnostics on CJK TED-2020 text.">
+  <link rel="stylesheet" href="assets/style.css">
+  <script defer src="assets/plotly.min.js"></script>
+  <script defer src="data/summary.js"></script>
+  <script defer src="assets/dashboard.js"></script>
+  <script defer src="data/token-evidence.js"></script>
+  <script defer src="assets/evidence.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap mast-inner">
+      <div class="eyebrow">TED-2020 / PR #926</div>
+      <h1>Char vs. CharBPE</h1>
+      <p class="lede">Japanese, Korean and Simplified Chinese · Original text and IPA</p>
+      <p class="note" id="snapshot-note">Archived PR #926 training results: sampled validation at recorded checkpoints, including the resumed ~3-epoch endpoints. This snapshot is separate from full-corpus TED/FLORES evaluation.</p>
+      <nav aria-label="Dashboard sections">
+        <a href="#overview">Overview</a><a href="#curves">Learning curves</a>
+        <a href="#paper-evidence">Paper evidence</a><a href="#comparison">Token comparison</a><a href="#explorer">Token explorer</a>
+      </nav>
+    </div>
+  </header>
+  <main class="wrap">
+    <section id="overview" aria-labelledby="overview-heading">
+      <div class="section-head"><div><h2 id="overview-heading">Training budget changes the ranking</h2>
+        <p>At 1,000 updates CharBPE has lower validation BPB in all six pairs. At about three corpus epochs Char leads in all six.</p></div>
+        <a class="button" href="data/results_all_12_runs.tsv" download>Download results TSV</a>
+      </div>
+      <div class="two-col">
+        <article class="panel">
+          <div class="panel-head"><div><h3>BPB advantage by budget</h3><p>Percent lower than the other tokenizer</p></div><button data-export="advantage" disabled>Save PNG</button></div>
+          <div id="advantage" class="chart" aria-label="Relative validation BPB advantage by budget"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><div><h3>Validation BPB</h3><p>Bits per UTF-8 byte · lower is better</p></div><button data-export="absolute" disabled>Save PNG</button></div>
+          <div class="controls compact"><label>Budget<select id="budget"><option value="500">500 updates</option><option value="1000">1,000 updates</option><option value="final" selected>About 3 corpus epochs</option></select></label></div>
+          <div id="absolute" class="chart" aria-label="Absolute validation BPB for each pair"></div>
+        </article>
+      </div>
+      <details class="table-panel"><summary>All 12 final runs</summary><div class="table-scroll">
+        <table id="results"><thead><tr><th>Language</th><th>Text</th><th>Tokenizer</th><th>Vocabulary</th><th>Updates</th><th>Epochs</th><th>Validation BPB</th></tr></thead><tbody></tbody></table>
+      </div></details>
+    </section>
+
+    <section id="curves" aria-labelledby="curves-heading">
+      <div class="section-head"><div><h2 id="curves-heading">Learning curves</h2><p>Stars mark resumed endpoint evaluations. Dotted lines connect them to the previous recorded evaluation.</p></div></div>
+      <article class="panel">
+        <div class="panel-head"><div><h3>Validation BPB history</h3><p id="curve-caption"></p></div><button data-export="history" disabled>Save PNG</button></div>
+        <div class="controls"><label>Language<select id="curve-language"></select></label><label>Text<select id="curve-rep"></select></label>
+          <label>Horizontal axis<select id="curve-axis"><option value="iteration">Optimizer updates</option><option value="epochs">Corpus epochs</option></select></label>
+        </div>
+        <div id="history" class="chart" aria-label="Validation BPB learning curves"></div>
+      </article>
+    </section>
+
+    <section id="paper-evidence" aria-labelledby="evidence-heading">
+      <div class="section-head">
+        <div><h2 id="evidence-heading">Token metrics against the paper</h2>
+        <p>Published values from Table 4 and token-level measurements from PR #926.</p></div>
+      </div>
+      <article class="panel evidence-panel">
+        <div class="panel-head">
+          <div><h3>1. Does the loss–norm relationship hold across runs?</h3>
+          <p id="coefficient-caption">Look at Korean · original · Char and the vertical zero line.</p></div>
+          <button data-export="evidence-coefficients" disabled>Save PNG</button>
+        </div>
+        <div class="controls">
+          <label>Correlation<select id="evidence-method"><option value="adjusted">Adjusted for training occurrence</option><option value="raw">Before adjustment</option></select></label>
+        </div>
+        <div id="evidence-coefficients" class="chart" aria-label="Paper and PR loss–norm correlations for twelve experiment groups"></div>
+        <p class="note" id="coefficient-note"></p>
+        <details class="evidence-values"><summary>Exact coefficients and token counts</summary>
+          <div class="table-scroll"><table id="evidence-table"><thead><tr><th>Run</th><th>Paper</th><th>Paper n</th><th>PR at 1,000</th><th>PR at 1,000 n</th><th>PR endpoint</th><th>PR endpoint n</th></tr></thead><tbody></tbody></table></div>
+        </details>
+      </article>
+
+      <article class="panel evidence-panel">
+        <div class="panel-head">
+          <div><h3>2. See how the coefficient is calculated</h3>
+          <p>Each dot is a token ID. This matches the paper’s filter: training occurrence &gt; 0 and at least 20 validation observations.</p></div>
+        </div>
+        <div class="controls">
+          <label>Run<select id="evidence-run"></select></label>
+          <label>PR checkpoint<select id="evidence-step"><option value="endpoint">Resumed endpoint</option><option value="early">Step 1,000</option></select></label>
+          <button id="evidence-open-matrix" type="button">Open raw sorting view</button>
+        </div>
+        <p id="evidence-detail-caption" class="note" aria-live="polite"></p>
+        <div class="two-col evidence-scatters">
+          <div class="evidence-scatter">
+            <div class="panel-head"><div><h3>Before adjustment</h3><p id="evidence-raw-rho"></p></div><button data-export="evidence-raw" disabled>Save PNG</button></div>
+            <div id="evidence-raw" class="chart" aria-label="Token loss and vector norm percentile ranks"></div>
+          </div>
+          <div class="evidence-scatter">
+            <div class="panel-head"><div><h3>After adjustment</h3><p id="evidence-adjusted-rho"></p></div><button data-export="evidence-adjusted" disabled>Save PNG</button></div>
+            <div id="evidence-adjusted" class="chart" aria-label="Token loss and vector norm ranks after adjustment for training occurrence"></div>
+          </div>
+        </div>
+        <p class="note">The right chart subtracts the rank predicted by training occurrence from each axis. Look at its fitted line: a flat line means norm gives little indication of loss under this adjustment. Hover over a dot for its token, loss, L2 norm and counts.</p>
+      </article>
+
+      <div class="two-col evidence-extra">
+        <article class="panel">
+          <div class="panel-head"><div><h3>3. Similar rank, different probabilities</h3><p id="evidence-prob-caption"></p></div><button data-export="evidence-prob" disabled>Save PNG</button></div>
+          <div id="evidence-prob" class="chart" aria-label="Target and left probabilities for tokens h and e in Korean IPA Char"></div>
+          <p class="note">Look at the two bars for <strong>Target probability</strong>, then compare the mean ranks above. Left probability is the mass assigned to candidates scoring above the correct token.</p>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><div><h3>4. Byte token geometry across checkpoints</h3><p>Korean IPA · CharBPE</p></div><button data-export="evidence-bytes" disabled>Save PNG</button></div>
+          <div id="evidence-bytes" class="chart" aria-label="Median nearest-vector angle over time for reserved byte IDs and the rest of the vocabulary"></div>
+          <p class="note">Follow the orange line at initialization, step 1,000 and the endpoint. All 256 reserved byte IDs have zero observed training and validation targets at every plotted checkpoint.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="comparison" aria-labelledby="compare-heading">
+      <div class="section-head"><div><h2 id="compare-heading">Token comparison</h2><p>Each series ranks its own token IDs. Matching percentiles compare distributions.</p></div></div>
+      <article class="panel">
+        <div class="panel-head"><div><h3>Ranked token metrics</h3><p id="compare-caption" aria-live="polite"></p></div><button data-export="compare-chart" disabled>Save PNG</button></div>
+        <div class="controls">
+          <label>Compare<select id="compare-mode"><option value="tokenizer">Char vs. CharBPE</option><option value="representation">Original text vs. IPA</option></select></label>
+          <label>Language<select id="compare-language"></select></label><label><span id="compare-fixed-label">Text</span><select id="compare-fixed"></select></label>
+          <label>Checkpoint<select id="compare-step"></select></label>
+          <label>Sort by<select id="compare-sort"></select></label>
+          <label>Metrics<select id="compare-metrics"><option value="all">All eight metrics</option><option value="core">Loss, exposure and geometry</option><option value="probability">Probability and rank</option></select></label>
+        </div>
+        <div class="toggles"><label><input type="checkbox" id="log-occurrence" checked> Show training occurrence as ln(1 + count)</label><label><input type="checkbox" id="include-missing" checked> Put unranked tokens in a left bucket</label></div>
+        <div id="compare-chart" class="chart" aria-label="Token metrics by independent rank percentile"></div>
+        <p class="note">Blank metrics have no measurement at this checkpoint. Gray points at the left have a measured value for the plotted metric and no value for the sorting metric. Pale points have zero training occurrences.</p>
+        <div class="matrix-actions"><button id="make-matrix" disabled>Generate sorting matrix</button><button id="save-matrix" hidden>Save matrix PNG</button></div>
+        <figure id="matrix-figure" hidden><div class="matrix-scroll"><canvas id="matrix" aria-label="Eight by eight token metric sorting matrix"></canvas></div><figcaption>Rows are metrics. Each column sorts by a different metric and shares the row’s vertical scale.</figcaption></figure>
+      </article>
+    </section>
+
+    <section id="explorer" aria-labelledby="explore-heading">
+      <div class="section-head"><div><h2 id="explore-heading">Token explorer</h2><p>Choose a run and checkpoint. Select a plotted point or enter a token ID to see its history.</p></div></div>
+      <article class="panel">
+        <div class="panel-head"><div><h3>Token distribution</h3><p id="explore-caption" aria-live="polite"></p></div><button data-export="token-chart" disabled>Save PNG</button></div>
+        <div class="controls">
+          <label>Run<select id="explore-run"></select></label><label>Checkpoint<select id="explore-step"></select></label>
+          <label>Metric<select id="explore-metric"></select></label><label>Horizontal axis<select id="explore-x"><option value="rank">Rank percentile</option><option value="occurrence">Training occurrence</option></select></label>
+          <label>Sort by<select id="explore-sort"></select></label>
+        </div>
+        <div id="token-chart" class="chart" aria-label="Individual token metric observations"></div>
+        <div class="detail-head">
+          <form id="token-form" class="controls compact"><label>Token ID<input id="token-id" type="number" min="0" step="1" required></label><button id="find-token" type="submit" disabled>Show token</button></form>
+          <button id="save-token-csv" disabled>Download checkpoint CSV</button>
+        </div>
+        <div id="token-detail" class="token-detail" hidden>
+          <div class="panel-head"><div><h3 id="token-title">Token history</h3><p id="token-values"></p></div><button data-export="token-history" disabled>Save PNG</button></div>
+          <div id="token-history" class="chart" aria-label="Selected token metric history"></div>
+        </div>
+      </article>
+    </section>
+
+    <footer><div><strong>PR #926 · TED-2020</strong><p>One seed. Corpus epochs are processed tokens divided by corpus tokens. Validation BPB is comparable within each language and text representation. Equal updates do not imply equal compute or text exposure.</p></div><a href="data/comparisons_6_pairs.tsv" download>Download paired results TSV</a></footer>
+    <p id="status" class="status" aria-live="polite"></p>
+  </main>
+</body>
+</html>

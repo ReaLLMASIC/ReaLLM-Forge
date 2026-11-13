@@ -26,6 +26,17 @@ Hardware Related
 * `PPA Implications Analysis`: Understand the power, performance, and area (PPA) implications of different model designs, guiding efficient hardware-software integration.
 
 
+## PR #926 offline dashboard
+
+After cloning or pulling, double-click
+[`report/pr926-dashboard/index.html`](report/pr926-dashboard/index.html) to explore
+the original CJK Char/CharBPE experiment, learning curves and per-token metrics.
+All 12 runs, chart code and downloadable tables are bundled for offline use;
+no server, build step or network is needed. See the
+[dashboard guide](report/pr926-dashboard/README.md) for details. This snapshot
+shows the original sampled validation measurements; the new full-corpus
+TED/FLORES evaluator is documented [separately](documentation/cjk_full_checkpoint_eval.md).
+
 # TOC
 
 * [Overview](#overview)

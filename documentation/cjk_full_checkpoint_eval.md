@@ -9,8 +9,15 @@ gradient checks enforce this during evaluation.
 
 The feature is based on PR #926. While that PR remains open, this is a dependent
 change; a PR against upstream `master` can also show the prerequisite commits.
-Keep experimental checkpoints/data outside the checkout. Only code, tests,
-documentation and small textual result summaries belong in the code PR.
+Keep experimental checkpoints, tokenized corpora and new raw evaluation outputs
+outside the checkout. The explicitly bundled offline dashboard is a checked-in
+textual snapshot of the original experiment; it does not include model weights
+or training corpora.
+
+The [bundled offline dashboard](../report/pr926-dashboard/index.html) preserves
+the original 12-run training snapshot and its sampled validation measurements.
+Double-click its `index.html` to explore it with the included chart assets and
+data. It is separate from this evaluator's new full-corpus outputs.
 
 ## Measurement contract
 

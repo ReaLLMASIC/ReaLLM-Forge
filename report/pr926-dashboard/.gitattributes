@@ -1,0 +1,6 @@
+# Keep this supplied snapshot byte-identical across checkout platforms.
+* -text
+# The supplied TSV downloads use standard CRLF record separators.
+data/*.tsv whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+assets/plotly.min.js linguist-vendored
+data/*.js linguist-generated
