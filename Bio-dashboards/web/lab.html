@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Stream Lane Lab · Bio-dash</title>
+<style>
+
+:root{--bg:#0b111a;--panel:#111a25;--line:#253343;--ink:#e6edf5;--muted:#91a3b8;--teal:#4ad5bc;--orange:#ffb661;--blue:#8faeff;--red:#ff8b8b;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;color:var(--ink);background:var(--bg)}*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button,select,input{color:var(--ink)}button{cursor:pointer}button:disabled{cursor:wait;opacity:.45}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--teal);outline-offset:3px}button,select,input[type=number]{border:1px solid var(--line);border-radius:7px;background:#0c1520}button{padding:10px 14px;font-weight:650}button:hover:not(:disabled){border-color:#657c92}button.primary{background:var(--teal);border-color:var(--teal);color:#082a27}button.quiet{padding:7px 10px;background:transparent}.shell{max-width:1500px;margin:auto;padding:30px 36px 24px}header{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:28px}.brand{display:flex;gap:12px;align-items:center}.brand-icon{width:40px;height:40px;border:1px solid #2a514f;border-radius:10px;display:grid;place-items:center;background:#122a2a}.brand-icon svg{width:28px;height:28px}.eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:10px;color:var(--teal);font-weight:750}.brand h1{margin:3px 0 0;font-size:23px;letter-spacing:-.04em;font-weight:620}.header-right{display:flex;gap:12px;align-items:center}.device{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted);padding:8px 11px;border:1px solid var(--line);border-radius:6px}.intro{margin-bottom:22px;display:flex;justify-content:space-between;align-items:end;gap:20px}.intro h2{font-size:29px;font-weight:570;letter-spacing:-.035em;margin:0 0 7px}.intro p{color:var(--muted);margin:0;line-height:1.65;max-width:710px;font-size:13px}.live{white-space:nowrap;text-transform:uppercase;letter-spacing:.1em;font-size:10px;font-weight:700;display:flex;align-items:center;gap:7px;padding:8px 11px;background:#15312e;color:var(--teal);border-radius:20px}.live i{height:6px;width:6px;background:currentColor;border-radius:50%}.live.paused{color:var(--muted);background:#1c2633}.layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:18px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:11px}.controls{padding:21px;align-self:start}.section-title{font-size:10px;text-transform:uppercase;letter-spacing:.12em;font-weight:750;color:var(--muted);margin:0 0 17px}.control{margin-bottom:22px}.control label,.label{display:flex;justify-content:space-between;gap:10px;font-size:12px;font-weight:650;margin-bottom:9px}.control select,.control input[type=number]{width:100%;padding:10px 11px;font-size:12px;min-height:38px}select{max-width:100%}.control input[type=range]{width:100%;accent-color:var(--teal);margin:5px 0}.hint{font-size:11px;color:var(--muted);line-height:1.55;margin:7px 0 0}.segments{display:flex;gap:5px}.segments button{flex:1;font-size:12px;padding:8px 0}.segments button.active{color:var(--teal);border-color:#35877c;background:#16322f}.control-divider{height:1px;background:var(--line);margin:22px 0}.checkbox{display:flex;align-items:start;gap:8px;font-size:11px;line-height:1.5;color:var(--muted)}.checkbox input{margin:2px 0 0;accent-color:var(--teal)}.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.model-note{font-family:ui-monospace,monospace;font-size:10px;line-height:1.7;color:var(--muted);overflow-wrap:anywhere;margin:12px 0 0}.chart-panel{overflow:hidden}.chart-head{padding:19px 23px 16px;display:flex;justify-content:space-between;align-items:center;gap:15px;border-bottom:1px solid var(--line)}.chart-head h3{font-size:14px;font-weight:650;margin:0 0 5px}.chart-head p{font-size:11px;color:var(--muted);margin:0}.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:10px;color:var(--muted)}.legend span{display:flex;gap:6px;align-items:center}.legend b{display:inline-block;width:17px;height:2px;background:var(--teal)}.legend .prediction{background:var(--orange)}.legend .truth{height:0;border-top:2px dashed var(--blue);background:transparent}.charts{padding:8px 18px 2px}.channel{padding:17px 0 0;border-bottom:1px solid #1e2c3a}.channel:last-child{border:0}.channel-label{display:flex;align-items:center;justify-content:space-between;padding:0 6px 0 38px;font-size:11px;gap:10px}.channel-label .name{font-weight:650}.channel-label .type{font-size:10px;font-family:ui-monospace,monospace;color:var(--muted)}canvas{display:block;width:100%;height:210px}.chart-footer{display:flex;justify-content:space-between;padding:13px 23px;gap:20px;border-top:1px solid var(--line);font-size:10px;color:var(--muted)}.chart-footer strong{color:var(--ink);font-weight:500}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}.metric{padding:17px 18px}.metric .k{font-size:10px;color:var(--muted);font-weight:600}.metric .v{font-size:25px;letter-spacing:-.035em;line-height:1.6;font-variant-numeric:tabular-nums}.metric .v small{font-size:11px;color:var(--muted);letter-spacing:0}.metric .s{font-size:10px;color:var(--muted);line-height:1.5}.metric .v.accent{color:var(--teal)}.status{min-height:19px;margin:14px 0 0;color:var(--muted);font-size:11px;line-height:1.55}.status.error{color:var(--red)}.explain{margin-top:18px;padding:17px 20px;display:flex;gap:13px;font-size:11px;color:var(--muted);line-height:1.65}.explain .tag{font-size:10px;color:var(--teal);letter-spacing:.08em;font-weight:750;white-space:nowrap;margin-top:1px}.explain p{margin:0}footer{display:flex;justify-content:space-between;gap:15px;font-size:10px;color:#687d93;margin-top:23px}.empty{padding:45px 22px;text-align:center;line-height:1.7;color:var(--muted)}.empty strong{display:block;color:var(--ink);font-size:17px;margin-bottom:8px}.empty code{color:var(--teal);font-size:12px;word-break:break-word}.sampling{display:none}.sampling.visible{display:block}#refresh{font-size:11px}.toolbar{display:flex;gap:10px;align-items:center}.hidden{display:none!important}@media(max-width:1050px){.shell{padding:22px}.layout{grid-template-columns:225px minmax(0,1fr)}.controls{padding:17px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-head{align-items:start;flex-direction:column}.intro h2{font-size:25px}.header-right .device{display:none}}@media(max-width:680px){.shell{padding:17px 13px}.layout{grid-template-columns:1fr}.controls{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}.controls>.section-title,.controls>.actions,.controls>.model-note,.controls>.checkbox,.controls>.control-divider{grid-column:1/-1}.controls>.control-divider{margin:0 0 18px}.control{margin-bottom:17px}.intro{display:block}.live{display:inline-flex;margin-top:13px}.header-right{display:none}.brand h1{font-size:21px}.intro h2{font-size:25px}.chart-head{padding:17px}.charts{padding:6px}.chart-footer{padding:12px 16px}.metric{padding:14px}canvas{height:190px}.explain{display:block}.explain .tag{margin-bottom:7px}footer{display:block;line-height:1.8}.sampling{grid-column:1/-1}}
+.back{font-size:11px;color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:7px 10px}.back:hover{color:var(--ink);border-color:#657c92}.source button{font-size:12px}@media(max-width:680px){footer span{display:block}}
+</style>
+</head>
+<body>
+<!-- The Stream Lane Lab viewer from ReaLLM-Forge PR #924 (huggingface_model/hf_experiments/stream-lane-lab,
+     lane_lab/static/index.html), served by Bio-dash at /lab with the live Polar H10 as a second source.
+     Same API: GET /api/models, GET /api/signal, POST /api/forecast; plus GET /api/lab/rows for the live rows. -->
+<div class="shell">
+<header>
+  <div class="brand"><div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M2 19C6 19 6 7 10 7S14 25 18 25 22 10 26 10 28 16 30 16" stroke="#4ad5bc" stroke-width="2"/><path d="M2 24C7 24 8 14 12 14S16 20 20 20 25 6 30 6" stroke="#4ad5bc" stroke-width="1" opacity=".3"/></svg></div><div><div class="eyebrow">Bio-dash · a small transformer, in motion</div><h1>Stream Lane Lab</h1></div></div>
+  <div class="header-right"><span class="device" id="device">Connecting to the forecast service</span><button class="quiet" id="refresh" type="button">Refresh checkpoints ↻</button><a class="back" href="/#/heart">← Bio-dash</a></div>
+</header>
+<div class="intro"><div><h2 id="intro-title">Watch the next heartbeat take shape.</h2><p id="intro-text"></p></div><span id="live" class="live paused"><i></i><span>Ready</span></span></div>
+<main class="layout">
+<aside class="panel controls" aria-label="Experiment controls">
+  <p class="section-title">Stream configuration</p>
+  <div class="control"><label>Source</label><div class="segments source" id="source" aria-label="Source"><button type="button" data-source="live" class="active" aria-pressed="true">Live strap</button><button type="button" data-source="sine" aria-pressed="false">Sine waves</button></div><p class="hint" id="source-hint"></p></div>
+  <div class="control sine-only"><label>Input channels</label><div class="segments" id="channels" aria-label="Input channels"><button type="button" data-channels="1" class="active" aria-pressed="true">1</button><button type="button" data-channels="2" aria-pressed="false">2</button><button type="button" data-channels="3" aria-pressed="false">3</button></div><p class="hint">Each channel combines multiple sine waves.</p></div>
+  <div class="control"><label for="checkpoint">Checkpoint</label><select id="checkpoint"><option>Loading…</option></select><p class="hint" id="checkpoint-hint">Models come from the dashboard's forecast service.</p></div>
+  <div class="control sine-only"><label for="seed">Signal seed</label><input id="seed" type="number" min="0" max="2147483647" value="2026"><p class="hint">Changing the seed starts a fresh signal.</p></div>
+  <div class="control"><label for="horizon">Forecast horizon <span id="horizon-value">8 samples</span></label><input id="horizon" type="range" min="1" max="64" value="8"><p class="hint">Start short; increase the horizon to inspect forecast drift.</p></div>
+  <div class="control"><label for="mode">Decoding</label><select id="mode"><option value="mean">Probability mean</option><option value="greedy">Greedy · highest probability</option><option value="sample">Sample · categorical</option></select><p class="hint">Predictions feed back into the model during the rollout.</p></div>
+  <div class="sampling" id="sampling"><div class="control"><label for="temperature">Temperature</label><input id="temperature" type="number" min="0.05" max="5" step="0.05" value="0.8"></div><div class="control"><label for="top-k">Top-k <span>0 = all states</span></label><input id="top-k" type="number" min="0" max="4096" value="8"></div></div>
+  <div class="control-divider"></div>
+  <div class="control sine-only"><label for="speed">Playback pace</label><select id="speed"><option value="500">2 samples / second</option><option value="250" selected>4 samples / second</option><option value="100">10 samples / second</option></select><p class="hint">Playback waits for inference when needed.</p></div>
+  <label class="checkbox sine-only"><input id="truth" type="checkbox" checked><span>Show future demo truth as a dashed line. The model never receives it.</span></label>
+  <div class="control-divider sine-only"></div>
+  <div class="actions"><button id="play" type="button" class="primary">▶ Start stream</button><button id="reset" type="button">↺ Reset</button></div>
+  <div class="model-note" id="model-note">No model loaded.</div>
+</aside>
+<section aria-label="Forecasting charts and measurements">
+  <div class="panel chart-panel">
+    <div class="chart-head"><div><h3>Observed signal &amp; model forecast</h3><p id="chart-note">The vertical line marks the latest forecast origin. Orange history preserves past one-step predictions.</p></div><div class="legend"><span><b></b>Observed</span><span><b class="prediction"></b>Forecast</span><span id="truth-legend"><b class="truth"></b>Future truth</span></div></div>
+    <div id="empty" class="empty hidden"><strong id="empty-title">No checkpoint for this channel count yet.</strong><span id="empty-text">The H10 models take 1 (ECG) or 4 (ECG + motion) columns.</span></div>
+    <div id="charts" class="charts"></div>
+    <div class="chart-footer"><span>Sample <strong id="sample">—</strong> · observed context <strong id="context">—</strong></span><span id="footer-note">Forecasts run on the dashboard's GPU</span></div>
+  </div>
+  <div class="metrics">
+    <div class="panel metric"><div class="k">ONE-STEP MAE</div><div class="v accent" id="one-step">—</div><div class="s" id="one-count">Waiting for next observed sample</div></div>
+    <div class="panel metric"><div class="k">MATURED ROLLOUT MAE</div><div class="v" id="rollout">—</div><div class="s" id="roll-count">Only targets that have arrived</div></div>
+    <div class="panel metric"><div class="k">ROLLOUT LATENCY</div><div class="v" id="latency">— <small>ms</small></div><div class="s" id="latency-note">Excludes checkpoint loading</div></div>
+    <div class="panel metric"><div class="k">FORECAST FRAMES / SECOND</div><div class="v" id="fps">—</div><div class="s">Model rollout throughput</div></div>
+  </div>
+  <p class="status" id="status" role="status" aria-live="polite">Loading model inventory…</p>
+  <div class="panel explain"><div class="tag">CAUSAL BY CONSTRUCTION</div><p>Every forecast starts from observed samples only. Its future frames are generated recursively; each prediction becomes the next input. Error updates only when a target arrives, across all channels. Live: the strap's rows on the models' 8 ms grid, the same rows the dashboard's forecast uses. A research demo, not a medical device.</p></div>
+</section>
+</main>
+<footer><span>STREAM LANE LAB / viewer from ReaLLM-Forge PR #924 · live source and H10 models from Bio-dash</span><span>Forecasts run on this dashboard's forecast service</span></footer>
+</div>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+// sig: absolute row index -> [values per column]. Sine: index = frame number. Live: index = round(t_ms / interval).
+const state = {source:'live', models:[], model:null, channels:1, sig:new Map(), index:-1, origin:-1, predictions:[], historical:[],
+  running:false, busy:false, generation:0, timer:null, pending:[], one:[], rollout:[], latency:null, steps:0,
+  live:{after:null, piece:null, dt:8, poll:null, state:'', detail:''}};
+const MAX_METRICS = 10000, LIVE_KEEP = 4000, LIVE_SHOW = 250, MIN_CONTEXT = 64;
+const rowAt = i => state.sig.get(i);
+function status(message,error=false){$('status').textContent=message;$('status').classList.toggle('error',error)}
+const API='/api/d/heart';   // the Heart API (polar_dashboard/api.py), which passes these on to the forecast service
+async function api(url,options){const response=await fetch(url,options);let data;try{data=await response.json()}catch{throw Error(`Server returned HTTP ${response.status}`)}if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail||data));return data}
+function currentSeed(){const n=Number($('seed').value);if(!Number.isInteger(n)||n<0||n>2147483647)throw Error('Signal seed must be an integer between 0 and 2147483647.');return n}
+function setRunning(value){state.running=value;$('play').textContent=value?'Ⅱ Pause':'▶ Start stream';$('live').classList.toggle('paused',!value);$('live').lastElementChild.textContent=value?(state.source==='live'?'Live':'Streaming'):'Paused';if(!value)clearTimeout(state.timer);if(state.source==='live'){value?startPolling():stopPolling()}}
+function applySource(){
+  const live=state.source==='live';
+  document.querySelectorAll('.sine-only').forEach(el=>el.classList.toggle('hidden',live));
+  $('intro-title').textContent=live?'Watch the next heartbeat take shape.':'Watch the next samples take shape.';
+  $('intro-text').textContent=live?'The Polar H10 live, on the models’ 8 ms grid. Each forecast starts from the newest rows; the real signal then arrives over it.':'Live superimposed sine waves, learned one frame at a time. Compare a model’s continuation with the signal as it arrives.';
+  $('source-hint').textContent=live?'The strap connected to this dashboard. Needs the forecast service running.':'PR #924’s demo signal (values within ±1).';
+  $('chart-note').textContent=live?'The vertical line marks the latest forecast origin; the signal keeps arriving past it. Orange history preserves past one-step predictions.':'The vertical line marks the latest forecast origin. Orange history preserves past one-step predictions.';
+  const h=$('horizon');h.max=live?String(Math.min(128,state.model?.max_horizon||128)):'64';if(Number(h.value)>Number(h.max))h.value=h.max;horizonLabel();
+}
+function horizonLabel(){const n=Number($('horizon').value), dt=state.model?.interval_ms;$('horizon-value').textContent=`${n} samples${state.source==='live'&&dt?` · ${Math.round(n*dt)} ms`:''}`}
+function syncModels(){
+  const previous=$('checkpoint').value, live=state.source==='live';
+  const available=live?state.models:state.models.filter(m=>m.channels===state.channels);
+  $('checkpoint').replaceChildren();
+  available.forEach(model=>{const option=document.createElement('option');option.value=model.id;option.textContent=`${model.name} · ${model.channels} column${model.channels===1?'':'s'}`;$('checkpoint').append(option)});
+  if(available.some(m=>m.id===previous))$('checkpoint').value=previous;
+  if(!available.length){const option=document.createElement('option');option.textContent='No matching checkpoint';option.value='';$('checkpoint').append(option)}
+  state.model=available.find(m=>m.id===$('checkpoint').value)||null;
+  if(live&&state.model)state.channels=state.model.channels;
+  $('empty').classList.toggle('hidden',!!state.model);
+  $('empty-title').textContent=live?'No forecast model installed.':'No checkpoint for this channel count yet.';
+  $('checkpoint-hint').textContent=state.model?`${state.model.context_length}-frame context${state.model.interval_ms?` · ${state.model.interval_ms} ms per row`:''}${state.model.d_model?` · ${state.model.d_model} wide · ${state.model.n_layers} layers`:''}`:'The H10 models take 1 (ECG) or 4 (ECG + motion) columns.';
+  $('model-note').textContent=state.model?state.model.columns.map((c,i)=>`C${i+1} ${c.name||''}: ${c.kind==='integer_range'?'integer range':c.kind}${c.kind==='slerp'?` K=${c.knots}`:''}${c.tied===undefined?'':c.tied?' · tied':' · untied'} · ${c.levels} levels${c.minimum!==undefined?` · ${c.minimum}…${c.maximum}${c.unit?' '+c.unit:''}`:''}`).join('\n'):'Signal-only view. No model forecast.';
+  $('model-note').style.whiteSpace='pre-line';
+  applySource();
+}
+async function loadModels(){const data=await api(API+'/api/models');state.models=data.models;$('device').textContent=`${String(data.device||'').toUpperCase()}${data.threads?` · ${data.threads} thread${data.threads===1?'':'s'}`:''}`;if(data.message)status(data.message);syncModels()}
+function createCharts(){
+  $('charts').replaceChildren();
+  for(let c=0;c<state.channels;c++){
+    const div=document.createElement('div');div.className='channel';
+    const label=document.createElement('div');label.className='channel-label';
+    const spec=state.model?.columns[c];
+    const name=document.createElement('span');name.className='name';name.textContent=spec?.name||`Channel ${c+1}`;
+    const type=document.createElement('span');type.className='type';type.textContent=spec?`${spec.kind==='integer_range'?'integer range':spec.kind}${spec.kind==='slerp'?` / ${spec.knots} knots`:''}${spec.tied===undefined?'':spec.tied?' / tied':' / untied'}${spec.unit?` / ${spec.unit}`:''}`:'superimposed sines';
+    label.append(name,type);const canvas=document.createElement('canvas');canvas.dataset.channel=c;canvas.setAttribute('role','img');canvas.setAttribute('aria-label',`${name.textContent}: observed values and future forecasts`);div.append(label,canvas);$('charts').append(div);
+  }
+}
+function resetMetrics(){state.pending=[];state.historical=[];state.one=[];state.rollout=[];state.latency=null;state.steps=0;renderMetrics()}
+async function reset(){
+  setRunning(false);const generation=++state.generation;state.predictions=[];state.sig=new Map();resetMetrics();
+  createCharts();
+  if(state.source==='live'){
+    state.live.after=null;state.live.piece=null;state.index=-1;state.origin=-1;draw();
+    if(!state.model){status('No forecast model is installed, so there is nothing to forecast with.',true);return}
+    status('Press Start to follow the strap live.');return;
+  }
+  status('Preparing a fresh signal…');
+  try{
+    const data=await api(`${API}/api/signal?seed=${currentSeed()}&channels=${state.channels}&frames=4096`);
+    if(generation!==state.generation)return;
+    data.values.forEach((row,i)=>state.sig.set(i,row));state.index=(state.model?.context_length||64)-1;state.origin=state.index;draw();
+    if(state.model)await forecast(generation);else status('No checkpoint selected. Start the stream to inspect the synthetic input.');
+  }catch(error){if(generation===state.generation)status(error.message,true)}
+}
+// ---------- live source: poll the strap's newest rows, forecast from the newest whenever the last one is back
+function stopPolling(){clearTimeout(state.live.poll);state.live.poll=null}
+function startPolling(){stopPolling();poll()}
+async function poll(){
+  const generation=state.generation, L=state.live;
+  if(!state.running||state.source!=='live'||!state.model)return;
+  try{
+    const q=`model_id=${encodeURIComponent(state.model.id)}${L.after!==null?`&after=${L.after}&piece=${L.piece}`:''}`;
+    const data=await api(`${API}/api/lab/rows?${q}`);
+    if(generation!==state.generation||!state.running)return;
+    L.dt=data.interval_ms;L.state=data.state;L.detail=data.detail;
+    if(data.restart){state.sig=new Map();state.predictions=[];state.pending=[];state.historical=[]}
+    L.piece=data.piece;
+    data.times.forEach((t,i)=>{state.sig.set(Math.round(t/L.dt),data.rows[i]);L.after=t});
+    if(data.times.length){
+      state.index=Math.round(data.times[data.times.length-1]/L.dt);
+      if(state.sig.size>LIVE_KEEP){for(const k of state.sig.keys()){if(state.sig.size<=LIVE_KEEP)break;state.sig.delete(k)}}
+      mature();
+      if(!state.busy&&contextRows()>=MIN_CONTEXT)forecast(generation);
+      if(state.origin<0)state.origin=state.index;
+      draw();renderMetrics();
+    }else if(!state.sig.size){status(data.state==='forecasting'||data.state==='idle'?'Waiting for rows from the strap…':`Forecast service: ${data.state}${data.detail?` (${data.detail})`:''}`)}
+  }catch(error){status(error.message,true)}
+  if(state.running&&generation===state.generation)L.poll=setTimeout(poll,120);
+}
+function contextRows(){let n=0;for(let i=state.index;state.sig.has(i)&&n<(state.model?.context_length||256);i--)n++;return n}
+async function forecast(generation){
+  if(!state.model)return;
+  const origin=state.index, model=state.model, horizon=Number($('horizon').value);
+  const want=Math.max(1,Math.min(model.context_length-(state.source==='live'?horizon:0),model.context_length));
+  const history=[];for(let i=origin;history.length<want&&state.sig.has(i);i--)history.unshift(rowAt(i));
+  if(!history.length)return;
+  state.busy=true;
+  try{
+    const body={model_id:model.id,history,horizon,mode:$('mode').value,temperature:Number($('temperature').value),top_k:Number($('top-k').value),seed:((state.source==='sine'?currentSeed():0)+origin)%2147483647};
+    const result=await api(API+'/api/forecast',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(generation!==state.generation)return;
+    state.predictions=result.predictions;state.origin=origin;state.latency=result.latency_ms;
+    state.historical.push({target:origin+1,values:result.predictions[0]});if(state.historical.length>2000)state.historical.shift();
+    result.predictions.forEach((values,h)=>state.pending.push({target:origin+h+1,values,horizon:h+1}));
+    const clipped=result.out_of_range_counts.reduce((a,b)=>a+b,0);
+    status(`${result.history_frames_used} observed frames → ${horizon} recursively predicted frames.${clipped?` ${clipped} input values lie outside checkpoint ranges.`:''}${result.model_loaded?' Checkpoint loaded. First inference can include backend warmup.':''}`);
+    mature();draw();renderMetrics();
+  }catch(error){if(generation===state.generation){setRunning(false);status(error.message,true)}}finally{state.busy=false}
+}
+function mature(){
+  const keep=[];
+  for(const prediction of state.pending){
+    if(prediction.target>state.index){keep.push(prediction);continue}
+    const truth=rowAt(prediction.target);if(!truth)continue;
+    for(let c=0;c<state.channels;c++){
+      const error=Math.abs(prediction.values[c]-truth[c]);state.rollout.push(error);if(prediction.horizon===1)state.one.push(error);
+    }
+  }
+  state.pending=keep;if(state.one.length>MAX_METRICS)state.one=state.one.slice(-MAX_METRICS);if(state.rollout.length>MAX_METRICS)state.rollout=state.rollout.slice(-MAX_METRICS);
+}
+async function tick(){
+  if(!state.running||state.source!=='sine')return;
+  const started=performance.now(), generation=state.generation;
+  if(!state.sig.has(state.index+130)){setRunning(false);status('End of this 4096-frame signal. Reset to start again.');return}
+  if(state.busy){state.timer=setTimeout(tick,50);return}
+  state.index++;state.steps++;mature();draw();renderMetrics();
+  if(state.model)await forecast(generation);
+  if(state.running&&generation===state.generation)state.timer=setTimeout(tick,Math.max(10,Number($('speed').value)-(performance.now()-started)));
+}
+function mean(values){return values.length?values.reduce((a,b)=>a+b,0)/values.length:null}
+function renderMetrics(){
+  const one=mean(state.one), roll=mean(state.rollout), live=state.source==='live';
+  const unit=live&&state.channels===1?(state.model?.columns[0]?.unit||''):'', dp=live?3:4;
+  $('one-step').textContent=one===null?'—':one.toFixed(dp)+(unit?` ${unit}`:'');$('rollout').textContent=roll===null?'—':roll.toFixed(dp)+(unit?` ${unit}`:'');
+  $('one-count').textContent=state.one.length?`${state.one.length.toLocaleString()} revealed channel targets`:'Waiting for next observed sample';
+  $('roll-count').textContent=state.rollout.length?`${state.rollout.length.toLocaleString()} revealed forecasts · overlapping origins`:'Only targets that have arrived';
+  $('latency').replaceChildren(document.createTextNode(state.latency===null?'— ':`${state.latency.toFixed(1)} `));const u=document.createElement('small');u.textContent='ms';$('latency').append(u);
+  $('fps').textContent=state.latency?Math.round(1000*state.predictions.length/state.latency).toLocaleString():'—';
+}
+function niceTicks(min,max){const span=max-min,raw=span/4,mag=10**Math.floor(Math.log10(raw)),step=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=raw);const out=[];for(let v=Math.ceil(min/step)*step;v<=max+1e-9;v+=step)out.push(+v.toFixed(6));return {ticks:out,step}}
+function draw(){
+  const live=state.source==='live';
+  $('sample').textContent=state.index<0?'—':state.index.toLocaleString();$('context').textContent=state.model?`${contextRows()} frames`:'signal only';
+  const showTruth=!live&&$('truth').checked;$('truth-legend').classList.toggle('hidden',!showTruth);
+  const horizon=Number($('horizon').value);
+  const hasForecast=state.predictions.length>0;
+  const origin=hasForecast?state.origin:state.index;
+  for(const canvas of document.querySelectorAll('canvas')){
+    const c=Number(canvas.dataset.channel), bounds=canvas.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+    canvas.width=Math.max(1,Math.round(bounds.width*dpr));canvas.height=Math.round(bounds.height*dpr);const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+    const w=bounds.width,h=bounds.height,pad={l:48,r:15,t:25,b:30},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
+    ctx.clearRect(0,0,w,h);
+    if(state.index<0){ctx.fillStyle='#73889e';ctx.font='12px ui-sans-serif,system-ui';ctx.textAlign='center';ctx.fillText(live?'Press Start to follow the strap':'No signal',w/2,h/2);continue}
+    const right=live?Math.max(state.index,origin+horizon)+3:origin+horizon+3, left=Math.max(0,(live?right-LIVE_SHOW-horizon:origin-95));
+    let min=-1.12,max=1.12;
+    if(live){const vals=[];for(let i=left;i<=state.index;i++){const r=rowAt(i);if(r)vals.push(r[c])}state.predictions.forEach(r=>vals.push(r[c]));
+      if(vals.length){min=Math.min(...vals);max=Math.max(...vals);const span=Math.max(max-min,c===0?0.4:50),mid=(max+min)/2;min=mid-span*0.58;max=mid+span*0.58}}
+    const x=i=>pad.l+(i-left)/(right-left)*pw, y=v=>pad.t+(max-v)/(max-min)*ph;
+    ctx.fillStyle='#192431';ctx.fillRect(x(origin),pad.t,w-pad.r-x(origin),ph);
+    ctx.font='10px ui-monospace,monospace';ctx.textBaseline='middle';
+    const {ticks,step}=live?niceTicks(min,max):{ticks:[-1,-.5,0,.5,1],step:.5};
+    for(const v of ticks){ctx.strokeStyle=v===0?'#304151':'#23313f';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,y(v));ctx.lineTo(w-pad.r,y(v));ctx.stroke();ctx.fillStyle='#73889e';ctx.textAlign='right';ctx.fillText(step<1?v.toFixed(step<0.1?2:1):String(Math.round(v)),pad.l-9,y(v));}
+    const xstep=live?125:Math.ceil((right-left)/5/10)*10;
+    for(let i=Math.ceil(left/xstep)*xstep;i<=right;i+=xstep){ctx.strokeStyle='#1e2d3b';ctx.beginPath();ctx.moveTo(x(i),pad.t);ctx.lineTo(x(i),h-pad.b);ctx.stroke();ctx.fillStyle='#73889e';ctx.textAlign='center';ctx.fillText(live?`${((i-state.index)*state.live.dt/1000).toFixed(1)} s`:String(i),x(i),h-13)}
+    ctx.save();ctx.beginPath();ctx.rect(pad.l,pad.t,pw,ph);ctx.clip();
+    function path(points,color,dash,width){ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);let first=true;for(const [i,v]of points){if(!Number.isFinite(v)){first=true;continue}if(first){ctx.moveTo(x(i),y(v));first=false}else ctx.lineTo(x(i),y(v))}ctx.stroke();ctx.setLineDash([])}
+    if(showTruth){const pts=[];for(let i=origin;i<=right;i++)pts.push([i,rowAt(i)?.[c]]);path(pts,'#8faeff',[3,5],1.6)}
+    const actual=[];for(let i=left;i<=state.index;i++)actual.push([i,rowAt(i)?.[c]]);path(actual,'#4ad5bc',[],live?1.6:2);
+    const past=state.historical.filter(p=>p.target>=left&&p.target<=state.index).map(p=>[p.target,p.values[c]]);
+    if(live){ctx.fillStyle='#ffb661';for(const [i,v] of past){if(Number.isFinite(v)){ctx.beginPath();ctx.arc(x(i),y(v),1.8,0,2*Math.PI);ctx.fill()}}}   // live forecasts start ~20 rows apart: dots, not a line
+    else path(past,'#ffb661',[2,3],1.4);
+    if(hasForecast){const predicted=[[origin,rowAt(origin)?.[c]],...state.predictions.map((row,i)=>[origin+i+1,row[c]])];path(predicted,'#ffb661',[],2.1)}
+    ctx.restore();
+    ctx.strokeStyle='#61778c';ctx.lineWidth=1;ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(x(origin),pad.t);ctx.lineTo(x(origin),h-pad.b);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#8298ae';ctx.textAlign='left';ctx.font='9px ui-sans-serif,system-ui';ctx.fillText('OBSERVED',pad.l,12);ctx.fillStyle='#b8c6d6';ctx.textAlign='right';ctx.fillText('FORECAST',w-pad.r,12);
+    const last=rowAt(state.index)?.[c];if(Number.isFinite(last)){ctx.beginPath();ctx.arc(x(state.index),y(last),3,0,2*Math.PI);ctx.fillStyle='#4ad5bc';ctx.fill()}
+  }
+}
+async function changeSetup(){syncModels();await reset()}
+$('source').addEventListener('click',async e=>{const button=e.target.closest('button');if(!button)return;state.source=button.dataset.source;for(const b of $('source').children){const selected=b===button;b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected))}
+  if(state.source==='sine'){state.channels=Number($('channels').querySelector('.active').dataset.channels);if(Number($('horizon').value)>64)$('horizon').value='8'}else if(Number($('horizon').value)<16)$('horizon').value='64';
+  await changeSetup()});
+$('channels').addEventListener('click',async e=>{const button=e.target.closest('button');if(!button)return;state.channels=Number(button.dataset.channels);for(const b of $('channels').children){const selected=b===button;b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected))}await changeSetup()});
+$('checkpoint').addEventListener('change',changeSetup);
+$('seed').addEventListener('change',reset);
+$('mode').addEventListener('change',()=>{$('sampling').classList.toggle('visible',$('mode').value==='sample');if(state.source==='sine')reset()});
+$('horizon').addEventListener('input',()=>{horizonLabel();draw()});
+$('horizon').addEventListener('change',()=>{if(state.source==='sine')reset();else{state.predictions=[];state.pending=[]}});
+$('temperature').addEventListener('change',()=>{if(state.source==='sine')reset()});$('top-k').addEventListener('change',()=>{if(state.source==='sine')reset()});
+$('truth').addEventListener('change',draw);
+$('play').addEventListener('click',()=>{if(state.source==='sine'&&!state.sig.size)return;if(!state.model&&state.source==='live')return;setRunning(!state.running);if(state.running&&state.source==='sine')tick()});
+$('reset').addEventListener('click',reset);
+$('refresh').addEventListener('click',async()=>{try{setRunning(false);await loadModels();await reset()}catch(error){status(error.message,true)}});
+window.addEventListener('resize',draw);
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.running&&state.source==='live')setRunning(false)});
+(async()=>{$('horizon').value='64';applySource();try{await loadModels();await reset()}catch(error){status(`Could not reach the forecast service: ${error.message}`,true)}})();
+</script>
+</body>
+</html>

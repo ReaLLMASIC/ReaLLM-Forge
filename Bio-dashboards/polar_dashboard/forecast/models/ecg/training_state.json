@@ -1,0 +1,11 @@
+{
+  "iter_num": 36250,
+  "val_loss": 2.436737298965454,
+  "lane_val_losses": {
+    "iter_num": 36250,
+    "mean_train_loss": 2.4053986072540283,
+    "mean_val_loss": 2.436737298965454,
+    "best_val_loss": 2.436737298965454,
+    "val_ecg_uv": 2.436737298965454
+  }
+}

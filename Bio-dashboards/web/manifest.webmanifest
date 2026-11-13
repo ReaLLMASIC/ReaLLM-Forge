@@ -1,0 +1,10 @@
+{
+  "name": "Bio-dash",
+  "short_name": "Bio-dash",
+  "description": "Heart, oxygen, air and water, live and over time.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1120",
+  "theme_color": "#0b1120",
+  "icons": [{ "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

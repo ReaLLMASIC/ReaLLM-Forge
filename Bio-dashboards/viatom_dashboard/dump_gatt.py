@@ -1,8 +1,12 @@
 # dump_gatt.py
+# Usage: python3 dump_gatt.py <device-address>
 import asyncio
+import sys
 from bleak import BleakClient
 
-TARGET_MAC = "F3:A0:A8:E3:F5:63"
+if len(sys.argv) != 2:
+    sys.exit("usage: python3 dump_gatt.py <device-address>   (find it with: bluetoothctl devices)")
+TARGET_MAC = sys.argv[1]
 
 async def run():
     print(f"Connecting to {TARGET_MAC} to map services...")

@@ -1,0 +1,86 @@
+{
+  "format": "bio-dash waves v2",
+  "made_for": "ReaLLM-Forge data/csv_mc_int (token_id = value - int_min)",
+  "method": "one row every 8 ms (125 Hz) at whole multiples of 8 ms in epoch time; the ECG and each accelerometer axis interpolated linearly at every instant from their two neighbouring samples; pieces end at ECG steps over max_gap_ms and where the accelerometer neighbours are over acc_max_gap_ms apart; pieces under min_piece_s left out (Bio-dash analysis_dashboard/waves.py, grid method)",
+  "settings": {
+    "with_acc": true,
+    "max_gap_ms": 50.0,
+    "acc_max_gap_ms": 50.0,
+    "min_piece_s": 30.0,
+    "sample_rate_hz": 125.0,
+    "grid_ms": 8,
+    "ecg_step_uv": 1,
+    "ecg_clip_uv": 2500,
+    "acc_step_mg": 1,
+    "acc_clip_mg": 2000
+  },
+  "csv": "h10_g125_ecg_acc.csv",
+  "rows": 3243967,
+  "hours": 7.209,
+  "measured_rate_hz": 125.0,
+  "pieces": 54,
+  "rows_left_out": 120839,
+  "rows_clipped": {
+    "ecg_uv": 2568,
+    "acc_x_mg": 246,
+    "acc_y_mg": 7,
+    "acc_z_mg": 32
+  },
+  "ecg_rows_without_acc": 16845,
+  "overlap_rows_dropped": 0,
+  "decode": "ecg_uv: mV = value * 1 / 1000; acc_x_mg: mg = value * 1; acc_y_mg: mg = value * 1; acc_z_mg: mg = value * 1",
+  "columns": [
+    {
+      "column": "ecg_uv",
+      "signal": "polar.ecg",
+      "unit": "mV",
+      "scale": 1000,
+      "step": 1,
+      "int_min": -2500,
+      "int_max": 2500,
+      "vocab_size": 5001,
+      "decode": "mV = value * 1 / 1000"
+    },
+    {
+      "column": "acc_x_mg",
+      "signal": "polar.acc.x",
+      "unit": "mg",
+      "scale": 1,
+      "step": 1,
+      "int_min": -2000,
+      "int_max": 2000,
+      "vocab_size": 4001,
+      "decode": "mg = value * 1"
+    },
+    {
+      "column": "acc_y_mg",
+      "signal": "polar.acc.y",
+      "unit": "mg",
+      "scale": 1,
+      "step": 1,
+      "int_min": -2000,
+      "int_max": 2000,
+      "vocab_size": 4001,
+      "decode": "mg = value * 1"
+    },
+    {
+      "column": "acc_z_mg",
+      "signal": "polar.acc.z",
+      "unit": "mg",
+      "scale": 1,
+      "step": 1,
+      "int_min": -2000,
+      "int_max": 2000,
+      "vocab_size": 4001,
+      "decode": "mg = value * 1"
+    }
+  ],
+  "range": {
+    "days": null,
+    "from": null,
+    "to": null,
+    "device": null
+  },
+  "recordings_used": 41,
+  "recordings_total": 54
+}

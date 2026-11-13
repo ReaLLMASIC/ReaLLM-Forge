@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1120">
+<meta name="color-scheme" content="dark light">
+<title>Bio-dash</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/static/icon.svg?v={{V}}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon.svg?v={{V}}">
+<link rel="stylesheet" href="/static/css/app.css?v={{V}}">
+<!-- set the theme before the first paint, so there's no flash of the wrong colours -->
+<script src="/static/js/theme.js?v={{V}}"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="shell">
+  <aside class="rail" aria-label="Main">
+    <a class="brand" href="#/">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="var(--brand)"/><path d="M5 17h5l2.5-6 4 12 3-9 2 3H27" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Bio-dash</span>
+    </a>
+    <nav class="nav" id="nav"></nav>
+    <div class="rail-foot" id="rail-foot"></div>
+  </aside>
+  <header class="topbar">
+    <a class="brand small" href="#/" aria-label="Bio-dash home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="var(--brand)"/><path d="M5 17h5l2.5-6 4 12 3-9 2 3H27" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+    <h1 class="topbar-title" id="topbar-title">Bio-dash</h1>
+    <span class="conn" id="conn" hidden>Reconnecting…</span>
+    <a class="icon-btn" href="#/settings" aria-label="Settings" id="topbar-settings"></a>
+  </header>
+  <main id="main" tabindex="-1"></main>
+  <nav class="tabbar" id="tabbar" aria-label="Pages"></nav>
+</div>
+<div id="layer"></div>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<noscript><p style="padding:2rem">Bio-dash needs JavaScript turned on.</p></noscript>
+<script type="module" src="/static/js/app.js?v={{V}}"></script>
+</body>
+</html>
